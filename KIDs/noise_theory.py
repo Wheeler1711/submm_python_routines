@@ -9,6 +9,7 @@ import scipy.special as special
 #Written by Jordan on 12/12/2016
 
 #Change log
+# 1/6/2017 added nqp_min as a specified parameter for grnoise 
 
 
 
@@ -48,7 +49,8 @@ def df_response(t,tc,f):
     dff_dt = (deltaf_f(t+delta_t,tc,f,1,1) - deltaf_f(t-delta_t,tc,f,1,1))/(2*delta_t)
     return dff_dt
 
-def grnoise(t,tc,V,tau_qp,N0,f):
+
+def grnoise(t,tc,V,tau_qp,N0,f,nqp_min):
 # V in cubic microns
 #if ~keyword_set(N0) then N0=4.e10 ; microns^3 / eV
 #if ~keyword_set(tau_qp) then tau_qp = 5e-6 ; sec
@@ -63,10 +65,10 @@ def grnoise(t,tc,V,tau_qp,N0,f):
     #Nqp = v * 2 * N0 * sqrt(2*!pi*delta * 1.381e-23 * T) *exp(-1*Delta / (1.381e-23 * T)) + v * nqp_min
     dNqp_dt = V*2.*N0*np.sqrt(2*np.pi*Delta*1.318e-23)*np.exp(-1.*Delta/(1.381e-23*t))*(1./(2.*np.sqrt(t)) + np.sqrt(t)*Delta/1.381e-23/t**2)
     delta_t = t/30.
-    dNqp_dt = (nqp(t+delta_t,tc,V,800)-nqp(t-delta_t,tc,V,800))/(2*delta_t)
+    dNqp_dt = (nqp(t+delta_t,tc,V,nqp_min)-nqp(t-delta_t,tc,V,nqp_min))/(2*delta_t)
 
     beta = df_response(t,tc,f)/dNqp_dt
     #assume a frequency of 100 MHz here, shouldn't matter.
 
-    ef2 = 4. * beta**2 * nqp(t,tc,V,800) * tau_qp
+    ef2 = 4. * beta**2 * nqp(t,tc,V,nqp_min) * tau_qp
     return ef2
