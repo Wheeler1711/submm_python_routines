@@ -88,7 +88,15 @@ def read_cal(filename): #reading the calibrated file requires the raw file as we
     blind_S21_tan = S21_tan[:,blind_index]
     blind_S21_norm = S21_norm[:,blind_index]
 
-    f0_calc = cal['multitone_data_calibrated'][0]['master_f0_calculated_resampled'].astype('float64')[:,0,:]
+    #f0_calc = cal['multitone_data_calibrated'][0]['master_f0_calculated_resampled'].astype('float64')[:,0,:]
+    f0_calc = cal['multitone_data_calibrated'][0]['MASTER_F0_CALCULATED'].astype('float64')[:,0,:]
+    try:
+        nan_loc = np.where(np.isnan(f0_calc[:,-1])==True)[0][0]
+        f0_calc = f0_calc[0:nan_loc,:]
+    except:
+        f0_calc = cal['multitone_data_calibrated'][0]['master_f0_calculated_resampled'].astype('float64')[:,0,:]
+
+    
     f0_calc = f0_calc[:,non_blind_index]
 
 
