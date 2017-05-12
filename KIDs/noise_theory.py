@@ -22,7 +22,7 @@ def nqp(t,tc,v,nqp_min):
     N0 = N0/1.6e-19 # now microns^3 / Joule
 
     #Delta = double (3.5 * 1.381e-23 * tc)
-    Delta = 1.74 * 1.381e-23 * tc
+    Delta = 1.74 * 1.381e-23 * tc #factor in delta is suspect but it would be canceled out by a factor in tc
     Nqp = v*2*N0*np.sqrt(2*np.pi*Delta*1.381e-23*t)*np.exp(-1*Delta/(1.381e-23*t))+v*nqp_min
 
     return Nqp
@@ -36,7 +36,7 @@ def deltaf_f(t, tc, nu, alpha, gamma):
     #nu is in MHz
     #if ~keyword_set(alpha) then alpha=1
     #if ~keyword_set(gamma) then gamma=1
-    d_0 = 1.762*tc
+    d_0 = 1.762*tc #factor of 1.762 is suspect
     xi = 6.626e-34*nu*1.e6/(2.*1.38e-23*t)
     model = -1.*alpha*gamma/2.*np.exp(-1.*d_0/t)*((2.*np.pi*t/d_0)**0.5 + 2.*np.exp(-1.*xi)*special.iv(0,xi))
     return model
@@ -45,7 +45,7 @@ def df_response(t,tc,f):
     #calculate d (df/f) / dT via finite difference
     #f is in MHz
     #calls deltaf_f which computes frequency shift
-    delta_t = t/20.
+    delta_t = t/100.
     dff_dt = (deltaf_f(t+delta_t,tc,f,1,1) - deltaf_f(t-delta_t,tc,f,1,1))/(2*delta_t)
     return dff_dt
 
@@ -64,7 +64,7 @@ def grnoise(t,tc,V,tau_qp,N0,f,nqp_min):
     Delta = 1.74*1.381e-23*tc
     #Nqp = v * 2 * N0 * sqrt(2*!pi*delta * 1.381e-23 * T) *exp(-1*Delta / (1.381e-23 * T)) + v * nqp_min
     dNqp_dt = V*2.*N0*np.sqrt(2*np.pi*Delta*1.318e-23)*np.exp(-1.*Delta/(1.381e-23*t))*(1./(2.*np.sqrt(t)) + np.sqrt(t)*Delta/1.381e-23/t**2)
-    delta_t = t/30.
+    delta_t = t/100.
     dNqp_dt = (nqp(t+delta_t,tc,V,nqp_min)-nqp(t-delta_t,tc,V,nqp_min))/(2*delta_t)
 
     beta = df_response(t,tc,f)/dNqp_dt
