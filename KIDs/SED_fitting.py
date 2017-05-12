@@ -154,6 +154,11 @@ def fit_SED(x,y,**keywords):
     else:
         index = range(0,x.shape[0])
 
+    if ('uniform_weight' in keywords):
+        uniform_weight = keywords['uniform_weight']
+    else:
+        uniform_weight = False
+
     # initial conditions    
     if ('x0' in keywords):
         x0 = keywords['x0']
@@ -192,8 +197,13 @@ def fit_SED(x,y,**keywords):
         sigma = np.std(temp,axis = 1)
         sigma[low_freq_index] = sigma[low_freq_index]/sigma_increase_factor # artificial pretend the noise at low frequcies is 10 time lower than every where else
         fit = optimization.curve_fit(noise_profile, freqs, vals, x0 , sigma,bounds = bounds)
+        print("hello")
     else:
-        sigma = binnedstd
+        if uniform_weight == True:
+            sigma = np.ones(len(binnedstd))*np.mean(binnedstd)
+
+        else:
+            sigma = binnedstd
         fit = optimization.curve_fit(noise_profile, binnedfreq, binnedvals, x0 ,sigma,bounds = bounds)
 
     return fit
