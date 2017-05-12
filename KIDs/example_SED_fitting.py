@@ -63,7 +63,7 @@ plt.xlim(1,10**4)
 plt.ylim(10**-17,10**-13)
 
 #fitting after log binning the data
-fit = SED_fitting.fit_SED_lor(freqs,vals,x0 = x0,use_range = use_range,log = True)
+fit = SED_fitting.fit_SED_lor(freqs,vals,x0 = x0,use_range = use_range,log = True,uniform_weight = True)
 print fit[0]
 
 plt.subplot(222)

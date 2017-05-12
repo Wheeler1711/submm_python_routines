@@ -9,6 +9,7 @@ import scipy.optimize as optimization
 
 #To Do
 #I think the error analysis on the fit_nonlinear_iq_with_err probably needs some work
+# need to add in fitting in S21 space. (less parameters might be easier for an initial fit to inform the iq fit)
 
 #Change log
 
@@ -51,6 +52,7 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     for i in range(0,x.shape[0]):
         # 4y^3+ -4yg*y^2+ y -(yg+a)
         roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
+        #roots = np.roots((16.,-16.*yg[i],8.,-8.*yg[i]+4*a*yg[i]/Qr-4*a,1.,-yg[i]+a*yg[i]/Qr-a+a**2/Qr))   #more accurate version that doesn't seem to change the fit at al     
         # only care about real roots
         where_real = np.where(np.imag(roots) == 0)
         y[i] = np.max(np.real(roots[where_real]))
