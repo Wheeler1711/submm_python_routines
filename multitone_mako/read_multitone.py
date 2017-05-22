@@ -120,5 +120,50 @@ def readstream(infile,hdu = False):
     if hdu == False:
         return stream_dict
     else:
-         return hdulist 
+         return hdulist
+
+def readsearch(filename,hdu = False):
+    data  = fits.open(filename)
+    #some stuff to figure howmany hdulist there are
+    test = 0
+    i = 0
+    while test == 0:
+        try:
+            data[i].header[0]
+            i = i +1
+        except IndexError:
+            test = 1
+
+    num_rows = i 
+    sweeps = (num_rows - 1)/2
+    freqs = []
+    S21 = []
+    I = []
+    Q = []
+
+
+    for j in range(0,sweeps):# This is triple nested for loop So it is super slow becuase python sucks at nested for loops should fix with numba
+        for i in range(0,data[1+j*2].data.shape[0]-1):
+            for k in range(0,data[2+j*2].header['naxis2']):
+                freqs = np.append(freqs,data[2+j*2].data['tones'][k,i]*data[2+j*2].header['bininHz'])
+                I = np.append(I,data[2+j*2].data['I'][k,i]*data[2+j*2].header['scaling'])
+                Q = np.append(Q,data[2+j*2].data['Q'][k,i]*data[2+j*2].header['scaling'])
+                #S21 = np.append(S21,np.mean(data[2+j*2].data['I'][k,i]**2+data[2+j*2].data['Q'][k,i]**2)*data[2+j*2].header['scaling']**2)#Have to multiply by weird scaling factor
+    #print I[0]
+    sorted_data = np.vstack((freqs,I,Q))
+    sorted_data = np.transpose(sorted_data)
+    sorted_data = sorted_data[sorted_data[:,0].argsort()]
+
+    freqs = sorted_data[:,0]
+    I = sorted_data[:,1]
+    Q = sorted_data[:,2]
+
+
+    search_dict = {'freqs':freqs,'I': I, 'Q': Q}
+
+    # we want to reformat some of the data so that it is more accessable
+    if hdu == False:
+        return search_dict
+    else:
+         return data
 
