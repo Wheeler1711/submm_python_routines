@@ -6,12 +6,14 @@ from scipy.io.idl import readsav as readsav
 
 # Please note the date and details of any changes
 # writen by Jordan Wheeler 12/13/2016
+# add catch for instance when there are not
 
 #To Do
 #Would it be nicer to have these spit out a dictionary? or have another code that spits out everything as a python dictionary
 #that would probably be better so that we don't have a backwards combatibiltiy problem whenever we add new output. 
 
 #Change log
+#2017-06-02-jdw added catch for if there are no blind tone sin read_raw 
 
 def read_raw(filename): #filename is just the date/time code
 
@@ -19,26 +21,28 @@ def read_raw(filename): #filename is just the date/time code
     # Generate which resonators are blind and which are not so we don't look at blind tones
     # assumes it will be the same for each file
     raw = readsav("./" +filename +"/rawdata.sav",verbose = False)
-    bins = raw['multitone_data_raw']['bins'][0]
+    bins = raw['multitone_data_raw']['bins'][0] 
     blindbins = raw['multitone_data_raw']['blindbin'][0]
-    isblind = np.ones(bins.size)
-    f_res_all = raw['multitone_data_raw']['frlist'][0]
-
-    for i in range(0,bins.size):
-        for j in range(0,blindbins.size):
-            if bins[i] == blindbins[j]:
-                isblind[i] = 0
+    if len(blindbins) == 0: #there are no blind bins
+        isblind = np.ones(bins.size)
+    else:
+        isblind = np.ones(bins.size)
+        for i in range(0,bins.size):
+            for j in range(0,blindbins.size):
+                if bins[i] == blindbins[j]:
+                    isblind[i] = 0
 
     blind_index = np.where(isblind<0.5)[0]
     non_blind_index = np.where(isblind>0)[0]
 
+    f_res_all = raw['multitone_data_raw']['frlist'][0]
     # reads the data in 
     f_res = f_res_all[non_blind_index] #only collect the f_res of the non blind bins
     f_res_blind = f_res_all[blind_index] #only collect the f_res of the non blind bins
 
     raw_i = raw['multitone_data_raw'][0]['streamdata']['stream_data_concat'][0]['s21i'][0]
     raw_q = raw['multitone_data_raw'][0]['streamdata']['stream_data_concat'][0]['s21q'][0]
-    
+    print raw_i.shape
     non_blind_raw_i = raw_i[:,non_blind_index]
     non_blind_raw_q = raw_q[:,non_blind_index]
 
