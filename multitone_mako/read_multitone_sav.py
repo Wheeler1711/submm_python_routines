@@ -13,14 +13,15 @@ from scipy.io.idl import readsav as readsav
 #that would probably be better so that we don't have a backwards combatibiltiy problem whenever we add new output. 
 
 #Change log
-#2017-06-02-jdw added catch for if there are no blind tone sin read_raw 
+#2017-06-02-jdw added catch for if there are no blind tone sin read_raw
+#2017-06-21-jdw changed file prefix so that it doesn't have to be in current directory 
 
 def read_raw(filename): #filename is just the date/time code
 
 
     # Generate which resonators are blind and which are not so we don't look at blind tones
     # assumes it will be the same for each file
-    raw = readsav("./" +filename +"/rawdata.sav",verbose = False)
+    raw = readsav(filename +"/rawdata.sav",verbose = False)
     bins = raw['multitone_data_raw']['bins'][0] 
     blindbins = raw['multitone_data_raw']['blindbin'][0]
     if len(blindbins) == 0: #there are no blind bins
@@ -66,10 +67,10 @@ def read_raw(filename): #filename is just the date/time code
 
 def read_cal(filename): #reading the calibrated file requires the raw file as well
     try:
-        raw = readsav("./" +filename +"/rawdata.sav",verbose = False)
+        raw = readsav(filename +"/rawdata.sav",verbose = False)
     except:
         print("Reading the calibration file requires the raw file")
-    cal = readsav("./" +filename +"/calibrateddata.sav",verbose = False)
+    cal = readsav(filename +"/calibrateddata.sav",verbose = False)
 
     # have to find out which bins are blind again
     bins = raw['multitone_data_raw']['bins'][0]
