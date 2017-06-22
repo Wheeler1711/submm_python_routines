@@ -14,7 +14,8 @@ from scipy.io.idl import readsav as readsav
 
 #Change log
 #2017-06-02-jdw added catch for if there are no blind tone sin read_raw
-#2017-06-21-jdw changed file prefix so that it doesn't have to be in current directory 
+#2017-06-21-jdw changed file prefix so that it doesn't have to be in current directory
+#2017-06-21-jdw add keyword to allow loading of nonlinear fit extrapolated f0 calculated values 
 
 def read_raw(filename): #filename is just the date/time code
 
@@ -65,7 +66,11 @@ def read_raw(filename): #filename is just the date/time code
 
     return non_blind_raw_i,non_blind_raw_q,blind_raw_i,blind_raw_q,f_res,f_res_blind,non_blind_fine_i,non_blind_fine_q,blind_fine_i,blind_fine_q
 
-def read_cal(filename): #reading the calibrated file requires the raw file as well
+def read_cal(filename,**keywords): #reading the calibrated file requires the raw file as well
+    if ('model' in keywords):
+        load_model = 1
+    else:
+        load_model = 0
     try:
         raw = readsav(filename +"/rawdata.sav",verbose = False)
     except:
@@ -94,7 +99,10 @@ def read_cal(filename): #reading the calibrated file requires the raw file as we
     blind_S21_norm = S21_norm[:,blind_index]
 
     #f0_calc = cal['multitone_data_calibrated'][0]['master_f0_calculated_resampled'].astype('float64')[:,0,:]
-    f0_calc = cal['multitone_data_calibrated'][0]['MASTER_F0_CALCULATED'].astype('float64')[:,0,:]
+    if load_model == 0:
+        f0_calc = cal['multitone_data_calibrated'][0]['MASTER_F0_CALCULATED'].astype('float64')[:,0,:]
+    else:
+        f0_calc = cal['multitone_data_calibrated'][0]['master_f0_calculated_fine_seriesx_nonlinear'].astype('float64')[:,0,:]
     try:
         nan_loc = np.where(np.isnan(f0_calc[:,-1])==True)[0][0]
         f0_calc = f0_calc[0:nan_loc,:]
