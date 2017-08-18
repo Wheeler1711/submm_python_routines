@@ -12,6 +12,7 @@ import scipy.optimize as optimization
 # need to add in fitting in S21 space. (less parameters might be easier for an initial fit to inform the iq fit)
 
 #Change log
+#JDW 2017-08-17 added in a keyword/function to allow for gain varation "amp_var" to be taken out before fitting 
 
 
 
@@ -93,13 +94,25 @@ def fit_nonlinear_iq(x,z,**keywords):
         print("default initial guess used")
         fr_guess = x[np.argmin(np.abs(z))]
         x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
+    #Amplitude normalization?
+    do_amp_norm = 0
+    if ('amp_norm' in keywords):
+        amp_norm = keywords['amp_norm']
+        if amp_norm == True:
+            do_amp_norm = 1
+        elif amp_norm == False:
+            do_amp_norm = 0
+        else:
+            print "please specify amp_norm as True or False"
+    if do_amp_norm == 1:
+        z = amplitude_normalization(x,z)          
     z_stacked = np.hstack((np.real(z),np.imag(z)))    
     fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds)
     fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
     x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7],x0[8])
 
     #make a dictionary to return
-    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0}
+    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z}
     return fit_dict
 
 # same function but double fits so that it can get error and a proper covariance matrix out
@@ -120,6 +133,18 @@ def fit_nonlinear_iq_with_err(x,z,**keywords):
         print("default initial guess used")
         fr_guess = x[np.argmin(np.abs(z))]
         x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
+    #Amplitude normalization?
+    do_amp_norm = 0
+    if ('amp_norm' in keywords):
+        amp_norm = keywords['amp_norm']
+        if amp_norm == True:
+            do_amp_norm = 1
+        elif amp_norm == False:
+            do_amp_norm = 0
+        else:
+            print "please specify amp_norm as True or False"
+    if do_amp_norm == 1:
+        z = amplitude_normalization(x,z)  
     z_stacked = np.hstack((np.real(z),np.imag(z)))    
     fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds)
     fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
@@ -135,9 +160,16 @@ def fit_nonlinear_iq_with_err(x,z,**keywords):
     
 
     #make a dictionary to return
-    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0}
+    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z}
     return fit_dict
 
-
+def amplitude_normalization(x,z):
+    # normalize the amplitude varation requires a gain scan
+    #flag frequencies to use in amplitude normaliztion
+    index_use = np.where(np.abs(x-np.median(x))>100000) #100kHz away from resonator
+    poly = np.polyfit(x[index_use],np.abs(z[index_use]),2)
+    poly_func = np.poly1d(poly)
+    normalized_data = z/poly_func(x)*np.median(np.abs(z[index_use]))
+    return normalized_data
 
 
