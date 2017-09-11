@@ -61,10 +61,10 @@ def fit_SED_lor(x,y,**keywords):
     if ('use_range' in keywords):
         use_range = keywords['use_range']
         # create an index of the values you want to fit
-        index = np.where((x>use_range[0][0]) & (x<use_range[0][1]) )
+        index = np.where((x>use_range[0][0]) & (x<use_range[0][1]) )[0]
         for i in range(1,len(use_range)):
             index2 = np.where((x>use_range[i][0]) & (x<use_range[i][1]) )
-            index = np.hstack((index[0],index2[0]))  
+            index = np.hstack((index,index2[0]))  
     else:
         index = range(0,x.shape[0])
 
@@ -147,10 +147,10 @@ def fit_SED(x,y,**keywords):
     if ('use_range' in keywords):
         use_range = keywords['use_range']
         # create an index of the values you want to fit
-        index = np.where((x>use_range[0][0]) & (x<use_range[0][1]) )
+        index = np.where((x>use_range[0][0]) & (x<use_range[0][1]) )[0]
         for i in range(1,len(use_range)):
             index2 = np.where((x>use_range[i][0]) & (x<use_range[i][1]) )
-            index = np.hstack((index[0],index2[0]))  
+            index = np.hstack((index,index2[0]))  
     else:
         index = range(0,x.shape[0])
 
@@ -185,7 +185,7 @@ def fit_SED(x,y,**keywords):
     binnedstd = binnedvals_std[~np.isnan(binnedfreq_temp)]
 
     freqs = x[index]
-    vals = y[index]
+    vals = y[index] 
 
     if log ==0: #when fitting there are so many points at high frequencies compared to at low frequecies a fitting will almost ingnore the low frequency end
         # I get an extimate fo the noise by taking the standard deviation of each 10 consective points (will be some error for th last 10 points)
