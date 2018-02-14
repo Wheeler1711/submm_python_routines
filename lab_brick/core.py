@@ -5,7 +5,8 @@ import sys
 
 
 '''
-Got this of some guys github and made a few edits
+Got this of some guys github and made a few edits 
+see https://github.com/markafarrell/lab-brick-attenuator.git for the original
 -edited so that it can connect to more that one labbrick that have different serial numbers
 -edited to put the call back function in the core file for attenuation_change and attenuation response
 -edited to return the value for get_attenuation()
