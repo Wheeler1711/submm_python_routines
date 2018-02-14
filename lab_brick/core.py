@@ -109,13 +109,14 @@ class Attenuator(object):
 			self.__dev = d
 			if self.__dev is None:
 				raise ValueError('Device not found')
+			''' Does not work on windows
 			if self.__dev.is_kernel_driver_active(0):
 				try:
 					self.__dev.detach_kernel_driver(0)
 					print "kernel driver detached"
 				except usb.core.USBError as e:
 					sys.exit("Could not detach kernel driver: %s" % str(e))
-
+			'''
 			try:
 				print "marker 4"
 				self.__dev.set_configuration()
