@@ -1,5 +1,5 @@
 import numpy as np
-from LabBrick import core
+from lab_brick import core
 
 #to use this do 
 #sudo python
