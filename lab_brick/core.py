@@ -2,6 +2,7 @@ import usb.core
 import threading
 from datetime import datetime
 import sys
+import numpy as np
 
 
 '''
@@ -153,6 +154,8 @@ class Attenuator(object):
 			if self.serial == "SN:"+str(serial_number):
 				print "correct device"
 				break
+			else:
+				self.connected = False
 		
 
 		self.spawn_read_thread(debug)
@@ -272,7 +275,7 @@ class Attenuator(object):
 			self.__log.write(self.__cmd_log_string % ( datetime.now(), 'get_attenuation', ""))
 			
 		self.send_command(command, count, byteblock, debug)
-		return self.attenuation_level
+		return float(self.attenuation_level)
 	
 	def set_ramp_dwell_time(self, time, debug=False):
 	
