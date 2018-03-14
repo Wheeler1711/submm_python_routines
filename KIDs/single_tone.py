@@ -8,12 +8,12 @@ from lab_brick import core
 import os.path
 
 #To Do
-# be able to plot just a single iq_sweep
-# have option to pause be for streaming start after user hits enter
-# have best center frequecny print to screen when done with noise set
-# take nosie set needs to have option for custom filename
-# save attenuation to dictionary
-# initialize daq sample rate at 20000
+# be able to plot just a single iq_sweep - CHECK
+# have option to pause be for streaming start after user hits enter - CHECK
+# have best center frequecny print to screen when done with noise set - CHECK
+# take noise set needs to have option for custom filename
+# save attenuation to dictionary - CHECK
+# initialize daq sample rate at 20000 - CHECK
 
 class single_tone(object):
 	
@@ -22,6 +22,8 @@ class single_tone(object):
 		# Declare two internal objects: Anritsu/NIDAQ
 		self.anritsu = an.Anritsu()
 		self.daq = n.NIDAQ()
+		self.daq.sample_rate = 20000
+
 		
 		# Initializing Standard Configurations
 		self.switch_time = 0.1
@@ -31,6 +33,7 @@ class single_tone(object):
 		self.anritsu.turn_outputOn()
 		self.iq_dictionary = {}
 		self.power_dictionary = {}
+
 		
 		# Preset Span variables
 		self.gain_span = 2*10**6
@@ -43,7 +46,10 @@ class single_tone(object):
 		self.rough_numpoints = 100
 		self.med_numpoints = 100
 		self.fine_numpoints = 100
-		
+
+		# Center freq to be saved
+		self.center_frequency = 0
+
 		# Directory for Dictionary data
 		self.output_dir = "c:/users/Tycho/Data/"
 		
@@ -150,11 +156,18 @@ class single_tone(object):
 	# This method passes a frequency to be evaluated and
 	# returns a dictionary with all of the values being 
 	# tested. It finds the best place to take data
-	def take_noise_set(self, center_freq, chan3 = False, take_noise = True):
-		
-		timestr = time.strftime("%Y%m%d-%H%M%S")
-		file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
-	
+	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, *fileargv):
+
+		if(len(fileargv) < 2):
+			timestr = time.strftime("%Y%m%d-%H%M%S")
+			file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
+			file_name2 = os.path.join(self.output_dir + timestr)
+		else:
+			file_name = str(fileargv + ".txt")
+			file_name2 = str(fileargv)
+
+		self.center_frequency = center_freq
+
 		print("taking rough scan")
 		freqs_rough, I_rough, Q_rough = self.rough(center_freq)
 		rough_center_freq, min_pos_rough = self.find_min(freqs_rough, I_rough, Q_rough)
@@ -171,6 +184,9 @@ class single_tone(object):
 		freqs_gain, I_gain, Q_gain = self.gain(fine_center_freq)
 		
 		if (take_noise == True):
+
+			print('\n')
+			input("Program paused before streaming. Press enter to continue....")
 			if (chan3 == True):
 				print("taking noise data")
 				I_noise, Q_noise, ref_noise = self.stream3(fine_center_freq)
@@ -200,9 +216,19 @@ class single_tone(object):
 		self.iq_dictionary['min_pos_rough'] = min_pos_rough
 		self.iq_dictionary['min_pos_med'] = min_pos_med
 		self.iq_dictionary['max_iq_pos'] = max_iq_pos
+
+		try:
+			self.iq_dictionary['input_attn'] = self.input_attn_value
+			self.iq_dictionary['output_attn'] = self.output_attn_value
+		except:
+			pass
 		
 		self.export_file(file_name, self.iq_dictionary)
-		
+		self.save_log_iq(file_name2)
+
+		print('\n')
+		print("Best Frequency: " + str(fine_center_freq))
+
 		return self.iq_dictionary
 	
 	# This method exports the object's dictionary
@@ -215,9 +241,9 @@ class single_tone(object):
 	
 	# This method returns a saved file of all the variables
 	# and their values
-	def save_log(self, file_name):
+	def save_log_iq(self, file_name):
 		
-		file_object = open(file_name, "w")
+		file_object = open(file_name + "_logIQ.txt", "w")
 		
 		file_object.write("switch_time: " + str(self.switch_time) + "\n")
 		file_object.write("iq_integration_time: " + str(self.iq_integration_time) + "\n")
@@ -233,6 +259,8 @@ class single_tone(object):
 		file_object.write("fine_numpoints: " + str(self.fine_numpoints) + "\n")
 		file_object.write("input_attn_value: " + str(self.input_attn_value) + "\n")
 		file_object.write("output_attn_value: " + str(self.output_attn_value) + "\n")
+		file_object.write("sample_rate: " + str(self.daq.sample_rate) + "\n" )
+		file_object.write("center_freq: " + str(self.center_frequency + "\n")
 		
 		file_object.close()
 	
@@ -371,4 +399,12 @@ def plot_power_dict(dictionary):
 	plt.legend()
 	plt.show()
 
+def plot_iq_single(freq, i, q):
+	plt.figure(1)
+	plt.title("Magnitude")
+	plt.xlabel("Frequency (Mhz)")
+	plt.ylabel("Power (db)")
 
+	plt.plot((freq / 10**6), (10*np.log10(i**2 + q**2)))
+
+	plt.show()
