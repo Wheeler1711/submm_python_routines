@@ -7,6 +7,14 @@ import pickle
 from lab_brick import core
 import os.path
 
+#To Do
+# be able to plot just a single iq_sweep
+# have option to pause be for streaming start after user hits enter
+# have best center frequecny print to screen when done with noise set
+# take nosie set needs to have option for custom filename
+# save attenuation to dictionary
+# initialize daq sample rate at 20000
+
 class single_tone(object):
 	
 	def __init__(self):
@@ -146,20 +154,25 @@ class single_tone(object):
 		
 		timestr = time.strftime("%Y%m%d-%H%M%S")
 		file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
-		
+	
+		print("taking rough scan")
 		freqs_rough, I_rough, Q_rough = self.rough(center_freq)
 		rough_center_freq, min_pos_rough = self.find_min(freqs_rough, I_rough, Q_rough)
 		
+		print("taking med scan")
 		freqs_med, I_med, Q_med = self.med(rough_center_freq)
 		med_center_freq, min_pos_med = self.find_min(freqs_med, I_med, Q_med)
 		
+		print("taking fine scan")
 		freqs_fine, I_fine, Q_fine = self.fine(med_center_freq)
 		fine_center_freq, max_iq_pos = self.find_max_iq_sep(freqs_fine, I_fine, Q_fine)
 		
+		print("taking gain scan")
 		freqs_gain, I_gain, Q_gain = self.gain(fine_center_freq)
 		
 		if (take_noise == True):
 			if (chan3 == True):
+				print("taking noise data")
 				I_noise, Q_noise, ref_noise = self.stream3(fine_center_freq)
 				self.iq_dictionary['ref_noise'] = ref_noise
 				self.iq_dictionary['I_noise'] = I_noise
@@ -310,6 +323,12 @@ def plot_iq_dict(dictionary):
 	plt.xlabel("I")
 	plt.ylabel("Q")
 	
+	try:
+		plt.plot(dictionary['I_noise'][::100],dictionary['Q_noise'][::100], 'm-', label = "IQ noise")		
+		
+	except:
+		pass
+	
 	plt.plot(dictionary['I_rough'], dictionary['Q_rough'], 'r-',label = "rough")
 	plt.plot(dictionary['I_med'], dictionary['Q_med'], 'b-',label = "med")
 	plt.plot(dictionary['I_fine'], dictionary['Q_fine'], 'g-', label = "fine")
@@ -317,11 +336,7 @@ def plot_iq_dict(dictionary):
 	plt.plot(dictionary['I_fine'][dictionary['max_iq_pos']] , dictionary['Q_fine'][dictionary['max_iq_pos']], '*', label = "max sep")
 	plt.legend()
 	
-	try:
-		plt.plot(dictionary['fine_center_freq']*np.ones(len(dictionary['I_noise'][::100])), dictionary['I_noise'][::100]**2+ dictionary['Q_noise'][::100]**2, 'm-', label = "IQ noise")		
-		
-	except:
-		pass
+
 	
 
 	plt.figure(2)
