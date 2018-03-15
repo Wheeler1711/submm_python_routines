@@ -11,7 +11,7 @@ import os.path
 # be able to plot just a single iq_sweep - CHECK
 # have option to pause be for streaming start after user hits enter - CHECK
 # have best center frequecny print to screen when done with noise set - CHECK
-# take noise set needs to have option for custom filename
+# take noise set needs to have option for custom filename - WORKING ON IT
 # save attenuation to dictionary - CHECK
 # initialize daq sample rate at 20000 - CHECK
 
@@ -156,15 +156,15 @@ class single_tone(object):
 	# This method passes a frequency to be evaluated and
 	# returns a dictionary with all of the values being 
 	# tested. It finds the best place to take data
-	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, *fileargv):
+	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, file_name = ""):
 
-		if(len(fileargv) < 2):
+		if(len(file_name) < 2):
 			timestr = time.strftime("%Y%m%d-%H%M%S")
-			file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
-			file_name2 = os.path.join(self.output_dir + timestr)
+			filename = os.path.join(self.output_dir + timestr + "_noiseData.txt")
+			filename2 = os.path.join(self.output_dir + timestr)
 		else:
-			file_name = str(fileargv + ".txt")
-			file_name2 = str(fileargv)
+			filename = str(file_name + ".txt")
+			filename2 = str(file_name)
 
 		self.center_frequency = center_freq
 
@@ -223,8 +223,8 @@ class single_tone(object):
 		except:
 			pass
 		
-		self.export_file(file_name, self.iq_dictionary)
-		self.save_log_iq(file_name2)
+		self.export_file(filename, self.iq_dictionary)
+		self.save_log_iq(filename2)
 
 		print('\n')
 		print("Best Frequency: " + str(fine_center_freq))
