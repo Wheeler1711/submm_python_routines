@@ -131,7 +131,7 @@ def fit_nonlinear_iq(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),2000,.01,-np.pi,0,-5,-5,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,5,5,1*10**-6,np.max(x)])
+        bounds = ([np.min(x),2000,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -173,7 +173,7 @@ def fit_nonlinear_iq_with_err(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),2000,.01,-np.pi,0,-5,-5,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,5,5,1*10**-6,np.max(x)])
+        bounds = ([np.min(x),2000,.01,-np.pi,0,-5,-5,1*10**-9,np.min(x)],[np.max(x),200000,1,np.pi,5,5,5,1*10**-6,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -223,7 +223,7 @@ def fit_nonlinear_mag(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),2000,.01,-4.0*np.pi,0,-5,-5,np.min(x)],[np.max(x),200000,100,4.0*np.pi,5,5,5,np.max(x)])
+        bounds = ([np.min(x),100,.01,-4.0*np.pi,0,-np.inf,-np.inf,np.min(x)],[np.max(x),200000,100,4.0*np.pi,5,np.inf,np.inf,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -268,19 +268,21 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
     
     #guess f0
     fr_guess_index = np.argmin(np.abs(z))
-    fr_guess = x[fr_guess_index]
+    #fr_guess = x[fr_guess_index]
+    fr_guess_index_fine = np.argmin(np.abs(fine_z))
+    fr_guess = fine_x[fr_guess_index_fine]
     
     #guess Q
-    mag_max = np.max(np.abs(z))
-    mag_min = np.min(np.abs(z))
+    mag_max = np.max(np.abs(fine_z)**2)
+    mag_min = np.min(np.abs(fine_z)**2)
     mag_3dB = (mag_max+mag_min)/2.
-    half_distance = np.abs(z)-mag_3dB
-    right = half_distance[fr_guess_index:-1]
-    left  = half_distance[0:fr_guess_index]
-    right_index = np.argmin(np.abs(right))+fr_guess_index
+    half_distance = np.abs(fine_z)**2-mag_3dB
+    right = half_distance[fr_guess_index_fine:-1]
+    left  = half_distance[0:fr_guess_index_fine]
+    right_index = np.argmin(np.abs(right))+fr_guess_index_fine
     left_index = np.argmin(np.abs(left))
-    Q_guess_Hz = x[right_index]-x[left_index]
-    Q_guess = fr_guess/Q_guess_Hz*2
+    Q_guess_Hz = fine_x[right_index]-fine_x[left_index]
+    Q_guess = fr_guess/Q_guess_Hz
     
     #guess amp
     d = np.max(20*np.log10(np.abs(z)))-np.min(20*np.log10(np.abs(z)))
@@ -327,6 +329,7 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     x = x[sort_index]
     z = z[sort_index]
     #extract just fine data
+    #this will probably break if there is no fine scan
     df = np.abs(x-np.roll(x,1))
     fine_df = np.min(df[np.where(df != 0)]) 
     fine_z_index = np.where(df<fine_df*1.1)
@@ -340,19 +343,21 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     
     #guess f0
     fr_guess_index = np.argmin(np.abs(z))
-    fr_guess = x[fr_guess_index]
+    #fr_guess = x[fr_guess_index]
+    fr_guess_index_fine = np.argmin(np.abs(fine_z))
+    fr_guess = fine_x[fr_guess_index_fine]
     
     #guess Q
-    mag_max = np.max(np.abs(z))
-    mag_min = np.min(np.abs(z))
+    mag_max = np.max(np.abs(fine_z)**2)
+    mag_min = np.min(np.abs(fine_z)**2)
     mag_3dB = (mag_max+mag_min)/2.
-    half_distance = np.abs(z)-mag_3dB
-    right = half_distance[fr_guess_index:-1]
-    left  = half_distance[0:fr_guess_index]
-    right_index = np.argmin(np.abs(right))+fr_guess_index
+    half_distance = np.abs(fine_z)**2-mag_3dB
+    right = half_distance[fr_guess_index_fine:-1]
+    left  = half_distance[0:fr_guess_index_fine]
+    right_index = np.argmin(np.abs(right))+fr_guess_index_fine
     left_index = np.argmin(np.abs(left))
-    Q_guess_Hz = x[right_index]-x[left_index]
-    Q_guess = fr_guess/Q_guess_Hz*2
+    Q_guess_Hz = fine_x[right_index]-fine_x[left_index]
+    Q_guess = fr_guess/Q_guess_Hz
     
     #guess amp
     d = np.max(20*np.log10(np.abs(z)))-np.min(20*np.log10(np.abs(z)))
@@ -367,8 +372,8 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     
     #b0 and b1 guess
     xlin = (gain_x - fr_guess)/fr_guess
-    b1_guess = (np.abs(gain_z)[-1]-np.abs(gain_z)[0])/(xlin[-1]-xlin[0])
-    b0_guess = np.median(np.abs(gain_z))
+    b1_guess = (np.abs(gain_z)[-1]**2-np.abs(gain_z)[0]**2)/(xlin[-1]-xlin[0])
+    b0_guess = np.median(np.abs(gain_z)**2)
         
     #cabel delay guess tau
     #y = mx +b
