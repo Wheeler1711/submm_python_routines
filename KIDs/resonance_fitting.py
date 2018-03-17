@@ -270,6 +270,11 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
     fr_guess_index = np.argmin(np.abs(z))
     #fr_guess = x[fr_guess_index]
     fr_guess_index_fine = np.argmin(np.abs(fine_z))
+    # below breaks if there is not a right and left side in the fine scan
+    if fr_guess_index_fine == 0:
+	fr_guess_index_fine = len(fine_x)/2
+    elif fr_guess_index_fine == (len(fine_x)-1):
+	fr_guess_index_fine = len(fine_x)/2
     fr_guess = fine_x[fr_guess_index_fine]
     
     #guess Q
@@ -345,6 +350,10 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     fr_guess_index = np.argmin(np.abs(z))
     #fr_guess = x[fr_guess_index]
     fr_guess_index_fine = np.argmin(np.abs(fine_z))
+    if fr_guess_index_fine == 0:
+	fr_guess_index_fine = len(fine_x)/2
+    elif fr_guess_index_fine == (len(fine_x)-1):
+	fr_guess_index_fine = len(fine_x)/2
     fr_guess = fine_x[fr_guess_index_fine]
     
     #guess Q
