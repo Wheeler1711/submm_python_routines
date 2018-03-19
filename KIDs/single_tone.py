@@ -12,7 +12,7 @@ import sys
 # be able to plot just a single iq_sweep - CHECK
 # have option to pause be for streaming start after user hits enter - CHECK
 # have best center frequecny print to screen when done with noise set - CHECK
-# take noise set needs to have option for custom filename
+# take noise set needs to have option for custom filename - CHECK
 # save attenuation to dictionary - CHECK
 # initialize daq sample rate at 20000 - CHECK
 
@@ -157,14 +157,17 @@ class single_tone(object):
 	# This method passes a frequency to be evaluated and
 	# returns a dictionary with all of the values being 
 	# tested. It finds the best place to take data
-	def take_noise_set(self, center_freq, chan3 = False, take_noise = True,pause_before_noise = False, *fileargv):
-		if(len(fileargv) < 2):
+
+	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, file_name = ""):
+
+		if(len(file_name) < 2):
+
 			timestr = time.strftime("%Y%m%d-%H%M%S")
-			file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
-			file_name2 = os.path.join(self.output_dir + timestr)
+			filename = os.path.join(self.output_dir + timestr + "_noiseData.txt")
+			filename2 = os.path.join(self.output_dir + timestr)
 		else:
-			file_name = str(fileargv + ".txt")
-			file_name2 = str(fileargv)
+			filename = str(file_name + ".txt")
+			filename2 = str(file_name)
 
 		self.center_frequency = center_freq
 
@@ -224,8 +227,8 @@ class single_tone(object):
 		except:
 			pass
 		
-		self.export_file(file_name, self.iq_dictionary)
-		self.save_log_iq(file_name2)
+		self.export_file(filename, self.iq_dictionary)
+		self.save_log_iq(filename2)
 
 		print('\n')
 		print("Best Frequency: " + str(fine_center_freq))
@@ -249,7 +252,7 @@ class single_tone(object):
 		file_object.write("switch_time: " + str(self.switch_time) + "\n")
 		file_object.write("iq_integration_time: " + str(self.iq_integration_time) + "\n")
 		file_object.write("integration_time: " + str(self.integration_time) + "\n")
-		file_object.write("power: " + str(self.anritsu.get_power()) + "\n")
+		file_object.write("anritsu_power: " + str(self.anritsu.get_power()) + "\n")
 		file_object.write("gain_span: " + str(self.gain_span) + "\n")
 		file_object.write("rough_span: " + str(self.rough_span) + "\n")
 		file_object.write("med_span: " + str(self.med_span) + "\n")
@@ -302,10 +305,15 @@ class single_tone(object):
 		else:
 			print "Output not connected!"
 		
-	def power_sweep(self, low_power, high_power, step, center_freq):
-	
-		timestr = time.strftime("%Y%m%d-%H%M%S")
-		file_name = os.path.join(self.output_dir + timestr + "_powerData.txt")
+	def power_sweep(self, low_power, high_power, step, center_freq, filename = ""):
+
+		if (filename == ""):
+
+			timestr = time.strftime("%Y%m%d-%H%M%S")
+			file_name = os.path.join(self.output_dir + timestr + "_powerData.txt")
+		else:
+			file_name = os.path.join(self.output_dir + file_name +".txt")
+			file_name2 = os.path.join(self.output_dir + file_name)
 		
 		powers = np.arange(low_power, high_power-step, -step)
 		
@@ -334,10 +342,25 @@ class single_tone(object):
 		self.power_dictionary['position'] = position
 		
 		self.export_file(file_name, self.power_dictionary)
-		
+		self.save_log_power(file_name2)
 		return self.power_dictionary
-			
-	
+
+	def save_log_power(self, file_name):
+
+		file_object = open(file_name + "_logPower.txt", "w")
+
+		file_object.write("Powers: " + str(self.power_dictionary['powers']) + "\n")
+		file_object.write("i_gain: " + str(self.power_dictionary['i_gain']) + "\n")
+		file_object.write("q_gain: " + str(self.power_dictionary['q_gain']) + "\n")
+		file_object.write("i_fine: " + str(self.power_dictionary['i_fine']) + "\n")
+		file_object.write("q_fine: " + str(self.power_dictionary['q_fine']) + "\n")
+		file_object.write("freqs_gain: " + str(self.power_dictionary['freqs_gain']) + "\n")
+		file_object.write("freqs_fine: " + str(self.power_dictionary['freqs_fine']) + "\n")
+		file_object.write("center_freq: " + str(self.power_dictionary['center_freq']) + "\n")
+		file_object.write("position: " + str(self.power_dictionary['position']) + "\n")
+
+		file_object.close()
+
 # This method opens up a file that contains the object's 
 # dictionary and stores it back into another dictionary
 def import_file(file_name):
