@@ -158,16 +158,16 @@ class single_tone(object):
 	# returns a dictionary with all of the values being 
 	# tested. It finds the best place to take data
 
-	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, file_name = ""):
+	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, filename = ""):
 
-		if(len(file_name) < 2):
+		if(len(filename) < 2):
 
 			timestr = time.strftime("%Y%m%d-%H%M%S")
-			filename = os.path.join(self.output_dir + timestr + "_noiseData.txt")
-			filename2 = os.path.join(self.output_dir + timestr)
+			file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
+			file_name2 = os.path.join(self.output_dir + timestr)
 		else:
-			filename = str(file_name + ".txt")
-			filename2 = str(file_name)
+			file_name = str(filename + ".txt")
+			file_name2 = str(filename)
 
 		self.center_frequency = center_freq
 
@@ -227,11 +227,11 @@ class single_tone(object):
 		except:
 			pass
 		
-		self.export_file(filename, self.iq_dictionary)
-		self.save_log_iq(filename2)
+		self.export_file(file_name, self.iq_dictionary)
+		self.save_log_iq(file_name2)
 
 		print('\n')
-		print("Best Frequency: " + str(fine_center_freq))
+		print("Best Frequency: " + str(fine_center_freq / 10**6) + " Mhz")
 
 		return self.iq_dictionary
 	
@@ -312,8 +312,8 @@ class single_tone(object):
 			timestr = time.strftime("%Y%m%d-%H%M%S")
 			file_name = os.path.join(self.output_dir + timestr + "_powerData.txt")
 		else:
-			file_name = os.path.join(self.output_dir + file_name +".txt")
-			file_name2 = os.path.join(self.output_dir + file_name)
+			file_name = os.path.join(self.output_dir + filename +".txt")
+			file_name2 = os.path.join(self.output_dir + filename)
 		
 		powers = np.arange(low_power, high_power-step, -step)
 		
@@ -430,7 +430,7 @@ def plot_iq_single(freq, i, q):
 	plt.figure(1)
 	plt.title("Magnitude")
 	plt.xlabel("Frequency (Mhz)")
-	plt.ylabel("Power (db)")
+	plt.ylabel("Power (dB)")
 
 	plt.plot((freq / 10**6), (10*np.log10(i**2 + q**2)))
 
