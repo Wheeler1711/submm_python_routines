@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pickle
 from lab_brick import core
 import os.path
+import sys
 
 #To Do
 # be able to plot just a single iq_sweep - CHECK
@@ -22,7 +23,7 @@ class single_tone(object):
 		# Declare two internal objects: Anritsu/NIDAQ
 		self.anritsu = an.Anritsu()
 		self.daq = n.NIDAQ()
-		self.daq.sample_rate = 20000
+		self.daq.sample_rate = 60000
 
 		
 		# Initializing Standard Configurations
@@ -156,8 +157,7 @@ class single_tone(object):
 	# This method passes a frequency to be evaluated and
 	# returns a dictionary with all of the values being 
 	# tested. It finds the best place to take data
-	def take_noise_set(self, center_freq, chan3 = False, take_noise = True, *fileargv):
-
+	def take_noise_set(self, center_freq, chan3 = False, take_noise = True,pause_before_noise = False, *fileargv):
 		if(len(fileargv) < 2):
 			timestr = time.strftime("%Y%m%d-%H%M%S")
 			file_name = os.path.join(self.output_dir + timestr + "_noiseData.txt")
@@ -186,7 +186,8 @@ class single_tone(object):
 		if (take_noise == True):
 
 			print('\n')
-			input("Program paused before streaming. Press enter to continue....")
+			if pause_before_noise == True:
+				raw_input("Program paused before streaming. Press enter to continue....")
 			if (chan3 == True):
 				print("taking noise data")
 				I_noise, Q_noise, ref_noise = self.stream3(fine_center_freq)
@@ -258,9 +259,12 @@ class single_tone(object):
 		file_object.write("med_numpoints: " + str(self.med_numpoints) + "\n")
 		file_object.write("fine_numpoints: " + str(self.fine_numpoints) + "\n")
 		file_object.write("input_attn_value: " + str(self.input_attn_value) + "\n")
-		file_object.write("output_attn_value: " + str(self.output_attn_value) + "\n")
+		try:
+			file_object.write("output_attn_value: " + str(self.output_attn_value) + "\n")
+		except:
+			pass
 		file_object.write("sample_rate: " + str(self.daq.sample_rate) + "\n" )
-		file_object.write("center_freq: " + str(self.center_frequency + "\n")
+		file_object.write("center_freq: " + str(self.center_frequency) + "\n")
 		
 		file_object.close()
 	
