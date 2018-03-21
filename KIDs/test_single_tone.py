@@ -22,7 +22,7 @@ single_tone.plot_iq_dict(st.iq_dictionary)
 
 #plot fine i & q w/ powers
 #plot i^2 + q^2, frequency w/ powers in legends
-st.power_sweep(20,18, 1, st.iq_dictionary['fine_center_freq'])
+st.power_sweep(20,19, 1, st.iq_dictionary['fine_center_freq'], filename = "poop2")
 single_tone.plot_power_dict(st.power_dictionary)
 
 
