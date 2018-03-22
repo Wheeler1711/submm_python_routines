@@ -10,14 +10,6 @@ from lab_brick import core
 import os.path
 import sys
 
-#To Do
-# be able to plot just a single iq_sweep - CHECK
-# have option to pause be for streaming start after user hits enter - CHECK
-# have best center frequecny print to screen when done with noise set - CHECK
-# take noise set needs to have option for custom filename - CHECK
-# save attenuation to dictionary - CHECK
-# initialize daq sample rate at 20000 - CHECK
-
 class single_tone(object):
 
 	def __init__(self):
