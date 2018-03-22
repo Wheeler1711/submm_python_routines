@@ -1,5 +1,7 @@
 from instruments import NIDAQ as n
 from instruments import anritsu as an
+from matplotlib.backends.backend_pdf import PdfPages
+import resonance_fitting
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -368,6 +370,84 @@ def import_file(file_name):
 	dictionary = pickle.load(file_object)
 	file_object.close()
 	return dictionary
+
+# Fitting noise and guessing
+def fit_noise_set(dict):
+	#figure out where to save
+	fine_f = dict['freqs_fine']
+	gain_f = dict['freqs_gain']
+	fine_z = dict['I_fine']+1.j*dict['Q_fine']
+	gain_z = dict['I_gain']+1.j*dict['Q_gain']
+
+	fig = plt.figure(figsize = (8,8))
+
+	plt.subplot(221)
+	plt.plot(dict['freqs_fine']/10**6,10*np.log10(dict['I_fine']**2+dict['Q_fine']**2),'o',label = "fine")
+	plt.plot(dict['freqs_gain']/10**6,10*np.log10(dict['I_gain']**2+dict['Q_gain']**2),'o',label = "gain")
+	plt.xlabel("Frequency (MHz)")
+	plt.ylabel("Power (dB)")
+
+	plt.subplot(223)
+	plt.plot(dict['freqs_fine']/10**6,10*np.log10(dict['I_fine']**2+dict['Q_fine']**2),'o')
+	plt.plot(dict['freqs_gain']/10**6,10*np.log10(dict['I_gain']**2+dict['Q_gain']**2),'o')
+	plt.xlabel("Frequency (MHz)")
+	plt.ylabel("Power (dB)")
+	plt.xlim(np.min(dict['freqs_fine']/10**6),np.max(dict['freqs_fine']/10**6))
+
+	# fit nonlinear magnitude
+	try:
+		x0 = resonance_fitting.guess_x0_mag_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
+		fit_dict_mag = resonance_fitting.fit_nonlinear_mag_sep(fine_f,fine_z,gain_f,gain_z,x0=x0)#,bounds =bounds)
+
+		plt.subplot(221)
+		plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+",label = "fit")
+		plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x",label = "x0 guess")
+		plt.title(str("Non-linearity param a = %.2f")  % fit_dict_mag['fit'][0][4])
+
+		plt.legend()
+		plt.subplot(223)
+		plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+")
+		plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x")
+	except Exception as e:
+		print(e)
+		print("could not fit the resonator")
+
+	plt.subplot(222,aspect ='equal')
+	plt.plot(dict['I_fine'],dict['Q_fine'],'o')
+	plt.plot(dict['I_gain'],dict['Q_gain'],'o')
+	plt.xlabel("I")
+	plt.ylabel("Q")
+
+	plt.subplot(224,aspect ='equal')
+	plt.plot(dict['I_fine'],dict['Q_fine'],'o')
+	plt.plot(dict['I_gain'],dict['Q_gain'],'o')
+
+	plt.xlabel("I")
+	plt.ylabel("Q")
+	plt.xlim(np.min(dict['I_fine']),np.max(dict['I_fine']))
+	plt.ylim(np.min(dict['Q_fine']),np.max(dict['Q_fine']))
+
+	# fit nonlinear iq
+	try:
+		x0 = resonance_fitting.guess_x0_iq_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
+		fit_dict_iq = resonance_fitting.fit_nonlinear_iq_sep(fine_f,fine_z,gain_f,gain_z,x0=x0)
+
+		plt.subplot(222,aspect ='equal')
+		plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
+		plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+
+		plt.title(str("Non-linearity param a = %0.2f") % fit_dict_iq['fit'][0][4])
+
+		plt.subplot(224,aspect ='equal')
+		plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
+		plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+		plt.plot(dict['I_fine'],dict['Q_fine'])
+	except Exception as e:
+		print(e)
+		print("could not fit the resonator")
+
+
+	plt.show()
 
 # This method passes a dictionary parameter and plots
 # the dictionary values and returns 2 figures to be
