@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import pygetdata as gd
 
 def openStoredSweep(savepath):
     """Opens sweep data
@@ -32,4 +33,31 @@ def read_iq_sweep(filename):
         	chan_freqs[:,chan] = (sweep_freqs + bb_freqs[chan])/1.0e6
 	dict = {'I': I, 'Q': Q, 'freqs': chan_freqs}
 	return dict
+
+def read_stream(filename):
+    firstframe = 0
+    firstsample = 0
+    d = gd.dirfile(filename, gd.RDWR|gd.UNENCODED)
+    #print "Number of frames in dirfile =", d.nframes
+    nframes = d.nframes
+    
+    vectors = d.field_list()
+    ifiles = [i for i in vectors if i[0] == "I"]
+    qfiles = [q for q in vectors if q[0] == "Q"]
+    ifiles.remove("INDEX")
+    ivals = d.getdata(ifiles[0], gd.FLOAT32, first_frame = firstframe, first_sample = firstsample, num_frames = nframes)
+    qvals = d.getdata(qfiles[0], gd.FLOAT32, first_frame = firstframe, first_sample = firstsample, num_frames = nframes)
+    ivals = ivals[~np.isnan(ivals)]
+    qvals = qvals[~np.isnan(qvals)]
+    i_stream = np.zeros((len(ivals),len(ifiles)))
+    q_stream = np.zeros((len(qvals),len(qfiles)))
+    
+    for n in range(len(ifiles)):
+        ivals = d.getdata(ifiles[n], gd.FLOAT32, first_frame = firstframe, first_sample = firstsample, num_frames = nframes)
+        qvals = d.getdata(qfiles[n], gd.FLOAT32, first_frame = firstframe, first_sample = firstsample, num_frames = nframes)
+        i_stream[:,n] = ivals[~np.isnan(ivals)]
+        q_stream[:,n] = qvals[~np.isnan(qvals)]
+    d.close()
+    dictionary = {'I_stream':i_stream,'Q_stream':q_stream}
+    return dictionary
 	
