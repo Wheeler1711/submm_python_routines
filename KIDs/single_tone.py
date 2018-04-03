@@ -364,7 +364,7 @@ def import_file(file_name):
 	return dictionary
 
 # Fitting noise and guessing
-def fit_noise_set(dict):
+def fit_noise_set(dictionary):
 	#figure out where to save
 	fine_f = dict['freqs_fine']
 	gain_f = dict['freqs_gain']
@@ -373,6 +373,7 @@ def fit_noise_set(dict):
 
 	fig = plt.figure(figsize = (8,8))
 
+	# Subplot 221/223 refers to noise and power
 	plt.subplot(221)
 	plt.plot(dict['freqs_fine']/10**6,10*np.log10(dict['I_fine']**2+dict['Q_fine']**2),'o',label = "fine")
 	plt.plot(dict['freqs_gain']/10**6,10*np.log10(dict['I_gain']**2+dict['Q_gain']**2),'o',label = "gain")
@@ -404,6 +405,7 @@ def fit_noise_set(dict):
 		print(e)
 		print("could not fit the resonator")
 
+	# Subplot 222/224 refers to just noise
 	plt.subplot(222,aspect ='equal')
 	plt.plot(dict['I_fine'],dict['Q_fine'],'o')
 	plt.plot(dict['I_gain'],dict['Q_gain'],'o')
