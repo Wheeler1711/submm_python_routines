@@ -149,17 +149,24 @@ def fit_fine_gain(fine_name,gain_name):
 	np.savetxt(outfile_dir+"/"+"all_fits_iq.csv",all_fits_iq,delimiter = ',')
 
 
-def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,outfile_dir = "./"):
+def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./"):
 
     fine_dict = read_multitone.read_iq_sweep(fine_filename)
     gain_dict = read_multitone.read_iq_sweep(gain_filename)
     stream_dict = read_multitone.read_stream(stream_filename)
-    gain_phase = np.arctan2(gain_dict['I'],gain_dict['Q'])
 
     gain_z = gain_dict['I'] +1.j*gain_dict['Q']
     fine_z = fine_dict['I'] +1.j*fine_dict['Q']
     stream_z = stream_dict['I_stream'][skip_beginning:-1] +1.j*stream_dict['Q_stream'][skip_beginning:-1]
-
+    
+    #bin the data if you like
+    if bin_num !=1:
+        for i in range(0,stream_z.shape[1]):
+            if i == 0:
+                stream_z_downsamp = np.zeros((stream_z.shape[0]/bin_num,stream_z.shape[1]),dtype = 'complex')
+            stream_z_downsamp[:,i] = np.mean(stream_z[0:stream_z.shape[0]/bin_num*bin_num,i].reshape(-1,bin_num),axis = 1) #int math
+        stream_z = stream_z_downsamp
+        
 
     #initalize some arrays to hold the calibrated data
     stream_corr_all = np.zeros(stream_z.shape,dtype = 'complex')
@@ -172,22 +179,51 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
     for k in range(0,fine_dict['I'].shape[1]):
         print(k)
 
-        tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_phase[:,k])
 
-        fig = plt.figure(k,figsize = (14,10))
+        fig = plt.figure(k,figsize = (16,10))
 
-        plt.subplot(231,aspect = 'equal')
-        plt.title("data")
+        plt.subplot(241,aspect = 'equal')
+        plt.title("Raw data")
         plt.plot(fine_dict['I'][:,k],fine_dict['Q'][:,k],'o')
-        plt.plot(stream_dict['I_stream'][10:-1,k][::plot_period],stream_dict['Q_stream'][10:-1,k][::plot_period],'.')
+        plt.plot(np.real(stream_z[:,k][::plot_period]),np.imag(stream_z[:,k][::plot_period]),'.')
         plt.plot(gain_dict['I'][:,k],gain_dict['Q'][:,k],'o')
 
-        plt.subplot(232)
-        plt.title("data")
+        plt.subplot(242)
+        plt.title("Raw data")
         plt.plot(fine_dict['I'][:,k],fine_dict['Q'][:,k],'o')
-        plt.plot(stream_dict['I_stream'][10:-1,k][::plot_period],stream_dict['Q_stream'][10:-1,k][::plot_period],'.')
+        plt.plot(np.real(stream_z[:,k][::plot_period]),np.imag(stream_z[:,k][::plot_period]),'.')
 
-        plt.subplot(233)
+        
+        f_stream = fine_dict['freqs'][len(fine_dict['freqs'][:,k])/2,k]*10**6
+        #normalize amplitude varation in gain scan
+        amp_norm_dict = resonance_fitting.amplitude_normalization_sep(gain_dict['freqs'][:,k]*10**6,
+                                                                          gain_z[:,k],
+                                                                          fine_dict['freqs'][:,k]*10**6,
+                                                                          fine_z[:,k],
+                                                                          f_stream,
+                                                                          stream_z[:,k])
+
+        plt.subplot(243)
+        plt.title("Gain amplitude variation fit")
+        plt.plot(gain_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(gain_z[:,k])**2),'o')
+        plt.plot(gain_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(amp_norm_dict['normalized_gain'])**2),'o')
+        plt.plot(fine_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(amp_norm_dict['normalized_fine'])**2),'o')
+        plt.plot(gain_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(amp_norm_dict['poly_data'])**2))
+
+        plt.subplot(244)
+        plt.title("Data nomalized for gain amplitude variation")
+        plt.plot(np.real(amp_norm_dict['normalized_fine']),np.imag(amp_norm_dict['normalized_fine']),'o')
+        #plt.plot(gain_dict['freqs'][:,k]*10**6,np.log10(np.abs(amp_norm_dict['poly_data'])**2))
+        plt.plot(np.real(amp_norm_dict['normalized_stream'][::plot_period]),np.imag(amp_norm_dict['normalized_stream'][::plot_period]),'.')
+
+        #fit the gain
+        gain_phase = np.arctan2(np.real(amp_norm_dict['normalized_gain']),np.imag(amp_norm_dict['normalized_gain']))
+        tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_phase)
+        
+        #gain_phase = np.arctan2(np.real(gain_z[:,k]),np.imag(gain_z[:,k]))
+        #tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_phase)
+        
+        plt.subplot(245)
         plt.title("Gain phase fit")
         plt.plot(gain_dict['freqs'][:,k],gain_phase_rot,'o')
         plt.plot(gain_dict['freqs'][:,k],fit_data_phase)
@@ -195,12 +231,14 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
         plt.ylabel("Phase")
 
         #remove cable delay
-        f_stream = fine_dict['freqs'][len(fine_dict['freqs'][:,k])/2,k]*10**6
-        gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_z[:,k],tau)
-        fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*10**6,fine_z[:,k],tau)
-        stream_corr = calibrate.remove_cable_delay(f_stream,stream_z[:,k],tau)
-
-        plt.subplot(234)
+        gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*10**6,amp_norm_dict['normalized_gain'],tau)
+        fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*10**6,amp_norm_dict['normalized_fine'],tau)
+        stream_corr = calibrate.remove_cable_delay(f_stream,amp_norm_dict['normalized_stream'],tau)
+        #gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_z[:,k],tau)
+        #fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*10**6,fine_z[:,k],tau)
+        #stream_corr = calibrate.remove_cable_delay(f_stream,stream_z[:,k],tau)
+        
+        plt.subplot(246)
         plt.title("Cable delay removed")
         plt.plot(np.real(gain_corr),np.imag(gain_corr),'o')
         plt.plot(np.real(fine_corr),np.imag(fine_corr),'o')
@@ -224,7 +262,7 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
         stream_corr_all[:,k] = stream_corr = stream_corr*np.exp(-1j*med_phase)
 
 
-        plt.subplot(235)
+        plt.subplot(247)
         plt.title("Moved to 0,0 and rotated")
         plt.plot(np.real(stream_corr)[2:-1][::plot_period],np.imag(stream_corr)[2:-1][::plot_period],'.')
         plt.plot(np.real(gain_corr),np.imag(gain_corr),'o')
@@ -242,7 +280,7 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
         freqs_stream = f_interp(phase_stream)
         stream_df_over_f_all[:,k] = stream_df_over_f = freqs_stream/np.mean(freqs_stream)
 
-        plt.subplot(236)
+        plt.subplot(248)
         plt.plot(phase_fine,fine_dict['freqs'][:,k],'o')
         plt.plot(phase_small,f_interp(phase_small),'--')
         plt.plot(phase_stream[::plot_period],freqs_stream[::plot_period],'.')
@@ -269,7 +307,8 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
                     'stream_corr':stream_corr_all,
                     'gain_corr':gain_corr_all,
                     'fine_corr':fine_corr_all,
-                    'stream_df_over_f':stream_df_over_f_all}
+                    'stream_df_over_f':stream_df_over_f_all,
+                    'time':stream_dict['time']}
 
     #save the dictionary
     pickle.dump( cal_dict, open( "cal.p", "wb" ),2 )

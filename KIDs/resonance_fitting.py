@@ -326,6 +326,23 @@ def amplitude_normalization(x,z):
     normalized_data = z/poly_func(x)*np.median(np.abs(z[index_use]))
     return normalized_data
 
+def amplitude_normalization_sep(gain_x,gain_z,fine_x,fine_z,stream_x,stream_z):
+    # normalize the amplitude varation requires a gain scan
+    # uses gain scan to normalize does not use fine scan
+    #flag frequencies to use in amplitude normaliztion
+    index_use = np.where(np.abs(gain_x-np.median(gain_x))>100000) #100kHz away from resonator
+    poly = np.polyfit(gain_x[index_use],np.abs(gain_z[index_use]),2)
+    poly_func = np.poly1d(poly)
+    poly_data = poly_func(gain_x)
+    normalized_gain = gain_z/poly_data*np.median(np.abs(gain_z[index_use]))
+    normalized_fine = fine_z/poly_func(fine_x)*np.median(np.abs(gain_z[index_use]))
+    normalized_stream = stream_z/poly_func(stream_x)*np.median(np.abs(gain_z[index_use]))
+    amp_norm_dict = {'normalized_gain':normalized_gain,
+                         'normalized_fine':normalized_fine,
+                         'normalized_stream':normalized_stream,
+                         'poly_data':poly_data}
+    return amp_norm_dict
+
 def guess_x0_iq_nonlinear(x,z,verbose = False): 
     # this is lest robust than guess_x0_iq_nonlinear_sep 
     # below. it is recommended to use that instead   
