@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import pygetdata as gd
+import struct
 
 def openStoredSweep(savepath):
     """Opens sweep data
@@ -58,6 +59,13 @@ def read_stream(filename):
         i_stream[:,n] = ivals[~np.isnan(ivals)]
         q_stream[:,n] = qvals[~np.isnan(qvals)]
     d.close()
-    dictionary = {'I_stream':i_stream,'Q_stream':q_stream}
+    #read in the time file
+    with open(filename+"/time",'rb') as content_file:
+        content = content_file.read()
+    time_val = []
+    for i in range(0,len(content)/8):
+        time_val.append(struct.unpack('d',content[0+8*i:8+8*i])[0])
+    
+    dictionary = {'I_stream':i_stream,'Q_stream':q_stream,'time':time_val}
     return dictionary
 	
