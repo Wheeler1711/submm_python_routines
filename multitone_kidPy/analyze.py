@@ -10,7 +10,7 @@ import numpy as np
 
 # this function fits a fine and gain scan combo produced by the ASU multitone system
 def fit_fine_gain(fine_name,gain_name):
-
+        
 	fine = read_multitone.read_iq_sweep(fine_name)
 	gain = read_multitone.read_iq_sweep(gain_name)
 	outfile_dir = fine_name
@@ -117,8 +117,8 @@ def fit_fine_gain(fine_name,gain_name):
 	plt.plot(all_fits_iq[1,:],'*',label = "Qr IQ",color = 'g')
 	plt.plot(all_fits_mag[1,:]/all_fits_mag[2,:],'o',label = "Qc Mag",color = 'b')
 	plt.plot(all_fits_iq[1,:]/all_fits_mag[2,:],'*',label = "Qc IQ",color = 'b')
-	plt.plot(1/(1/all_fits_mag[1,:]+1/(all_fits_mag[1,:]/all_fits_mag[2,:])),'o',label = "Qi Mag",color = 'r')
-	plt.plot(1/(1/all_fits_iq[1,:]+1/(all_fits_iq[1,:]/all_fits_mag[2,:])),'*',label = "Qi IQ",color = 'r')
+	plt.plot(1/(1/all_fits_mag[1,:]-1/(all_fits_mag[1,:]/all_fits_mag[2,:])),'o',label = "Qi Mag",color = 'r')
+	plt.plot(1/(1/all_fits_iq[1,:]-1/(all_fits_iq[1,:]/all_fits_mag[2,:])),'*',label = "Qi IQ",color = 'r')
 	plt.xlabel("Resonator index")
 	plt.ylabel("Resonator Q")
 	plt.yscale('log')
