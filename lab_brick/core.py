@@ -1,4 +1,4 @@
-import usb.core 
+import usb.core #pip install pyusb
 import threading
 from datetime import datetime
 import sys
@@ -19,12 +19,12 @@ out example(set_attenuation is currently commmented out)
 '''
 
 def attenuation_change(device, status_byte, count, byteblock, val):
-	print "User Defined Callback for attenuation_level_change"
-	print "Attenuation: " + str(val)
+	print("User Defined Callback for attenuation_level_change")
+	print("Attenuation: " + str(val))
 	
 def attenuation_response(device, status_byte, count, byteblock, val):
-	#print "User Defined Callback for attenuation_level_response"
-	print "Attenuation: " + str(val)
+	#print("User Defined Callback for attenuation_level_response")
+	print("Attenuation: " + str(val))
 	#return val
 
 class Attenuator(object):
@@ -118,20 +118,16 @@ class Attenuator(object):
 				if self.__dev.is_kernel_driver_active(0):
 					try:
 						self.__dev.detach_kernel_driver(0)
-						print "kernel driver detached"
+						print("kernel driver detached")
 					except usb.core.USBError as e:
 						sys.exit("Could not detach kernel driver: %s" % str(e))
 			
 			try:
-				print "marker 4"
 				self.__dev.set_configuration()
 
 				# get an endpoint instance
-				print "marker 3"
 				cfg = self.__dev.get_active_configuration()
-				print "marker 2"
 				intf = cfg[(0,0)]
-				print "marker 1"
 				self.__read_endpoint = usb.util.find_descriptor(
 					intf,
 				# match the first OUT endpoint
@@ -143,7 +139,7 @@ class Attenuator(object):
 			#Store the serial number of the lab brick
 			
 				self.serial = self.get_serial_number()
-				print self.serial
+				print(self.serial)
 
 			
 			#Spawn read thread to handle reading for lab brick
@@ -152,10 +148,10 @@ class Attenuator(object):
 			except:
 				# Something bad happened during connection
 				self.connected = False
-			print self.__read_endpoint	
+			print(self.__read_endpoint)	
 			#assert self.__read_endpoint is not None #comment this out was breaking code if attenuators were called in wrong order
 			if self.serial == "SN:"+str(serial_number):
-				print "correct device"
+				print("correct device")
 				break
 			else:
 				self.connected = False

@@ -10,7 +10,7 @@ from lab_brick import core
 attn2 = core.Attenuator(0x041f,0x1208,"01784")
 
 
-print "15915 is attn1"
-print "16776 is attn2"
-print "example command: attn1.get_attenuation()"
-print "example command: attn2.set_attenuation(29)"
+print("15915 is attn1")
+print("16776 is attn2")
+print("example command: attn1.get_attenuation()")
+print("example command: attn2.set_attenuation(29)")
