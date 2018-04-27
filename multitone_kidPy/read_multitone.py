@@ -65,7 +65,15 @@ def read_stream(filename):
     time_val = []
     for i in range(0,len(content)/8):
         time_val.append(struct.unpack('d',content[0+8*i:8+8*i])[0])
-    
-    dictionary = {'I_stream':i_stream,'Q_stream':q_stream,'time':time_val}
+
+
+    #read in the time file
+    with open(filename+"/packet_count",'rb') as content_file:
+        content = content_file.read()
+    packet_val = []
+    for i in range(0,len(content)/8):
+        packet_val.append(struct.unpack('L',content[0+8*i:8+8*i])[0])
+        
+    dictionary = {'I_stream':i_stream,'Q_stream':q_stream,'time':time_val,'packet_count':packet_val}
     return dictionary
 	
