@@ -149,7 +149,7 @@ def fit_fine_gain(fine_name,gain_name):
 	np.savetxt(outfile_dir+"/"+"all_fits_iq.csv",all_fits_iq,delimiter = ',')
 
 
-def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./"):
+def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./",sample_rate = 488.28125):
 
     fine_dict = read_multitone.read_iq_sweep(fine_filename)
     gain_dict = read_multitone.read_iq_sweep(gain_filename)
@@ -157,15 +157,20 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
 
     gain_z = gain_dict['I'] +1.j*gain_dict['Q']
     fine_z = fine_dict['I'] +1.j*fine_dict['Q']
-    stream_z = stream_dict['I_stream'][skip_beginning:-1] +1.j*stream_dict['Q_stream'][skip_beginning:-1]
-    
+    stream_z = stream_dict['I_stream'][skip_beginning:] +1.j*stream_dict['Q_stream'][skip_beginning:]
+    stream_time = np.asarray(stream_dict['packet_count'])[skip_beginning:]*1/sample_rate
+    stream_time = stream_time - stream_time[0]
+
+
     #bin the data if you like
     if bin_num !=1:
         for i in range(0,stream_z.shape[1]):
             if i == 0:
                 stream_z_downsamp = np.zeros((stream_z.shape[0]/bin_num,stream_z.shape[1]),dtype = 'complex')
             stream_z_downsamp[:,i] = np.mean(stream_z[0:stream_z.shape[0]/bin_num*bin_num,i].reshape(-1,bin_num),axis = 1) #int math
+        stream_time_downsamp = np.mean(stream_time[0:stream_time.shape[0]/bin_num*bin_num].reshape(-1,bin_num),axis = 1) #int math 
         stream_z = stream_z_downsamp
+        stream_time = stream_time_downsamp
         
 
     #initalize some arrays to hold the calibrated data
@@ -308,7 +313,8 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
                     'gain_corr':gain_corr_all,
                     'fine_corr':fine_corr_all,
                     'stream_df_over_f':stream_df_over_f_all,
-                    'time':stream_dict['time']}
+                    'time':stream_dict['time'],
+                    'stream_time':stream_time}
 
     #save the dictionary
     pickle.dump( cal_dict, open( "cal.p", "wb" ),2 )
@@ -359,7 +365,7 @@ def noise_multi(cal_dict, sample_rate = 488.,outfile_dir = "./"):
         #plt.loglog(fft_freqs,np.abs(Sxx))
         plt.loglog(binnedfreq,np.abs(binnedpsd),linewidth = 2)
         plt.loglog(binnedfreq,amp_subtracted,linewidth = 2,label = "amp subtracted")
-        plt.ylim(10**-18,10**-15)
+        #plt.ylim(10**-18,10**-15)
         plt.ylabel("Sxx (1/Hz)")
         plt.xlabel("Frequency (Hz)")
         plt.legend()
@@ -372,7 +378,7 @@ def noise_multi(cal_dict, sample_rate = 488.,outfile_dir = "./"):
         plt.loglog(binnedfreq,binnedper,label = "amp noise")
         plt.loglog(binnedfreq,binnedpar,label = "detect noise")
         plt.legend()
-        plt.ylim(10**2,10**6)
+        #plt.ylim(10**2,10**6)
         plt.xlabel("Frequency (Hz)")
 
         pdf_pages.savefig(fig)
