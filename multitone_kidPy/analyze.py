@@ -7,6 +7,7 @@ from scipy.stats import binned_statistic
 from scipy import interpolate
 from KIDs import calibrate
 import pickle
+from KIDs import PCA
 
 
 
@@ -283,7 +284,7 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
 
         phase_small = np.linspace(np.min(phase_fine),np.max(phase_fine),1000)
         freqs_stream = f_interp(phase_stream)
-        stream_df_over_f_all[:,k] = stream_df_over_f = freqs_stream/np.mean(freqs_stream)
+        stream_df_over_f_all[:,k] = stream_df_over_f = freqs_stream/np.mean(freqs_stream)-1.
 
         plt.subplot(248)
         plt.plot(phase_fine,fine_dict['freqs'][:,k],'o')
@@ -300,7 +301,6 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
         plt.close(fig)
 
     pdf_pages.close()
-    pdf_pages = PdfPages(outfile_dir+"/"+"psd_plots.pdf")
 
 
     #save everything to a dictionary
@@ -322,21 +322,34 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
 
 
 
-def noise_multi(cal_dict, sample_rate = 488.,outfile_dir = "./"):
+def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA = 0):
     pdf_pages = PdfPages(outfile_dir+"/"+"psd_plots.pdf")
+
+    if n_comp_PCA >0:
+        do_PCA = True
+        #do PCA on the data
+        PCA_dict = PCA.PCA(cal_dict['stream_df_over_f'],n_comp_PCA)
+    else:
+        do_PCA = False
 
     for k in range(0,cal_dict['fine_corr'].shape[1]):
         print(k)
 
+
         #lets fourier transfer that crap
         fft_freqs,Sxx,S_per,S_par = calibrate.fft_noise(cal_dict['stream_corr'][:,k],cal_dict['stream_df_over_f'][:,k],sample_rate)
+        if do_PCA:
+            fft_freqs_2,Sxx_clean,S_per_2,S_par_2 = calibrate.fft_noise(cal_dict['stream_corr'][:,k],PCA_dict['cleaned'][:,k],sample_rate)
         if k == 0:
-            #intialize so arrays
+            #intialize some arrays
             Sxx_all = np.zeros((Sxx.shape[0],cal_dict['fine_corr'].shape[1]))
+            Sxx_all_clean = np.zeros((Sxx.shape[0],cal_dict['fine_corr'].shape[1]))
             S_per_all = np.zeros((S_per.shape[0],cal_dict['fine_corr'].shape[1]))
             S_par_all = np.zeros((S_par.shape[0],cal_dict['fine_corr'].shape[1]))
 
         Sxx_all[:,k] = np.abs(Sxx)
+        if do_PCA:
+            Sxx_all_clean = np.abs(Sxx_clean)
         S_per_all[:,k] = np.abs(S_per)
         S_par_all[:,k] = np.abs(S_par)
 
@@ -344,16 +357,21 @@ def noise_multi(cal_dict, sample_rate = 488.,outfile_dir = "./"):
         plot_bins = np.logspace(-3,np.log10(250),100)
         binnedfreq =  binned_statistic(fft_freqs, fft_freqs, bins=plot_bins)[0] #bin the frequecy against itself
         binnedpsd = binned_statistic(fft_freqs, np.abs(Sxx), bins=plot_bins)[0]
+        if do_PCA:
+            binnedpsd_clean = binned_statistic(fft_freqs, np.abs(Sxx_clean), bins=plot_bins)[0]
         binnedper = binned_statistic(fft_freqs, np.abs(S_per), bins=plot_bins)[0]
         binnedpar = binned_statistic(fft_freqs, np.abs(S_par), bins=plot_bins)[0]
         amp_subtracted = np.abs(binnedpsd)*(binnedpar-binnedper)/binnedpar
         if k == 0:
             Sxx_binned_all = np.zeros((binnedfreq.shape[0],cal_dict['fine_corr'].shape[1]))
+            Sxx_binned_all_clean = np.zeros((binnedfreq.shape[0],cal_dict['fine_corr'].shape[1]))
             S_per_binned_all = np.zeros((binnedfreq.shape[0],cal_dict['fine_corr'].shape[1]))
             S_par_binned_all = np.zeros((binnedfreq.shape[0],cal_dict['fine_corr'].shape[1]))
             amp_subtracted_all = np.zeros((binnedfreq.shape[0],cal_dict['fine_corr'].shape[1]))
 
         Sxx_binned_all[:,k] = binnedpsd
+        if do_PCA:
+             Sxx_binned_all_clean[:,k] = binnedpsd_clean
         S_per_binned_all[:,k] = binnedper
         S_par_binned_all[:,k] = binnedper
         amp_subtracted_all[:,k] = amp_subtracted
@@ -363,8 +381,10 @@ def noise_multi(cal_dict, sample_rate = 488.,outfile_dir = "./"):
         plt.subplot(122)
         plt.title("Sxx")
         #plt.loglog(fft_freqs,np.abs(Sxx))
-        plt.loglog(binnedfreq,np.abs(binnedpsd),linewidth = 2)
-        plt.loglog(binnedfreq,amp_subtracted,linewidth = 2,label = "amp subtracted")
+        plt.loglog(binnedfreq,np.abs(binnedpsd),linewidth = 2,label = "Sxx raw")
+        if do_PCA:
+            plt.loglog(binnedfreq,np.abs(binnedpsd_clean),linewidth = 2,label = "PCA " +str(n_comp_PCA)+" comps")
+        plt.loglog(binnedfreq,amp_subtracted,linewidth = 2,label = "raw amp subtracted")
         #plt.ylim(10**-18,10**-15)
         plt.ylabel("Sxx (1/Hz)")
         plt.xlabel("Frequency (Hz)")
@@ -395,7 +415,9 @@ def noise_multi(cal_dict, sample_rate = 488.,outfile_dir = "./"):
                     'Sxx_binned':Sxx_binned_all,
                     'S_per_binned':S_per_binned_all,
                     'S_par_binned':S_par_binned_all,
-                    'amp_subtracted':amp_subtracted_all}
+                    'amp_subtracted':amp_subtracted_all,
+                    'Sxx_clean':Sxx_all_clean,
+                    'Sxx_binned_clean':Sxx_binned_all_clean}
 
     #save the psd dictionary
     pickle.dump( psd_dict, open( "psd.p", "wb" ),2 )
