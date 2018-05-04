@@ -328,7 +328,7 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
     if n_comp_PCA >0:
         do_PCA = True
         #do PCA on the data
-        PCA_dict = PCA.PCA(cal_dict['stream_df_over_f'],n_comp_PCA)
+        PCA_dict = PCA.PCA(cal_dict['stream_df_over_f'],n_comp_PCA,sample_rate = sample_rate)
     else:
         do_PCA = False
 
