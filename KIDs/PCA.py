@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import fftpack
+import nitime.algorithms as tsa #pip install nitime
 
 
 #code to do principal component analysis on correlated detectors.
@@ -76,9 +77,7 @@ def PCA(arr,ncomp,verbose = True,sample_rate = 488.28125,filename = "",**keyword
     arr = arr + mean_vec_arr
     arr_clean = arr_clean + mean_vec_arr
     
-    #block for plotting the correlation between the two most corrrelated detectors
-    #I am having some problems scaling the cross correlation though
-    '''
+    #block for plotting the correlation between the two most corrrelated detectors    
     fig = plt.figure(2,figsize = (12,6))
     plt.title("Cross correlation of two most correlated detectors")
     # make a figure that show the correlation between the two most correlated detectors
@@ -88,23 +87,36 @@ def PCA(arr,ncomp,verbose = True,sample_rate = 488.28125,filename = "",**keyword
     max_corr_index1 = np.where(cov_matrix_2 == np.max(cov_matrix_2))[0][0]
     max_corr_index2 = np.where(cov_matrix_2 == np.max(cov_matrix_2))[0][1]
 
+    # this is kind of a neat package for doing cross correlation on time streams
+    # see this page for explanation
+    # http://nbviewer.jupyter.org/github/mattijn/pynotebook/blob/master/ipynotebooks/Python2.7/2016/2016-05-25%20cross-spectral%20analysis.ipynb
     #calculate the cross correlation
-    npts_fft = int(2**(np.floor(np.log2(arr.shape[0]))))
-    cross = fftpack.ifft(fftpack.fft(arr[:,max_corr_index1]-1,n = npts_fft)*np.conj(fftpack.fft(arr[:,max_corr_index2]-1,n = npts_fft)))
-    Sxx_index1 = 2*fftpack.fft(arr[:,max_corr_index1]-1,n = npts_fft)*np.conj(fftpack.fft(arr[:,max_corr_index1]-1,n = npts_fft))/sample_rate*npts_fft/npts_fft**2
-    Sxx_index2 = 2*fftpack.fft(arr[:,max_corr_index2]-1,n = npts_fft)*np.conj(fftpack.fft(arr[:,max_corr_index2]-1,n = npts_fft))/sample_rate*npts_fft/npts_fft**2
-    Sxx_cross = 2*fftpack.fft(cross,n = npts_fft)*np.conj(fftpack.fft(cross,n = npts_fft))/sample_rate*npts_fft/npts_fft**2
-    freqs = fftpack.fftfreq(npts_fft,1./sample_rate)
-    plt.loglog(freqs[1:],Sxx_index1[1:],label = "Resonator psd index = "+str(max_corr_index1))
-    plt.loglog(freqs[1:],Sxx_index2[1:],label = "Resonator psd index = "+str(max_corr_index2))
+    f, pcsd_est = tsa.multi_taper_csd(np.vstack((arr[:,max_corr_index1],arr[:,max_corr_index2])), Fs=sample_rate, low_bias=True, adaptive=False, sides='onesided')
+    fki = pcsd_est.diagonal().T[0]
+    fkj = pcsd_est.diagonal().T[1]
+    cij = pcsd_est.diagonal(+1).T.ravel()
+    #calculate the coherene
+    coh = np.abs(cij)**2 / (fki * fkj) 
+
+    
+    plt.loglog(f,fki,label = "Resonator psd index = "+str(max_corr_index1))
+    plt.loglog(f,fkj,label = "Resonator psd index = "+str(max_corr_index2))
     ylim = plt.ylim()
-    plt.loglog(freqs[1:],Sxx_cross[1:],label = "Cross psd")
+    plt.loglog(f,np.abs(cij),label = "Cross psd")
     plt.ylim(ylim[0],ylim[1])
     plt.legend()
 
     pdf_pages.savefig(fig)
     plt.close()
-    '''
+
+    fig = plt.figure(3,figsize = (12,6))
+    plt.semilogx(f,np.abs(coh))
+    plt.title("Coherence")
+    plt.xlabel("Frequency Hz")
+    plt.ylim(0,1)
+
+    pdf_pages.savefig(fig)
+    plt.close()
 
 
     pdf_pages.close()
