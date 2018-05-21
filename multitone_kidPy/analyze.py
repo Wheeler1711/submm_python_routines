@@ -373,7 +373,7 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
         if do_PCA:
              Sxx_binned_all_clean[:,k] = binnedpsd_clean
         S_per_binned_all[:,k] = binnedper
-        S_par_binned_all[:,k] = binnedper
+        S_par_binned_all[:,k] = binnedpar
         amp_subtracted_all[:,k] = amp_subtracted
 
 
