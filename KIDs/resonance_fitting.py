@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.optimize as optimization
 import matplotlib.pyplot as plt
+from KIDs import calibrate
 
 
 # module for fitting resonances curves for kinetic inductance detectors.
@@ -16,6 +17,7 @@ import matplotlib.pyplot as plt
 #JDW 2017-08-17 added in a keyword/function to allow for gain varation "amp_var" to be taken out before fitting
 #JDW 2017-08-30 added in fitting for magnitude fitting of resonators i.e. not in iq space
 #JDW 2018-03-05 added more clever function for guessing x0 for fits
+#JDW 2018-08-23 added more clever guessing for resonators with large phi into guess seperate functions
 
 # function to descript the magnitude S21 of a non linear resonator
 def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
@@ -23,7 +25,7 @@ def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
     # fr is the center frequency of the resonator
     # Qr is the quality factor of the resonator
     # amp is Qr/Qc
-    # phi is a rotation paramter for an impedance mismatch between the resonaotor and the readou system
+    # phi is a rotation paramter for an impedance mismatch between the resonaotor and the readout system
     # a is the non-linearity paramter bifurcation occurs at a = 0.77
     # b0 DC level of s21 away from resonator
     # b1 Frequency dependant gain varation
@@ -104,20 +106,24 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     z = (i0 +1.j*q0)* np.exp(-1.0j* 2* np.pi *deltaf*tau) * (1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))
     return z
 
+
+
 # when using a fitter that can't handel complex number one needs to return both the real and imaginary components seperatly
 def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):    
     deltaf = (x - f0)
     xg = (x-fr)/fr
     yg = Qr*xg
     y = np.zeros(x.shape[0])
+    
     for i in range(0,x.shape[0]):
         roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
         where_real = np.where(np.imag(roots) == 0)
         y[i] = np.max(np.real(roots[where_real]))
-    z = (i0 +1.j*q0)* np.exp(-1.0j* 2* np.pi *deltaf*tau) * (1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y)+ amp/2.*(np.exp(1.0j*phi) -1.0))
+    z = (i0 +1.j*q0)* np.exp(-1.0j* 2* np.pi *deltaf*tau) * (1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))
     real_z = np.real(z)
     imag_z = np.imag(z)
     return np.hstack((real_z,imag_z))
+
 
 
 # function for fitting an iq sweep with the above equation
@@ -131,7 +137,7 @@ def fit_nonlinear_iq(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),2000,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
+        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -139,8 +145,8 @@ def fit_nonlinear_iq(x,z,**keywords):
         print("default initial guess used")
         #fr_guess = x[np.argmin(np.abs(z))]
         #x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
-        x0 = guess_x0_iq_nonlinear(x,z)
-        #print x0
+        x0 = guess_x0_iq_nonlinear(x,z,verbose = True)
+        print x0
     #Amplitude normalization?
     do_amp_norm = 0
     if ('amp_norm' in keywords):
@@ -173,7 +179,7 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(fine_x),2000,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(fine_x)],[np.max(fine_x),200000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(fine_x)])
+        bounds = ([np.min(fine_x),500.,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(fine_x)],[np.max(fine_x),1000000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(fine_x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -208,6 +214,8 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     #make a dictionary to return
     fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x}
     return fit_dict
+
+
 
 # same function but double fits so that it can get error and a proper covariance matrix out
 def fit_nonlinear_iq_with_err(x,z,**keywords):
@@ -298,7 +306,7 @@ def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(fine_x),100,.01,-np.pi,0,-np.inf,-np.inf,np.min(fine_x)],[np.max(fine_x),200000,100,np.pi,5,np.inf,np.inf,np.max(fine_x)])
+        bounds = ([np.min(fine_x),100,.01,-np.pi,0,-np.inf,-np.inf,np.min(fine_x)],[np.max(fine_x),1000000,100,np.pi,5,np.inf,np.inf,np.max(fine_x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -495,6 +503,7 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
         print("fr guess  = %.2f MHz" %(fr_guess/10**6))
         print("Q guess   = %.2f kHz, %.1f" % ((Q_guess_Hz/10**3),Q_guess))
         print("amp guess = %.2f" %amp_guess)
+        print("phi guess = %.2f" %phi_guess)
         print("b0 guess  = %.2f" %b0_guess)
         print("b1 guess  = %.2f" %b1_guess)
         print("tau guess = %.2f x 10^-7" %(tau_guess/10**-7))
@@ -539,7 +548,43 @@ def guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     amp_guess = 0.0037848547850284574+0.11096782437821565*d-0.0055208783469291173*d**2+0.00013900471000261687*d**3+-1.3994861426891861e-06*d**4#polynomial fit to amp verus depth
     
     #guess impedance rotation phi
-    phi_guess = 0
+    #phi_guess = 0
+    #guess impedance rotation phi
+    #fit a circle to the iq loop
+    xc, yc, R, residu  = calibrate.leastsq_circle(np.real(fine_z),np.imag(fine_z))
+    #compute angle between (off_res,off_res),(0,0) and (off_ress,off_res),(xc,yc) of the the fitted circle
+    off_res_i,off_res_q = (np.real(fine_z[0])+np.real(fine_z[-1]))/2.,(np.imag(fine_z[0])+np.imag(fine_z[-1]))/2.
+    x1, y1, = -off_res_i,-off_res_q
+    x2, y2 = xc-off_res_i,yc-off_res_q
+    dot = x1*x2 + y1*y2      # dot product
+    det = x1*y2 - y1*x2      # determinant
+    angle = np.arctan2(det, dot)
+    phi_guess = angle
+
+    # if phi is large better re guess f0
+    # f0 should be the farthers from the off res point
+    if (np.abs(phi_guess)>0.3):
+        dist1 = np.sqrt((np.real(fine_z[0])-np.real(fine_z))**2+(np.imag(fine_z[0])-np.imag(fine_z))**2)
+        dist2 = np.sqrt((np.real(fine_z[-1])-np.real(fine_z))**2+(np.imag(fine_z[-1])-np.imag(fine_z))**2)
+        fr_guess_index = np.argmax((dist1+dist2))
+        fr_guess = fine_x[fr_guess_index]
+        #also fix the Q gues
+        fine_z_derot = (fine_z-(off_res_i+1.j*off_res_q))*np.exp(1j*(-phi_guess))+(off_res_i+1.j*off_res_q)
+        #fr_guess_index = np.argmin(np.abs(fine_z_derot))
+        #fr_guess = fine_x[fr_guess_index]
+        mag_max = np.max(np.abs(fine_z_derot)**2)
+        mag_min = np.min(np.abs(fine_z_derot)**2)
+        mag_3dB = (mag_max+mag_min)/2.
+        half_distance = np.abs(fine_z_derot)**2-mag_3dB
+        right = half_distance[np.argmin(np.abs(fine_z_derot)):-1]
+        left  = half_distance[0:np.argmin(np.abs(fine_z_derot))]
+        right_index = np.argmin(np.abs(right))+np.argmin(np.abs(fine_z_derot))
+        left_index = np.argmin(np.abs(left))
+        Q_guess_Hz = fine_x[right_index]-fine_x[left_index]
+        Q_guess = fr_guess/Q_guess_Hz
+        #also fix amp guess
+        d = np.max(20*np.log10(np.abs(gain_z)))-np.min(20*np.log10(np.abs(fine_z_derot)))
+        amp_guess = 0.0037848547850284574+0.11096782437821565*d-0.0055208783469291173*d**2+0.00013900471000261687*d**3+-1.3994861426891861e-06*d**4
     
     #guess non-linearity parameter
     #might be able to guess this by ratioing the distance between min and max distance between iq points in fine sweep
@@ -566,6 +611,7 @@ def guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
         print("fr guess  = %.3f MHz" %(fr_guess/10**6))
         print("Q guess   = %.2f kHz, %.1f" % ((Q_guess_Hz/10**3),Q_guess))
         print("amp guess = %.2f" %amp_guess)
+        print("phi guess = %.2f" %phi_guess)
         print("i0 guess  = %.2f" %i0_guess)
         print("q0 guess  = %.2f" %q0_guess)
         print("tau guess = %.2f x 10^-7" %(tau_guess/10**-7))
@@ -587,9 +633,9 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     fr_guess_index = np.argmin(np.abs(fine_z))
     #protect against guessing the first or last data points
     if fr_guess_index == 0:
-	fr_guess_index = len(fine_x)/2
+        fr_guess_index = len(fine_x)/2
     elif fr_guess_index == (len(fine_x)-1):
-	fr_guess_index = len(fine_x)/2
+        fr_guess_index = len(fine_x)/2
     fr_guess = fine_x[fr_guess_index]
     
     #guess Q
@@ -608,9 +654,44 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     d = np.max(20*np.log10(np.abs(gain_z)))-np.min(20*np.log10(np.abs(fine_z)))
     amp_guess = 0.0037848547850284574+0.11096782437821565*d-0.0055208783469291173*d**2+0.00013900471000261687*d**3+-1.3994861426891861e-06*d**4
     #polynomial fit to amp verus depth calculated emperically
+
+    
     
     #guess impedance rotation phi
-    phi_guess = 0
+    #fit a circle to the iq loop
+    xc, yc, R, residu  = calibrate.leastsq_circle(np.real(fine_z),np.imag(fine_z))
+    #compute angle between (off_res,off_res),(0,0) and (off_ress,off_res),(xc,yc) of the the fitted circle
+    off_res_i,off_res_q = (np.real(fine_z[0])+np.real(fine_z[-1]))/2.,(np.imag(fine_z[0])+np.imag(fine_z[-1]))/2.
+    x1, y1, = -off_res_i,-off_res_q
+    x2, y2 = xc-off_res_i,yc-off_res_q
+    dot = x1*x2 + y1*y2      # dot product
+    det = x1*y2 - y1*x2      # determinant
+    angle = np.arctan2(det, dot)
+    phi_guess = angle
+
+    # if phi is large better re guess f0
+    # f0 should be the farthers from the off res point
+    if (np.abs(phi_guess)>0.3):
+        dist1 = np.sqrt((np.real(fine_z[0])-np.real(fine_z))**2+(np.imag(fine_z[0])-np.imag(fine_z))**2)
+        dist2 = np.sqrt((np.real(fine_z[-1])-np.real(fine_z))**2+(np.imag(fine_z[-1])-np.imag(fine_z))**2)
+        fr_guess_index = np.argmax((dist1+dist2))
+        fr_guess = fine_x[fr_guess_index]
+        fine_z_derot = (fine_z-(off_res_i+1.j*off_res_q))*np.exp(1j*(-phi_guess))+(off_res_i+1.j*off_res_q)
+        #fr_guess_index = np.argmin(np.abs(fine_z_derot))
+        #fr_guess = fine_x[fr_guess_index]
+        mag_max = np.max(np.abs(fine_z_derot)**2)
+        mag_min = np.min(np.abs(fine_z_derot)**2)
+        mag_3dB = (mag_max+mag_min)/2.
+        half_distance = np.abs(fine_z_derot)**2-mag_3dB
+        right = half_distance[np.argmin(np.abs(fine_z_derot)):-1]
+        left  = half_distance[0:np.argmin(np.abs(fine_z_derot))]
+        right_index = np.argmin(np.abs(right))+np.argmin(np.abs(fine_z_derot))
+        left_index = np.argmin(np.abs(left))
+        Q_guess_Hz = fine_x[right_index]-fine_x[left_index]
+        Q_guess = fr_guess/Q_guess_Hz
+        #also fix amp guess
+        d = np.max(20*np.log10(np.abs(gain_z)))-np.min(20*np.log10(np.abs(fine_z_derot)))
+        amp_guess = 0.0037848547850284574+0.11096782437821565*d-0.0055208783469291173*d**2+0.00013900471000261687*d**3+-1.3994861426891861e-06*d**4
     
     #guess non-linearity parameter
     #might be able to guess this by ratioing the distance between min and max distance between iq points in fine sweep
@@ -619,7 +700,7 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     #b0 and b1 guess
     xlin = (gain_x - fr_guess)/fr_guess
     b1_guess = (np.abs(gain_z)[-1]**2-np.abs(gain_z)[0]**2)/(xlin[-1]-xlin[0])
-    b0_guess = np.median(np.abs(gain_z)**2)
+    b0_guess = np.max((np.max(np.abs(fine_z)**2),np.max(np.abs(gain_z)**2)))
         
     #cabel delay guess tau
     #y = mx +b
@@ -634,6 +715,7 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
         print("fr guess  = %.3f MHz" %(fr_guess/10**6))
         print("Q guess   = %.2f kHz, %.1f" % ((Q_guess_Hz/10**3),Q_guess))
         print("amp guess = %.2f" %amp_guess)
+        print("phi guess = %.2f" %phi_guess)
         print("b0 guess  = %.2f" %b0_guess)
         print("b1 guess  = %.2f" %b1_guess)
         print("tau guess = %.2f x 10^-7" %(tau_guess/10**-7))

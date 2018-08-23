@@ -2,6 +2,7 @@ import numpy as np
 import os
 import pygetdata as gd
 import struct
+import matplotlib.pyplot as plt
 
 def openStoredSweep(savepath):
     """Opens sweep data
@@ -73,7 +74,17 @@ def read_stream(filename):
     packet_val = []
     for i in range(0,len(content)/8):
         packet_val.append(struct.unpack('L',content[0+8*i:8+8*i])[0])
-        
+    packet = np.asarray(packet_val)
+    if ((packet -np.roll(packet,1))[1:]!=1).any():#you dropped packet
+        print("!!!!WARNING!!!!! you dropped some packets during your measurement consider increasing your system buffer size")
+        plt.figure(1)
+        plt.title("Delta t between packets")
+        plt.plot((time_val-np.roll(time_val,1))[1:])
+        plt.figure(2)
+        plt.title("Delta packet")
+        plt.plot((packet-np.roll(packet,1))[1:])
+        plt.show()
+    
     dictionary = {'I_stream':i_stream,'Q_stream':q_stream,'time':time_val,'packet_count':packet_val}
     return dictionary
 	

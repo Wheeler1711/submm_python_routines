@@ -73,7 +73,6 @@ def fit_fine_gain(fine_name,gain_name):
 		plt.subplot(224,aspect ='equal')
 		plt.plot(fine['I'][:,i],fine['Q'][:,i],'o')
 		plt.plot(gain['I'][:,i],gain['Q'][:,i],'o')
-		plt.plot(fine['I'][:,i],fine['Q'][:,i])
 		plt.xlabel("I")
 		plt.ylabel("Q")
 		plt.xlim(np.min(fine['I'][:,i]),np.max(fine['I'][:,i]))
@@ -90,6 +89,7 @@ def fit_fine_gain(fine_name,gain_name):
 			plt.subplot(224,aspect ='equal')
 			plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
 			plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+			plt.plot(fine['I'][:,i],fine['Q'][:,i])
 		except Exception as e:
 			print(e)
 			print("could not fit the resonator")
@@ -180,7 +180,7 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
     fine_corr_all = np.zeros(fine_z.shape,dtype = 'complex')
     stream_df_over_f_all = np.zeros(stream_z.shape)
 
-    pdf_pages = PdfPages(outfile_dir+"/"+"cal_plots.pdf")
+    pdf_pages = PdfPages(outfile_dir+"cal_plots.pdf")
 
     for k in range(0,fine_dict['I'].shape[1]):
         print(k)
@@ -317,13 +317,13 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
                     'stream_time':stream_time}
 
     #save the dictionary
-    pickle.dump( cal_dict, open( "cal.p", "wb" ),2 )
+    pickle.dump( cal_dict, open(outfile_dir+ "cal.p", "wb" ),2 )
     return cal_dict
 
 
 
 def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA = 0):
-    pdf_pages = PdfPages(outfile_dir+"/"+"psd_plots.pdf")
+    pdf_pages = PdfPages(outfile_dir+"psd_plots.pdf")
 
     if n_comp_PCA >0:
         do_PCA = True
@@ -373,7 +373,7 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
         if do_PCA:
              Sxx_binned_all_clean[:,k] = binnedpsd_clean
         S_per_binned_all[:,k] = binnedper
-        S_par_binned_all[:,k] = binnedper
+        S_par_binned_all[:,k] = binnedpar
         amp_subtracted_all[:,k] = amp_subtracted
 
 
@@ -420,6 +420,6 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
                     'Sxx_binned_clean':Sxx_binned_all_clean}
 
     #save the psd dictionary
-    pickle.dump( psd_dict, open( "psd.p", "wb" ),2 )
+    pickle.dump( psd_dict, open( outfile_dir+"psd.p", "wb" ),2 )
 
     return psd_dict
