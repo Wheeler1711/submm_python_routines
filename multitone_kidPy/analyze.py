@@ -123,7 +123,7 @@ def fit_fine_gain(fine_name,gain_name):
 	plt.plot(all_fits_mag[1,:]/all_fits_mag[2,:],'o',label = "Qc Mag",color = 'b')
 	plt.plot(all_fits_iq[1,:]/all_fits_mag[2,:],'*',label = "Qc IQ",color = 'b')
 	plt.plot(1/(1/all_fits_mag[1,:]-1/(all_fits_mag[1,:]/all_fits_mag[2,:])),'o',label = "Qi Mag",color = 'r')
-	plt.plot(1/(1/all_fits_iq[1,:]-1/(all_fits_iq[1,:]/all_fits_mag[2,:])),'*',label = "Qi IQ",color = 'r')
+	plt.plot(1/(1/all_fits_iq[1,:]-1/(all_fits_iq[1,:]/all_fits_iq[2,:])),'*',label = "Qi IQ",color = 'r')
 	plt.xlabel("Resonator index")
 	plt.ylabel("Resonator Q")
 	plt.yscale('log')
