@@ -73,7 +73,6 @@ def fit_fine_gain(fine_name,gain_name):
 		plt.subplot(224,aspect ='equal')
 		plt.plot(fine['I'][:,i],fine['Q'][:,i],'o')
 		plt.plot(gain['I'][:,i],gain['Q'][:,i],'o')
-		plt.plot(fine['I'][:,i],fine['Q'][:,i])
 		plt.xlabel("I")
 		plt.ylabel("Q")
 		plt.xlim(np.min(fine['I'][:,i]),np.max(fine['I'][:,i]))
@@ -90,6 +89,7 @@ def fit_fine_gain(fine_name,gain_name):
 			plt.subplot(224,aspect ='equal')
 			plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
 			plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+			plt.plot(fine['I'][:,i],fine['Q'][:,i])
 		except Exception as e:
 			print(e)
 			print("could not fit the resonator")
