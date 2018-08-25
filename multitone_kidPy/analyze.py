@@ -7,7 +7,7 @@ from scipy.stats import binned_statistic
 from scipy import interpolate
 from KIDs import calibrate
 import pickle
-from KIDs import PCA
+#from KIDs import PCA
 
 
 
@@ -90,6 +90,7 @@ def fit_fine_gain(fine_name,gain_name):
             plt.subplot(221)
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+",label = "fit")
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x",label = "x0 guess")
+            plt.title("f ="+str(fit_dict_mag['fit'][0][0]/10**6)[0:7]+"MHz, a="+"{:.2f}".format(fit_dict_mag['fit'][0][4]))
             plt.legend()
             plt.subplot(223)
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+")
@@ -113,6 +114,7 @@ def fit_fine_gain(fine_name,gain_name):
         plt.xlim(np.min(fine['I'][:,i]),np.max(fine['I'][:,i]))
         plt.ylim(np.min(fine['Q'][:,i]),np.max(fine['Q'][:,i]))
 
+
         # fit nonlinear iq 
         try:
             x0 = resonance_fitting.guess_x0_iq_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
@@ -121,6 +123,7 @@ def fit_fine_gain(fine_name,gain_name):
             plt.subplot(222,aspect ='equal')
             plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
             plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+            plt.title("f ="+str(fit_dict_iq['fit'][0][0]/10**6)[0:7]+"MHz, a="+"{:.2f}".format(fit_dict_iq['fit'][0][4]))
             plt.subplot(224,aspect ='equal')
             plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
             plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
@@ -130,7 +133,7 @@ def fit_fine_gain(fine_name,gain_name):
             print("could not fit the resonator")
 
 
-
+        plt.suptitle("Resonator index = " +str(i) +", Frequency = "+str(center_freqs[i])[0:7])
 
 
 
