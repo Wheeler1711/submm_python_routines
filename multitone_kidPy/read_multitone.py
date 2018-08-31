@@ -4,7 +4,7 @@ import pygetdata as gd
 import struct
 import matplotlib.pyplot as plt
 
-def openStoredSweep(savepath):
+def openStoredSweep(savepath,load_std = False):
     """Opens sweep data
        inputs:
            char savepath: The absolute path where sweep data is saved
@@ -12,29 +12,45 @@ def openStoredSweep(savepath):
            numpy array Is: The I values
            numpy array Qs: The Q values"""
     files = sorted(os.listdir(savepath))
-    I_list, Q_list = [], []
+    I_list, Q_list, stdI_list, stdQ_list = [], [], [], []
     for filename in files:
         if filename.startswith('I'):
             I_list.append(os.path.join(savepath, filename))
         if filename.startswith('Q'):
             Q_list.append(os.path.join(savepath, filename))
+        if filename.startswith('stdI'):
+            stdI_list.append(os.path.join(savepath, filename))
+        if filename.startswith('stdQ'):
+            stdQ_list.append(os.path.join(savepath, filename))
     Is = np.array([np.load(filename) for filename in I_list])
     Qs = np.array([np.load(filename) for filename in Q_list])
-    return Is, Qs
+    if len(stdI_list) >0:
+            std_Is = np.array([np.load(filename) for filename in stdI_list])
+            std_Qs = np.array([np.load(filename) for filename in stdQ_list])
+    if load_std:
+        return Is, Qs, std_Is, std_Qs
+    else:
+        return Is, Qs
 
 
 # reads in an iq sweep and stors i and q and the frequencies in a dictionary
-def read_iq_sweep(filename):
-	I, Q = openStoredSweep(filename)
-	sweep_freqs = np.load(filename + '/sweep_freqs.npy')
-	bb_freqs = np.load(filename + '/bb_freqs.npy')
-	channels = len(bb_freqs)
-	mags = np.zeros((channels, len(sweep_freqs))) 
-	chan_freqs = np.zeros((len(sweep_freqs),channels))
-	for chan in range(channels):
-        	chan_freqs[:,chan] = (sweep_freqs + bb_freqs[chan])/1.0e6
-	dict = {'I': I, 'Q': Q, 'freqs': chan_freqs}
-	return dict
+def read_iq_sweep(filename,load_std = False):
+    if load_std:
+        I, Q, I_std, Q_std = openStoredSweep(filename,load_std = True)
+    else:
+        I, Q, = openStoredSweep(filename)
+    sweep_freqs = np.load(filename + '/sweep_freqs.npy')
+    bb_freqs = np.load(filename + '/bb_freqs.npy')
+    channels = len(bb_freqs)
+    mags = np.zeros((channels, len(sweep_freqs))) 
+    chan_freqs = np.zeros((len(sweep_freqs),channels))
+    for chan in range(channels):
+        chan_freqs[:,chan] = (sweep_freqs + bb_freqs[chan])/1.0e6
+    if load_std:
+        dict = {'I': I, 'Q': Q, 'freqs': chan_freqs,'I_std':I_std,'Q_std':Q_std}
+    else:
+        dict = {'I': I, 'Q': Q, 'freqs': chan_freqs}
+    return dict
 
 def read_stream(filename):
     firstframe = 0
