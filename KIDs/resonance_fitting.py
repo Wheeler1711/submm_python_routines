@@ -146,7 +146,7 @@ def fit_nonlinear_iq(x,z,**keywords):
         #fr_guess = x[np.argmin(np.abs(z))]
         #x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
         x0 = guess_x0_iq_nonlinear(x,z,verbose = True)
-        print x0
+        print(x0)
     #Amplitude normalization?
     do_amp_norm = 0
     if ('amp_norm' in keywords):
@@ -156,7 +156,7 @@ def fit_nonlinear_iq(x,z,**keywords):
         elif amp_norm == False:
             do_amp_norm = 0
         else:
-            print "please specify amp_norm as True or False"
+            print("please specify amp_norm as True or False")
     if do_amp_norm == 1:
         z = amplitude_normalization(x,z)          
     z_stacked = np.hstack((np.real(z),np.imag(z)))    
@@ -188,7 +188,7 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
         #fr_guess = x[np.argmin(np.abs(z))]
         #x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
         x0 = guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z)
-        #print x0
+        #print(x0)
     #Amplitude normalization?
     do_amp_norm = 0
     if ('amp_norm' in keywords):
@@ -198,7 +198,7 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
         elif amp_norm == False:
             do_amp_norm = 0
         else:
-            print "please specify amp_norm as True or False"
+            print("please specify amp_norm as True or False")
 
     x = np.hstack((fine_x,gain_x))
     z = np.hstack((fine_z,gain_z))
@@ -245,7 +245,7 @@ def fit_nonlinear_iq_with_err(x,z,**keywords):
         elif amp_norm == False:
             do_amp_norm = 0
         else:
-            print "please specify amp_norm as True or False"
+            print("please specify amp_norm as True or False")
     if do_amp_norm == 1:
         z = amplitude_normalization(x,z)  
     z_stacked = np.hstack((np.real(z),np.imag(z)))    
@@ -376,9 +376,9 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
     fr_guess_index_fine = np.argmin(np.abs(fine_z))
     # below breaks if there is not a right and left side in the fine scan
     if fr_guess_index_fine == 0:
-	fr_guess_index_fine = len(fine_x)/2
+        fr_guess_index_fine = len(fine_x)//2
     elif fr_guess_index_fine == (len(fine_x)-1):
-	fr_guess_index_fine = len(fine_x)/2
+        fr_guess_index_fine = len(fine_x)//2
     fr_guess = fine_x[fr_guess_index_fine]
     
     #guess Q
@@ -457,9 +457,9 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     #fr_guess = x[fr_guess_index]
     fr_guess_index_fine = np.argmin(np.abs(fine_z))
     if fr_guess_index_fine == 0:
-	fr_guess_index_fine = len(fine_x)/2
+        fr_guess_index_fine = len(fine_x)//2
     elif fr_guess_index_fine == (len(fine_x)-1):
-	fr_guess_index_fine = len(fine_x)/2
+        fr_guess_index_fine = len(fine_x)//2
     fr_guess = fine_x[fr_guess_index_fine]
     
     #guess Q
@@ -526,9 +526,9 @@ def guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     fr_guess_index = np.argmin(np.abs(fine_z))
     # below breaks if there is not a right and left side in the fine scan
     if fr_guess_index == 0:
-	fr_guess_index = len(fine_x)/2
+        fr_guess_index = len(fine_x)//2
     elif fr_guess_index == (len(fine_x)-1):
-	fr_guess_index = len(fine_x)/2
+        fr_guess_index = len(fine_x)//2
     fr_guess = fine_x[fr_guess_index]
     
     #guess Q
@@ -633,9 +633,9 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     fr_guess_index = np.argmin(np.abs(fine_z))
     #protect against guessing the first or last data points
     if fr_guess_index == 0:
-        fr_guess_index = len(fine_x)/2
+        fr_guess_index = len(fine_x)//2
     elif fr_guess_index == (len(fine_x)-1):
-        fr_guess_index = len(fine_x)/2
+        fr_guess_index = len(fine_x)//2
     fr_guess = fine_x[fr_guess_index]
     
     #guess Q
