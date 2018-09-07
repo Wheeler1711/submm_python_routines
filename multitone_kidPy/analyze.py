@@ -10,11 +10,250 @@ import pickle
 #from KIDs import PCA
 
 
+# this function fits a fine and gain scan combo produced by the ASU multitone system
+# and uses the error produced by the system to determine if the fit is good
+def fit_fine_gain_std(fine_name,gain_name,reduced_chi_squared_cutoff = 1000.):
+
+        
+    fine = read_multitone.read_iq_sweep(fine_name,load_std = True)
+    gain = read_multitone.read_iq_sweep(gain_name,load_std = True)
+    outfile_dir = fine_name
+    center_freqs = fine['freqs'][fine['freqs'].shape[0]//2,:]
+
+
+    pdf_pages = PdfPages(outfile_dir+"/"+"fit_plots.pdf")
+
+    all_fits_mag = np.zeros((9,fine['freqs'].shape[1]))
+    all_fits_iq = np.zeros((10,fine['freqs'].shape[1]))
+
+    for i in range(0,fine['freqs'].shape[1]):
+        fine_f = fine['freqs'][:,i]*10**6
+        gain_f = gain['freqs'][:,i]*10**6
+        fine_z = fine['I'][:,i]+1.j*fine['Q'][:,i]
+        fine_z_err = fine['I_std'][:,i]+1.j*fine['Q_std'][:,i]
+        gain_z = gain['I'][:,i]+1.j*gain['Q'][:,i]
+        gain_z_err = gain['I_std'][:,i]+1.j*gain['Q_std'][:,i]
+
+        #flag data that is too close to other resonators              
+        distance = center_freqs-center_freqs[i]
+        if center_freqs[i] != np.min(center_freqs): #don't do if lowest frequency resonator
+            closest_lower_dist = -np.min(np.abs(distance[np.where(distance<0)]))
+            closest_lower_index = np.where(distance ==closest_lower_dist)[0][0]
+            halfway_low = (center_freqs[i] + center_freqs[closest_lower_index])/2.
+        else:
+            halfway_low = 0
+
+        if center_freqs[i] != np.max(center_freqs): #don't do if highest frequenct
+            closest_higher_dist = np.min(np.abs(distance[np.where(distance>0)]))
+            closest_higher_index = np.where(distance ==closest_higher_dist)[0][0]
+            halfway_high = (center_freqs[i] + center_freqs[closest_higher_index])/2.
+        else:
+            halfway_high = np.inf
+           
+        use_index = np.where(((fine_f/10**6>halfway_low) & (fine_f/10**6<halfway_high)))
+        fine_f = fine_f[use_index]
+        fine_z = fine_z[use_index]
+        fine_z_err = fine_z_err[use_index]
+
+        #flag gain data that is to close to all of the resonators
+        fine_span = (fine_f[-1]-fine_f[0])/10**6
+        use_boolean = np.zeros(len(gain_f))
+        for j in range(0,len(gain_f)):
+            if (np.abs(gain_f[j]/10**6-center_freqs)< fine_span/2.).any():
+                use_boolean[j] = 1
+
+        use_index_gain = np.where(use_boolean != 1)
+        if len(use_index_gain[0]>1):
+            gain_f = gain_f[use_index_gain]
+            gain_z = gain_z[use_index_gain]
+            gain_z_err = gain_z_err[use_index_gain]
+
+
+        fig = plt.figure(i,figsize = (16,10))
+
+        ax1 = plt.subplot(231)
+        plt.title("Resonator Index "+str(i))
+        plt.plot(fine['freqs'][:,i],10*np.log10(fine['I'][:,i]**2+fine['Q'][:,i]**2),'o',label = "fine")
+        plt.plot(gain['freqs'][:,i],10*np.log10(gain['I'][:,i]**2+gain['Q'][:,i]**2),'o',label = "gain")
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Power (dB)")
+
+        ax2 = plt.subplot(232)
+        plt.plot(fine['freqs'][:,i],10*np.log10(fine['I'][:,i]**2+fine['Q'][:,i]**2),'o')
+        plt.plot(gain['freqs'][:,i],10*np.log10(gain['I'][:,i]**2+gain['Q'][:,i]**2),'o')
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Power (dB)")
+        plt.xlim(np.min(fine['freqs'][:,i]),np.max(fine['freqs'][:,i]))
+
+        # fit nonlinear magnitude
+        try:
+            x0 = resonance_fitting.guess_x0_mag_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
+            fit_dict_mag = resonance_fitting.fit_nonlinear_mag_sep(fine_f,fine_z,gain_f,gain_z,fine_z_err = fine_z_err, gain_z_err = gain_z_err, x0=x0)#,bounds =bounds)
+            all_fits_mag[0:8,i] = fit_dict_mag['fit'][0]
+            all_fits_mag[8,i] = fit_dict_mag['red_chi_sqr']
+            plt.subplot(231)
+            plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+",label = "fit")
+            plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x",label = "x0 guess")
+            plt.title("f ="+str(fit_dict_mag['fit'][0][0]/10**6)[0:7]+"MHz, a="+"{:.2f}".format(fit_dict_mag['fit'][0][4]))
+            plt.legend()
+            if fit_dict_mag['red_chi_sqr']>reduced_chi_squared_cutoff:
+                ax1.set_facecolor('lightyellow')
+                ax2.set_facecolor('lightyellow')
+                
+            
+            plt.subplot(232)
+            plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+")
+            plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x")
+
+            plt.text(0.75, 0.9, "fr  = "+"{:.3f}".format(fit_dict_mag['fit'][0][0]/10**6)+" MHz", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.85, "Qr  = "+"{:.0f}".format(fit_dict_mag['fit'][0][1])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.8, "amp = "+"{:.2f}".format(fit_dict_mag['fit'][0][2])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.75, "phi = "+"{:.2f}".format(fit_dict_mag['fit'][0][3])+" radians", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.70, "a   = "+"{:.2f}".format(fit_dict_mag['fit'][0][4])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.65, "b0  = "+"{:.0f}".format(fit_dict_mag['fit'][0][5])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.6, "b1  = "+"{:.0f}".format(fit_dict_mag['fit'][0][6])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.55, "reduced chi squared  = "+"{:.2f}".format(fit_dict_mag['red_chi_sqr'])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            
+        except Exception as e:
+            print(e)
+            print("could not fit the resonator")
+
+
+        ax3 = plt.subplot(234,aspect ='equal')
+        plt.plot(fine['I'][:,i],fine['Q'][:,i],'o')
+        plt.plot(gain['I'][:,i],gain['Q'][:,i],'o')
+        plt.xlabel("I")
+        plt.ylabel("Q")
+
+        ax4 = plt.subplot(235,aspect ='equal')
+        plt.plot(fine['I'][:,i],fine['Q'][:,i],'o')
+        plt.plot(gain['I'][:,i],gain['Q'][:,i],'o')
+        plt.xlabel("I")
+        plt.ylabel("Q")
+        plt.xlim(np.min(fine['I'][:,i]),np.max(fine['I'][:,i]))
+        plt.ylim(np.min(fine['Q'][:,i]),np.max(fine['Q'][:,i]))
+
+
+        # fit nonlinear iq 
+        try:
+            x0 = resonance_fitting.guess_x0_iq_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
+            fit_dict_iq = resonance_fitting.fit_nonlinear_iq_sep(fine_f,fine_z,gain_f,gain_z,fine_z_err = fine_z_err, gain_z_err = gain_z_err,x0=x0)
+            all_fits_iq[0:9,i] = fit_dict_iq['fit'][0]
+            all_fits_iq[9,i] = fit_dict_iq['red_chi_sqr']
+            plt.subplot(234,aspect ='equal')
+            plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
+            plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+            plt.title("f ="+str(fit_dict_iq['fit'][0][0]/10**6)[0:7]+"MHz, a="+"{:.2f}".format(fit_dict_iq['fit'][0][4]))
+            plt.subplot(235,aspect ='equal')
+            plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
+            plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
+            plt.plot(fine['I'][:,i],fine['Q'][:,i])
+
+            if fit_dict_iq['red_chi_sqr']>reduced_chi_squared_cutoff:
+                ax3.set_facecolor('lightyellow')
+                ax4.set_facecolor('lightyellow')
+
+            plt.text(0.75, 0.45, "fr  = "+"{:.3f}".format(fit_dict_iq['fit'][0][0]/10**6)+" MHz", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.4, "Qr  = "+"{:.0f}".format(fit_dict_iq['fit'][0][1])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.35, "amp = "+"{:.2f}".format(fit_dict_iq['fit'][0][2])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.3, "phi = "+"{:.2f}".format(fit_dict_iq['fit'][0][3])+" radians", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.25, "a   = "+"{:.2f}".format(fit_dict_iq['fit'][0][4])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.2, "i0  = "+"{:.0f}".format(fit_dict_iq['fit'][0][5])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.15, "q0  = "+"{:.0f}".format(fit_dict_iq['fit'][0][6])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.1, "tau = "+"{:.2f}".format(fit_dict_iq['fit'][0][7]*10**7)+" x 10^-7 ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.05, "reduced chi squared  = "+"{:.2f}".format(fit_dict_iq['red_chi_sqr'])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            
+        except Exception as e:
+            print(e)
+            print("could not fit the resonator")
+
+
+        plt.suptitle("Resonator index = " +str(i) +", Frequency = "+str(center_freqs[i])[0:7])
+
+
+
+        pdf_pages.savefig(fig)
+        plt.close(fig)
+
+    pdf_pages.close()
+
+    pdf_pages = PdfPages(outfile_dir+"/"+"fit_results.pdf")
+
+    fig = plt.figure(1, figsize = (12,6))
+    plt.title("Center frequency")
+    res_index = np.arange(0,all_fits_mag.shape[1])
+    
+    plt.plot(res_index,all_fits_mag[0,:]/10**6,'o',label = "Mag fit")
+    plt.plot(res_index,all_fits_iq[0,:]/10**6,'o',label = "IQ fit")
+    
+    bad_fit_mag = np.where(all_fits_mag[8,:]>reduced_chi_squared_cutoff)
+    failed_fit_mag = np.where(all_fits_mag[0,:]==0)
+    bad_fit_mag = np.append(bad_fit_mag,failed_fit_mag)
+    bad_fit_iq = np.where(all_fits_iq[9,:]>reduced_chi_squared_cutoff)
+    failed_fit_iq = np.where(all_fits_iq[0,:]==0)
+    bad_fit_iq = np.append(bad_fit_mag,failed_fit_iq)
+
+
+    plt.plot(res_index[bad_fit_mag],all_fits_mag[0,:][bad_fit_mag]/10**6,'o',label = "bad fit",color = 'k')
+    plt.plot(res_index[bad_fit_iq],all_fits_iq[0,:][bad_fit_iq]/10**6,'o',color = 'k')
+    
+    plt.xlabel("resonator index")
+    plt.ylabel("Resonator Frequency (MHz)")
+    plt.legend(loc = 4)
+    pdf_pages.savefig(fig)
+    plt.close()
+
+    fig = plt.figure(2,figsize = (12,6))
+    plt.title("Resonator Qs")
+    plt.plot(res_index,all_fits_mag[1,:],'o',label = "Qr Mag",color = 'g')
+    plt.plot(res_index,all_fits_iq[1,:],'*',label = "Qr IQ",color = 'g')
+    plt.plot(res_index[bad_fit_mag],all_fits_mag[1,:][bad_fit_mag],'o',color = 'k')
+    plt.plot(res_index[bad_fit_iq],all_fits_iq[1,:][bad_fit_iq],'*',color = 'k')
+    
+    plt.plot(res_index,all_fits_mag[1,:]/all_fits_mag[2,:],'o',label = "Qc Mag",color = 'b')
+    plt.plot(res_index,all_fits_iq[1,:]/all_fits_mag[2,:],'*',label = "Qc IQ",color = 'b')
+    plt.plot(res_index[bad_fit_mag],all_fits_mag[1,:][bad_fit_mag]/all_fits_mag[2,:][bad_fit_mag],'o',color = 'k')
+    plt.plot(res_index[bad_fit_iq],all_fits_iq[1,:][bad_fit_iq]/all_fits_mag[2,:][bad_fit_iq],'*',color = 'k')
+    
+    plt.plot(res_index,1/(1/all_fits_mag[1,:]-1/(all_fits_mag[1,:]/all_fits_mag[2,:])),'o',label = "Qi Mag",color = 'r')
+    plt.plot(res_index,1/(1/all_fits_iq[1,:]-1/(all_fits_iq[1,:]/all_fits_iq[2,:])),'*',label = "Qi IQ",color = 'r')
+    plt.plot(res_index[bad_fit_mag],1/(1/all_fits_mag[1,:][bad_fit_mag]-1/(all_fits_mag[1,:][bad_fit_mag]/all_fits_mag[2,:][bad_fit_mag])),'o',color = 'k')
+    plt.plot(res_index[bad_fit_iq],1/(1/all_fits_iq[1,:][bad_fit_iq]-1/(all_fits_iq[1,:][bad_fit_iq]/all_fits_iq[2,:][bad_fit_iq])),'*',color = 'k')
+    
+    plt.xlabel("Resonator index")
+    plt.ylabel("Resonator Q")
+    plt.yscale('log')
+    plt.legend()
+    pdf_pages.savefig(fig)
+    plt.close()
+
+    fig = plt.figure(3,figsize = (12,6))
+    plt.title("Non linearity parameter a")
+    plt.plot(res_index,all_fits_mag[4,:],'o',label = "a Mag")
+    plt.plot(res_index,all_fits_iq[4,:],'o',label = "a IQ")
+    plt.plot(res_index[bad_fit_mag],all_fits_mag[4,:][bad_fit_mag],'o',color = 'k')
+    plt.plot(res_index[bad_fit_iq],all_fits_iq[4,:][bad_fit_iq],'o',color = 'k')
+    
+    plt.xlabel("Resonator index")
+    plt.ylabel("Non-linearity parameter a")
+    plt.ylim(0,1)
+    plt.legend()
+    pdf_pages.savefig(fig)
+    plt.close()
+
+    pdf_pages.close()
+
+    np.save(outfile_dir+"/"+"all_fits_mag",all_fits_mag)
+    np.save(outfile_dir+"/"+"all_fits_iq",all_fits_iq)
+    np.savetxt(outfile_dir+"/"+"all_fits_mag.csv",all_fits_mag,delimiter = ',')
+    np.savetxt(outfile_dir+"/"+"all_fits_iq.csv",all_fits_iq,delimiter = ',')
+
 
 
 
 # this function fits a fine and gain scan combo produced by the ASU multitone system
 def fit_fine_gain(fine_name,gain_name):
+
         
     fine = read_multitone.read_iq_sweep(fine_name)
     gain = read_multitone.read_iq_sweep(gain_name)
@@ -66,16 +305,16 @@ def fit_fine_gain(fine_name,gain_name):
             gain_z = gain_z[use_index_gain]
 
 
-        fig = plt.figure(i,figsize = (12,12))
+        fig = plt.figure(i,figsize = (16,10))
 
-        plt.subplot(221)
+        plt.subplot(231)
         plt.title("Resonator Index "+str(i))
-        plt.plot(fine['freqs'][:,i],10*np.log10(fine['I'][:,i]**2+fine['Q'][:,i]**2),'o',label = "gain")
-        plt.plot(gain['freqs'][:,i],10*np.log10(gain['I'][:,i]**2+gain['Q'][:,i]**2),'o',label = "fine")
+        plt.plot(fine['freqs'][:,i],10*np.log10(fine['I'][:,i]**2+fine['Q'][:,i]**2),'o',label = "fine")
+        plt.plot(gain['freqs'][:,i],10*np.log10(gain['I'][:,i]**2+gain['Q'][:,i]**2),'o',label = "gain")
         plt.xlabel("Frequency (MHz)")
         plt.ylabel("Power (dB)")
 
-        plt.subplot(223)
+        plt.subplot(232)
         plt.plot(fine['freqs'][:,i],10*np.log10(fine['I'][:,i]**2+fine['Q'][:,i]**2),'o')
         plt.plot(gain['freqs'][:,i],10*np.log10(gain['I'][:,i]**2+gain['Q'][:,i]**2),'o')
         plt.xlabel("Frequency (MHz)")
@@ -87,26 +326,35 @@ def fit_fine_gain(fine_name,gain_name):
             x0 = resonance_fitting.guess_x0_mag_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
             fit_dict_mag = resonance_fitting.fit_nonlinear_mag_sep(fine_f,fine_z,gain_f,gain_z,x0=x0)#,bounds =bounds)
             all_fits_mag[:,i] = fit_dict_mag['fit'][0]
-            plt.subplot(221)
+            plt.subplot(231)
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+",label = "fit")
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x",label = "x0 guess")
             plt.title("f ="+str(fit_dict_mag['fit'][0][0]/10**6)[0:7]+"MHz, a="+"{:.2f}".format(fit_dict_mag['fit'][0][4]))
             plt.legend()
-            plt.subplot(223)
+            plt.subplot(232)
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+")
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['x0_result']),"x")
+
+            plt.text(0.75, 0.85, "fr  = "+"{:.3f}".format(fit_dict_mag['fit'][0][0]/10**6)+" MHz", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.80, "Qr  = "+"{:.0f}".format(fit_dict_mag['fit'][0][1])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.75, "amp = "+"{:.2f}".format(fit_dict_mag['fit'][0][2])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.70, "phi = "+"{:.2f}".format(fit_dict_mag['fit'][0][3])+" radians", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.65, "a   = "+"{:.2f}".format(fit_dict_mag['fit'][0][4])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.60, "b0  = "+"{:.0f}".format(fit_dict_mag['fit'][0][5])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.55, "b1  = "+"{:.0f}".format(fit_dict_mag['fit'][0][6])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            
         except Exception as e:
             print(e)
             print("could not fit the resonator")
 
 
-        plt.subplot(222,aspect ='equal')
+        plt.subplot(234,aspect ='equal')
         plt.plot(fine['I'][:,i],fine['Q'][:,i],'o')
         plt.plot(gain['I'][:,i],gain['Q'][:,i],'o')
         plt.xlabel("I")
         plt.ylabel("Q")
 
-        plt.subplot(224,aspect ='equal')
+        plt.subplot(235,aspect ='equal')
         plt.plot(fine['I'][:,i],fine['Q'][:,i],'o')
         plt.plot(gain['I'][:,i],gain['Q'][:,i],'o')
         plt.xlabel("I")
@@ -120,14 +368,24 @@ def fit_fine_gain(fine_name,gain_name):
             x0 = resonance_fitting.guess_x0_iq_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
             fit_dict_iq = resonance_fitting.fit_nonlinear_iq_sep(fine_f,fine_z,gain_f,gain_z,x0=x0)
             all_fits_iq[:,i] = fit_dict_iq['fit'][0]
-            plt.subplot(222,aspect ='equal')
+            plt.subplot(234,aspect ='equal')
             plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
             plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
             plt.title("f ="+str(fit_dict_iq['fit'][0][0]/10**6)[0:7]+"MHz, a="+"{:.2f}".format(fit_dict_iq['fit'][0][4]))
-            plt.subplot(224,aspect ='equal')
+            plt.subplot(235,aspect ='equal')
             plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")
             plt.plot(np.real(fit_dict_iq['x0_result']),np.imag(fit_dict_iq['x0_result']),"x")
             plt.plot(fine['I'][:,i],fine['Q'][:,i])
+
+            plt.text(0.75, 0.45, "fr  = "+"{:.3f}".format(fit_dict_iq['fit'][0][0]/10**6)+" MHz", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.4, "Qr  = "+"{:.0f}".format(fit_dict_iq['fit'][0][1])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.35, "amp = "+"{:.2f}".format(fit_dict_iq['fit'][0][2])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.3, "phi = "+"{:.2f}".format(fit_dict_iq['fit'][0][3])+" radians", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.25, "a   = "+"{:.2f}".format(fit_dict_iq['fit'][0][4])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.2, "i0  = "+"{:.0f}".format(fit_dict_iq['fit'][0][5])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.15, "q0  = "+"{:.0f}".format(fit_dict_iq['fit'][0][6])+" ", fontsize=14, transform=plt.gcf().transFigure)
+            plt.text(0.75, 0.1, "tau = "+"{:.2f}".format(fit_dict_iq['fit'][0][7]*10**7)+" x 10^-7 ", fontsize=14, transform=plt.gcf().transFigure)
+            
         except Exception as e:
             print(e)
             print("could not fit the resonator")

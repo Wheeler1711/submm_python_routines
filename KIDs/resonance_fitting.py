@@ -199,20 +199,45 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
             do_amp_norm = 0
         else:
             print("please specify amp_norm as True or False")
+            
+    if (('fine_z_err' in keywords) & ('gain_z_err' in keywords)):
+        use_err = True
+        fine_z_err = keywords['fine_z_err']
+        gain_z_err = keywords['gain_z_err']
+    else:
+        use_err = False
 
     x = np.hstack((fine_x,gain_x))
     z = np.hstack((fine_z,gain_z))
+    if use_err:
+        z_err = np.hstack((fine_z_err,gain_z_err))
+                
 
     if do_amp_norm == 1:
         z = amplitude_normalization(x,z)   
        
-    z_stacked = np.hstack((np.real(z),np.imag(z)))    
-    fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds)
+    z_stacked = np.hstack((np.real(z),np.imag(z)))
+    z_err_stacked = np.hstack((np.real(z_err),np.imag(z_err)))
+    if use_err:
+        fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,sigma = z_err_stacked,bounds = bounds)
+    else:
+        fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds) 
+        
     fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
     x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7],x0[8])
 
+    if use_err:
+        #only do it for fine data
+        #red_chi_sqr = np.sum(z_stacked-np.hstack((np.real(fit_result),np.imag(fit_result))))**2/z_err_stacked**2)/(len(z_stacked)-8.)
+        #only do it for fine data
+        red_chi_sqr = np.sum((np.hstack((np.real(fine_z),np.imag(fine_z)))-np.hstack((np.real(fit_result[0:len(fine_z)]),np.imag(fit_result[0:len(fine_z)]))))**2/np.hstack((np.real(fine_z_err),np.imag(fine_z_err)))**2)/(len(fine_z)*2.-8.)
+
+
     #make a dictionary to return
-    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x}
+    if use_err:
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x,'red_chi_sqr':red_chi_sqr}
+    else:
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x}
     return fit_dict
 
 
@@ -313,16 +338,38 @@ def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
         #define default intial guess
         print("default initial guess used")
         x0 = guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z)
+    if (('fine_z_err' in keywords) & ('gain_z_err' in keywords)):
+        use_err = True
+        fine_z_err = keywords['fine_z_err']
+        gain_z_err = keywords['gain_z_err']
+    else:
+        use_err = False
+        
 
     #stack the scans for curvefit
     x = np.hstack((fine_x,gain_x))
     z = np.hstack((fine_z,gain_z))
-    fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,bounds = bounds)
+    z_err = np.hstack((fine_z_err,gain_z_err))
+    z_err = np.sqrt(4*np.real(z_err)**2*np.real(z)**2+4*np.imag(z_err)**2*np.imag(z)**2) #propogation of errors left out cross term
+    if use_err:
+        fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,sigma = z_err,bounds = bounds)
+    else:
+        fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,bounds = bounds)
     fit_result = nonlinear_mag(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7])
     x0_result = nonlinear_mag(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7])
 
+    #compute reduced chi squared
+    print(len(z))
+    if use_err:
+        #red_chi_sqr = np.sum((np.abs(z)**2-fit_result)**2/z_err**2)/(len(z)-7.)
+        # only use fine scan for reduced chi squared.
+        red_chi_sqr = np.sum((np.abs(fine_z)**2-fit_result[0:len(fine_z)])**2/z_err[0:len(fine_z)]**2)/(len(fine_z)-7.)
+    
     #make a dictionary to return
-    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x}
+    if use_err:
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x,'red_chi_sqr':red_chi_sqr}
+    else:
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,'fit_freqs':x}
     return fit_dict
 
 def amplitude_normalization(x,z):
