@@ -217,8 +217,8 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
         z = amplitude_normalization(x,z)   
        
     z_stacked = np.hstack((np.real(z),np.imag(z)))
-    z_err_stacked = np.hstack((np.real(z_err),np.imag(z_err)))
     if use_err:
+        z_err_stacked = np.hstack((np.real(z_err),np.imag(z_err)))
         fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,sigma = z_err_stacked,bounds = bounds)
     else:
         fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds) 
@@ -349,9 +349,9 @@ def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     #stack the scans for curvefit
     x = np.hstack((fine_x,gain_x))
     z = np.hstack((fine_z,gain_z))
-    z_err = np.hstack((fine_z_err,gain_z_err))
-    z_err = np.sqrt(4*np.real(z_err)**2*np.real(z)**2+4*np.imag(z_err)**2*np.imag(z)**2) #propogation of errors left out cross term
     if use_err:
+        z_err = np.hstack((fine_z_err,gain_z_err))
+        z_err = np.sqrt(4*np.real(z_err)**2*np.real(z)**2+4*np.imag(z_err)**2*np.imag(z)**2) #propogation of errors left out cross term  
         fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,sigma = z_err,bounds = bounds)
     else:
         fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,bounds = bounds)
