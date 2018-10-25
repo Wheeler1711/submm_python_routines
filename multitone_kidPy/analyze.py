@@ -7,7 +7,7 @@ from scipy.stats import binned_statistic
 from scipy import interpolate
 from KIDs import calibrate
 import pickle
-#from KIDs import PCA
+from KIDs import PCA
 
 
 # this function fits a fine and gain scan combo produced by the ASU multitone system
