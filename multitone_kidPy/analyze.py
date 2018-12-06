@@ -446,7 +446,7 @@ def fit_fine_gain(fine_name,gain_name):
     np.savetxt(outfile_dir+"/"+"all_fits_iq.csv",all_fits_iq,delimiter = ',')
 
 
-def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./",sample_rate = 488.28125):
+def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./",sample_rate = 488.28125, **keywords):
 
     fine_dict = read_multitone.read_iq_sweep(fine_filename)
     gain_dict = read_multitone.read_iq_sweep(gain_filename)
@@ -557,7 +557,10 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
 
         # rotate so streaming data is at 0 pi
         phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
-        med_phase = np.median(phase_stream)
+        if ("rotate_fine_first" in keywords): # if you have data that covers a large part of the iq loop
+            med_phase = np.arctan2(np.imag(fine_corr),np.real(fine_corr))[0]+np.pi
+        else:
+	    med_phase = np.median(phase_stream)
 
         gain_corr_all[:,k]  = gain_corr = gain_corr*np.exp(-1j*med_phase) 
         fine_corr_all[:,k] = fine_corr = fine_corr*np.exp(-1j*med_phase) 
