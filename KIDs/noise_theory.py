@@ -106,8 +106,8 @@ def responsivity(temp,pabs,tc = 1.,N0 = 4.*10**10,nstar =100.,tau_max = 100.,eta
 
     # Compute S1 and S2
     xi = h_p*fr*1*10**6/(2.*k_B*temp)
-    s1 = (2./np.pi)*np.sqrt(2.*d0_kB/(np.pi*temp))*np.sinh(xi)*special.iv(0,xi)
-    s2 = 1. + np.sqrt(2.*d0_kB/(np.pi*temp))*np.exp(-1.*xi)**special.iv(0,xi)
+    s1 = (2./np.pi)*np.sqrt(2.*d0_kB/(np.pi*temp))*np.sinh(xi)*special.kv(0,xi)
+    s2 = 1. + np.sqrt(2.*d0_kB/(np.pi*temp))*np.exp(-1.*xi)*special.iv(0,xi)
     #s2 = 3.
 
     #Compute xr and Qi_inv
