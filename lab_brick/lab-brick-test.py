@@ -2,7 +2,7 @@ import sys
 import getopt
 import time
 
-from LabBrick.core import Attenuator
+from lab_brick.core import Attenuator
 
 def attenuation_change(device, status_byte, count, byteblock, val):
 	print "User Defined Callback for attenuation_level_change"

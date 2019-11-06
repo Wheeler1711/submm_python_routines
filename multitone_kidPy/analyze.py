@@ -324,7 +324,8 @@ def fit_fine_gain(fine_name,gain_name):
         # fit nonlinear magnitude
         try:
             x0 = resonance_fitting.guess_x0_mag_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
-            fit_dict_mag = resonance_fitting.fit_nonlinear_mag_sep(fine_f,fine_z,gain_f,gain_z,x0=x0)#,bounds =bounds)
+            fit_dict_mag = resonance_fitting.fit_nonlinear_mag_sep(fine_f,fine_z,gain_f,gain_,fine_z_err = fine_z_err, gain_z_err = gain_z_errz,x0=x0)
+            #,bounds =bounds)
             all_fits_mag[:,i] = fit_dict_mag['fit'][0]
             plt.subplot(231)
             plt.plot(fit_dict_mag['fit_freqs']/10**6,10*np.log10(fit_dict_mag['fit_result']),"+",label = "fit")
@@ -366,7 +367,7 @@ def fit_fine_gain(fine_name,gain_name):
         # fit nonlinear iq 
         try:
             x0 = resonance_fitting.guess_x0_iq_nonlinear_sep(fine_f,fine_z,gain_f,gain_z,verbose = True)
-            fit_dict_iq = resonance_fitting.fit_nonlinear_iq_sep(fine_f,fine_z,gain_f,gain_z,x0=x0)
+            fit_dict_iq = resonance_fitting.fit_nonlinear_iq_sep(fine_f,fine_z,gain_f,gain_z,fine_z_err = fine_z_err, gain_z_err = gain_z_err,x0=x0)
             all_fits_iq[:,i] = fit_dict_iq['fit'][0]
             plt.subplot(234,aspect ='equal')
             plt.plot(np.real(fit_dict_iq['fit_result']),np.imag(fit_dict_iq['fit_result']),"+")

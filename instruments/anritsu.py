@@ -7,8 +7,8 @@ class Anritsu(object):
 	# Default constructor used to call the instrument at the given
 	# GPIBaddress and initializes the object to the instrument
 	def __init__(self):
-		self.GPIBaddress = 'GPIB1::23::INSTR'
-		rm = visa.ResourceManager()
+		self.GPIBaddress = 'GPIB0::10::INSTR'
+		rm = visa.ResourceManager("@py")
 		self.obj1 = rm.open_resource(self.GPIBaddress)
 	
 	# This method returns the CURRENT frequency that Anritsu is at
@@ -26,12 +26,15 @@ class Anritsu(object):
 		# let user know to re-enter
 		
 		if(freq_value < 10000000):
+			print freq_value
 			print "Invalid value - Needs to be greater than 10MHz"
 		elif(freq_value > 20000000000):
 			print "Invalid value - needs to be smaller than 20GHz"
 		else:
 			cmd_str = 'CF1 %9.9fGH' % (freq_value/1e9)
 			self.obj1.write(cmd_str)
+                freq = self.get_frequency()
+                print(freq)
 		
     
 	# This method will return the CURRENT power that the frequency
