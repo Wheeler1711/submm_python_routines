@@ -479,7 +479,7 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
 
     pdf_pages = PdfPages(outfile_dir+"cal_plots.pdf")
 
-    for k in range(0,fine_dict['I'].shape[1]):
+    for k in range(0,min(fine_dict['I'].shape[1], stream_z.shape[1])):
         print(k)
 
 
@@ -621,6 +621,118 @@ def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning =
     return cal_dict
 
 
+def calibrate_list(fine_filename,gain_filename,stream_list,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./",sample_rate = 488.28125):
+    #this is for batch fitting stream data in multiple dir files, mostly
+    #for the beam map separate
+    fine_dict = read_multitone.read_iq_sweep(fine_filename)
+    gain_dict = read_multitone.read_iq_sweep(gain_filename)
+    stream_dicts = [read_multitone.read_stream(stream_filename)
+            for stream_filename in stream_list]
+
+    gain_z = gain_dict['I'] +1.j*gain_dict['Q']
+    fine_z = fine_dict['I'] +1.j*fine_dict['Q']
+    stream_z = [stream_dict['I_stream'][skip_beginning:] +1.j*stream_dict['Q_stream'][skip_beginning:] for stream_dict in stream_dicts]
+    stream_time = [np.asarray(stream_dict['packet_count'])[skip_beginning:]*1/sample_rate
+            for stream_dict in stream_dicts]
+    stream_time = [time - time[0] for time in stream_time]
+
+
+    #bin the data if you like
+    if bin_num !=1:
+        for i in range(0,stream_z.shape[1]):
+            if i == 0:
+                stream_z_downsamp = np.zeros((stream_z.shape[0]/bin_num,stream_z.shape[1]),dtype = 'complex')
+            stream_z_downsamp[:,i] = np.mean(stream_z[0:stream_z.shape[0]/bin_num*bin_num,i].reshape(-1,bin_num),axis = 1) #int math
+        stream_time_downsamp = np.mean(stream_time[0:stream_time.shape[0]/bin_num*bin_num].reshape(-1,bin_num),axis = 1) #int math 
+        stream_z = stream_z_downsamp
+        stream_time = stream_time_downsamp
+        
+
+    #initalize some arrays to hold the calibrated data
+    stream_corr_all = [np.zeros(set_z.shape,dtype = 'complex')
+            for set_z in stream_z]
+    gain_corr_all = np.zeros(gain_z.shape,dtype = 'complex')
+    fine_corr_all = np.zeros(fine_z.shape,dtype = 'complex')
+    stream_df_over_f_all = [np.zeros(set_z.shape) for set_z in stream_z]
+    fit_vals = np.zeros((3,fine_z.shape[1]))
+
+
+    for k in range(0,min(fine_dict['I'].shape[1], stream_z[0].shape[1])):
+        print(k)
+       
+        f_stream = fine_dict['freqs'][len(fine_dict['freqs'][:,k])/2,k]*10**6
+        #normalize amplitude varation in gain scan
+        amp_norm_dict = [resonance_fitting.amplitude_normalization_sep(
+                gain_dict['freqs'][:,k]*10**6, gain_z[:,k],
+                fine_dict['freqs'][:,k]*10**6, fine_z[:,k], f_stream,
+                set_z[:,k]) for set_z in stream_z]
+
+
+        #fit the gain
+        gain_phase = np.arctan2(np.real(amp_norm_dict[0]['normalized_gain']),np.imag(amp_norm_dict[0]['normalized_gain']))
+        tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_phase)
+        
+        #remove cable delay
+        gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*10**6,amp_norm_dict[0]['normalized_gain'],tau)
+        fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*10**6,amp_norm_dict[0]['normalized_fine'],tau)
+        stream_corr = [calibrate.remove_cable_delay(f_stream,set_norm_dict['normalized_stream'],tau) for set_norm_dict in amp_norm_dict]
+        
+        # fit a cicle to the data
+        xc, yc, R, residu  = calibrate.leastsq_circle(np.real(fine_corr),np.imag(fine_corr))
+        fit_vals[0,k] = xc
+        fit_vals[1,k] = yc
+        fit_vals[2,k] = R
+
+        #move the data to the origin
+
+        gain_corr = gain_corr - xc -1j*yc
+        fine_corr = fine_corr - xc -1j*yc
+        stream_corr = [set_corr  - xc -1j*yc for set_corr in stream_corr]
+
+        # rotate so streaming data is at 0 pi
+        phase_stream = [np.arctan2(np.imag(set_corr),np.real(set_corr))
+                for set_corr in stream_corr]
+        med_phase = np.median(phase_stream)
+
+        gain_corr_all[:,k]  = gain_corr = gain_corr*np.exp(-1j*med_phase) 
+        fine_corr_all[:,k] = fine_corr = fine_corr*np.exp(-1j*med_phase) 
+        for i in range(len(stream_corr)):
+            stream_corr_all[i][:,k] = stream_corr[i] = stream_corr[i]*np.exp(
+                    -1j*med_phase)
+
+        phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
+        use_index = np.where((-np.pi/2.<phase_fine) & (phase_fine<np.pi/2))
+        phase_stream = [np.arctan2(np.imag(set_corr),np.real(set_corr))
+                for set_corr in stream_corr]
+
+        #interp phase to frequency
+        f_interp = interpolate.interp1d(phase_fine, fine_dict['freqs'][:,k],kind = 'quadratic',bounds_error = False,fill_value = 0)
+
+        phase_small = np.linspace(np.min(phase_fine),np.max(phase_fine),1000)
+        for i in range(len(phase_stream)):
+            freqs_stream = f_interp(phase_stream[i])
+            stream_df_over_f_all[i][:,k] = freqs_stream/np.mean(freqs_stream)-1.
+
+
+    #save everything to a dictionary
+    cal_dict = {
+    #                'fine_z': fine_z,
+    #                'gain_z': gain_z,
+    #                'stream_z': stream_z,
+    #                'fine_freqs':fine_dict['freqs'],
+    #                'gain_freqs':fine_dict['freqs'],
+    #                'stream_corr':stream_corr_all,
+                    'gain_corr':gain_corr_all,
+                    'fine_corr':fine_corr_all,
+    #                'stream_df_over_f':stream_df_over_f_all,
+    #                'time':stream_dict['time'],
+    #                'stream_time':stream_time}
+                     'fit_coords':fit_vals}
+
+    #save the dictionary
+    #pickle.dump( cal_dict, open(outfile_dir+ "cal.p", "wb" ),2 )
+    return stream_df_over_f_all, stream_time, cal_dict
+
 
 def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA = 0):
     pdf_pages = PdfPages(outfile_dir+"psd_plots.pdf")
@@ -632,7 +744,8 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
     else:
         do_PCA = False
 
-    for k in range(0,cal_dict['fine_corr'].shape[1]):
+    for k in range(0,min(cal_dict['fine_corr'].shape[1],
+             cal_dict['stream_df_over_f'].shape[1])):
         print(k)
 
 

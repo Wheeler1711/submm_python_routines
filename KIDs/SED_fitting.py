@@ -21,6 +21,10 @@ def noise_white(y,a):
     return np.ones(y.shape[0])*a
 def noise_profile_lor(y,a,b,c,d):
     return (a+b*y**-c)/(1+(2*np.pi*y*d)**2.)
+def noise_profile_lor_vec(y,a,b,c,d):
+    y = np.reshape(y,(y.shape[0],1,1,1,1))
+    return (a+b*y**-c)/(1+(2*np.pi*y*d)**2.)
+
 def std_of_mean(x):
     if np.size(x) == 1:
         return x
@@ -57,7 +61,7 @@ def fit_SED_lor(x,y,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([10**-20,10**-20,0,0.00001],[10**-10,10**-10,3,0.001]) 
+        bounds = ([10**-20,0.0,0.0,9e-7],[10**-8,10**-8,3,0.001]) 
     if ('use_range' in keywords):
         use_range = keywords['use_range']
         # create an index of the values you want to fit

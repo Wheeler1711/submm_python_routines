@@ -132,10 +132,10 @@ def calibrate_single_tone(fine_f,fine_z,gain_f,gain_z,stream_f,stream_z,plot_per
 
 
 
-def noise(cal_dict, sample_rate):
+def noise(cal_dict, sample_rate, title=None):
 
     fft_freqs,Sxx,S_per,S_par = calibrate.fft_noise(cal_dict['stream_corr'],cal_dict['stream_df_over_f'],sample_rate)
-    plot_bins = np.logspace(-3,np.log10(300),100)
+    plot_bins = np.logspace(-3,np.log10(250000),1000)
     binnedfreq =  binned_statistic(fft_freqs, fft_freqs, bins=plot_bins)[0] #bin the frequecy against itself   
     binnedpsd = binned_statistic(fft_freqs, np.abs(Sxx), bins=plot_bins)[0]
 
@@ -146,7 +146,10 @@ def noise(cal_dict, sample_rate):
 
     fig = plt.figure(4,figsize = (16,6))
     plt.subplot(122)
-    plt.title("Sxx")
+    if title is None:
+        plt.title("Sxx")
+    else:
+        plt.title('Sxx ' + title)
     #plt.loglog(fft_freqs,np.abs(Sxx))                                                                      
     plt.loglog(binnedfreq,np.abs(binnedpsd),linewidth = 2,label = "Sxx raw")
     plt.loglog(binnedfreq,amp_subtracted,linewidth = 2,label = "raw amp subtracted")
