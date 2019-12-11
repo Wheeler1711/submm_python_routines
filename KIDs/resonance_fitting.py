@@ -137,7 +137,7 @@ def fit_nonlinear_iq(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,np.max(x)])
+        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -463,10 +463,13 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
     #y = mx +b
     #m = (y2 - y1)/(x2-x1)
     #b = y-mx
-    m = (gain_phase - np.roll(gain_phase,1))/(gain_x-np.roll(gain_x,1))
-    b = gain_phase -m*gain_x
-    m_best = np.median(m[~np.isnan(m)])
-    tau_guess = m_best/(2*np.pi)
+    if len(gain_z)>1: #is there a gain scan?
+        m = (gain_phase - np.roll(gain_phase,1))/(gain_x-np.roll(gain_x,1))
+        b = gain_phase -m*gain_x
+        m_best = np.median(m[~np.isnan(m)])
+        tau_guess = m_best/(2*np.pi)
+    else:
+        tau_guess = 3*10**-7
         
     if verbose == True:
         print("fr guess  = %.2f MHz" %(fr_guess/10**6))
