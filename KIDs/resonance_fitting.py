@@ -2,6 +2,7 @@ import numpy as np
 import scipy.optimize as optimization
 import matplotlib.pyplot as plt
 from KIDs import calibrate
+from numba import jit
 
 
 # module for fitting resonances curves for kinetic inductance detectors.
@@ -18,6 +19,41 @@ from KIDs import calibrate
 #JDW 2017-08-30 added in fitting for magnitude fitting of resonators i.e. not in iq space
 #JDW 2018-03-05 added more clever function for guessing x0 for fits
 #JDW 2018-08-23 added more clever guessing for resonators with large phi into guess seperate functions
+
+
+J=np.exp(2j*np.pi/3)
+Jc=1/J
+
+@jit(nopython=True) 
+def cardan(a,b,c,d): #analytical root finding fast: using numba looks like x10 speed up 
+    u=np.empty(2,np.complex128)
+    z0=b/3/a
+    a2,b2 = a*a,b*b    
+    p=-b2/3/a2 +c/a
+    q=(b/27*(2*b2/a2-9*c/a)+d)/a
+    D=-4*p*p*p-27*q*q
+    r=np.sqrt(-D/27+0j)        
+    u=((-q-r)/2)**(1/3.)#0.33333333333333333333333
+    v=((-q+r)/2)**(1/3.)#0.33333333333333333333333
+    w=u*v
+    w0=np.abs(w+p/3)
+    w1=np.abs(w*J+p/3)
+    w2=np.abs(w*Jc+p/3)
+    if w0<w1: 
+        if w2<w0 : v*=Jc
+    elif w2<w1 : v*=Jc
+    else: v*=J
+    roots = np.asarray((u+v-z0, u*J+v*Jc-z0,u*Jc+v*J-z0))
+    #print(roots)
+    where_real = np.where(np.abs(np.imag(roots)) < 1e-15)
+    #if len(where_real)>1: print(len(where_real))
+    #print(D)
+    if D>0: return np.max(np.real(roots)) # three real roots
+    else: return np.real(roots[np.argsort(np.abs(np.imag(roots)))][0]) #one real root get the value that has smallest imaginary component
+    #return np.max(np.real(roots[where_real]))
+
+#return np.asarray((u+v-z0, u*J+v*Jc-z0,u*Jc+v*J-z0))
+
 
 # function to descript the magnitude S21 of a non linear resonator
 def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
@@ -53,15 +89,46 @@ def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
     #find the roots of the y equation above
     for i in range(0,x.shape[0]):
         # 4y^3+ -4yg*y^2+ y -(yg+a)
-        roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
+        #roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
+        #roots = cardan(4.0,-4.0*yg[i],1.0,-(yg[i]+a))
+        #print(roots)
         #roots = np.roots((16.,-16.*yg[i],8.,-8.*yg[i]+4*a*yg[i]/Qr-4*a,1.,-yg[i]+a*yg[i]/Qr-a+a**2/Qr))   #more accurate version that doesn't seem to change the fit at al     
         # only care about real roots
-        where_real = np.where(np.imag(roots) == 0)
-        y[i] = np.max(np.real(roots[where_real]))
+        #where_real = np.where(np.imag(roots) == 0)
+        #where_real = np.where(np.abs(np.imag(roots)) < 1e-10) #analytic version has some floating point error accumulation
+        y[i] = cardan(4.0,-4.0*yg[i],1.0,-(yg[i]+a))#np.max(np.real(roots[where_real]))
     z = (b0 +b1*xlin)*np.abs(1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))**2
     return z
 
+def linear_mag(x,fr,Qr,amp,phi,b0):
+    # simplier version for quicker fitting when applicable
+    # x is the frequeciesn your iq sweep covers
+    # fr is the center frequency of the resonator
+    # Qr is the quality factor of the resonator
+    # amp is Qr/Qc
+    # phi is a rotation paramter for an impedance mismatch between the resonaotor and the readout system
+    # b0 DC level of s21 away from resonator
+    #
+    # This is based of fitting code from MUSIC
+    # The idea is we are producing a model that is described by the equation below
+    # the frist two terms in the large parentasis and all other terms are farmilar to me
+    # but I am not sure where the last term comes from though it does seem to be important for fitting
+    #
+    #                 /        (j phi)            (j phi)   \  2
+    #|S21|^2 = (b0)* |1 -amp*e^           +amp*(e^       -1) |^
+    #                |   ------------      ----              |
+    #                 \     (1+ 2jxg)         2              /
+    #
+    # no y just xg
+    # with no nonlinear kinetic inductance
+    if not np.isscalar(fr): #vectorize 
+        x = np.reshape(x,(x.shape[0],1,1,1,1,1))
+    xg = (x-fr)/fr
+    z = (b0)*np.abs(1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*xg*Qr) + amp/2.*(np.exp(1.0j*phi) -1.0))**2
+    return z
 
+
+ 
 
 # function to describe the i q loop of a nonlinear resonator
 def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
@@ -98,11 +165,12 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     #find the roots of the y equation above
     for i in range(0,x.shape[0]):
         # 4y^3+ -4yg*y^2+ y -(yg+a)
-        roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
+        #roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
         #roots = np.roots((16.,-16.*yg[i],8.,-8.*yg[i]+4*a*yg[i]/Qr-4*a,1.,-yg[i]+a*yg[i]/Qr-a+a**2/Qr))   #more accurate version that doesn't seem to change the fit at al     
         # only care about real roots
-        where_real = np.where(np.imag(roots) == 0)
-        y[i] = np.max(np.real(roots[where_real]))
+        #where_real = np.where(np.imag(roots) == 0)
+        #y[i] = np.max(np.real(roots[where_real]))
+        y[i] = cardan(4.0,-4.0*yg[i],1.0,-(yg[i]+a))
     z = (i0 +1.j*q0)* np.exp(-1.0j* 2* np.pi *deltaf*tau) * (1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))
     return z
 
@@ -116,14 +184,126 @@ def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     y = np.zeros(x.shape[0])
     
     for i in range(0,x.shape[0]):
-        roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
-        where_real = np.where(np.imag(roots) == 0)
-        y[i] = np.max(np.real(roots[where_real]))
+        #roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
+        #where_real = np.where(np.imag(roots) == 0)
+        #y[i] = np.max(np.real(roots[where_real]))
+        y[i] = cardan(4.0,-4.0*yg[i],1.0,-(yg[i]+a))
     z = (i0 +1.j*q0)* np.exp(-1.0j* 2* np.pi *deltaf*tau) * (1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))
     real_z = np.real(z)
     imag_z = np.imag(z)
     return np.hstack((real_z,imag_z))
 
+
+def brute_force_linear_mag_fit(x,z,ranges,n_grid_points,error = None, plot = False,**keywords):
+    '''
+    x frequencies Hz
+    z complex or abs of s21
+    ranges is the ranges for each parameter i.e. np.asarray(([f_low,Qr_low,amp_low,phi_low,b0_low],[f_high,Qr_high,amp_high,phi_high,b0_high]))
+    n_grid_points how finely to sample each parameter space.
+    this can be very slow for n>10
+    an increase by a factor of 2 will take 2**5 times longer
+    to marginalize over you must minimize over the unwanted axies of sum_dev
+    i.e for fr np.min(np.min(np.min(np.min(fit['sum_dev'],axis = 4),axis = 3),axis = 2),axis = 1)
+    '''
+    if error is None:
+        error = np.ones(len(x))
+
+    fs = np.linspace(ranges[0][0],ranges[1][0],n_grid_points)
+    Qrs = np.linspace(ranges[0][1],ranges[1][1],n_grid_points)
+    amps = np.linspace(ranges[0][2],ranges[1][2],n_grid_points)
+    phis = np.linspace(ranges[0][3],ranges[1][3],n_grid_points)
+    b0s = np.linspace(ranges[0][4],ranges[1][4],n_grid_points)
+    evaluated_ranges = np.vstack((fs,Qrs,amps,phis,b0s))
+
+    a,b,c,d,e = np.meshgrid(fs,Qrs,amps,phis,b0s,indexing = "ij") #always index ij
+
+    evaluated = linear_mag(x,a,b,c,d,e)
+    data_values = np.reshape(np.abs(z)**2,(abs(z).shape[0],1,1,1,1,1))
+    error = np.reshape(error,(abs(z).shape[0],1,1,1,1,1))
+    sum_dev = np.sum(((np.sqrt(evaluated)-np.sqrt(data_values))**2/error**2),axis = 0) # comparing in magnitude space rather than magnitude squared
+    
+    min_index = np.where(sum_dev == np.min(sum_dev))
+    index1 = min_index[0][0]
+    index2 = min_index[1][0]
+    index3 = min_index[2][0]
+    index4 = min_index[3][0]
+    index5 = min_index[4][0]
+    fit_values = np.asarray((fs[index1],Qrs[index2],amps[index3],phis[index4],b0s[index5]))
+    fit_values_names = ('f0','Qr','amp','phi','b0')
+    fit_result = linear_mag(x,fs[index1],Qrs[index2],amps[index3],phis[index4],b0s[index5])
+
+    marginalized_1d = np.zeros((5,n_grid_points))
+    marginalized_1d[0,:] = np.min(np.min(np.min(np.min(sum_dev,axis = 4),axis = 3),axis = 2),axis = 1)
+    marginalized_1d[1,:] = np.min(np.min(np.min(np.min(sum_dev,axis = 4),axis = 3),axis = 2),axis = 0)
+    marginalized_1d[2,:] = np.min(np.min(np.min(np.min(sum_dev,axis = 4),axis = 3),axis = 1),axis = 0)
+    marginalized_1d[3,:] = np.min(np.min(np.min(np.min(sum_dev,axis = 4),axis = 2),axis = 1),axis = 0)
+    marginalized_1d[4,:] = np.min(np.min(np.min(np.min(sum_dev,axis = 3),axis = 2),axis = 1),axis = 0)
+
+    marginalized_2d = np.zeros((5,5,n_grid_points,n_grid_points))
+    #0 _
+    #1 x _
+    #2 x x _
+    #3 x x x _ 
+    #4 x x x x _
+    #  0 1 2 3 4
+    marginalized_2d[0,1,:] = marginalized_2d[1,0,:] = np.min(np.min(np.min(sum_dev,axis = 4),axis = 3),axis = 2)
+    marginalized_2d[2,0,:] = marginalized_2d[0,2,:] = np.min(np.min(np.min(sum_dev,axis = 4),axis = 3),axis = 1)
+    marginalized_2d[2,1,:] = marginalized_2d[1,2,:] = np.min(np.min(np.min(sum_dev,axis = 4),axis = 3),axis = 0)
+    marginalized_2d[3,0,:] = marginalized_2d[0,3,:] = np.min(np.min(np.min(sum_dev,axis = 4),axis = 2),axis = 1)
+    marginalized_2d[3,1,:] = marginalized_2d[1,3,:] = np.min(np.min(np.min(sum_dev,axis = 4),axis = 2),axis = 0)
+    marginalized_2d[3,2,:] = marginalized_2d[2,3,:] = np.min(np.min(np.min(sum_dev,axis = 4),axis = 1),axis = 0)
+    marginalized_2d[4,0,:] = marginalized_2d[0,4,:] = np.min(np.min(np.min(sum_dev,axis = 3),axis = 2),axis = 1)
+    marginalized_2d[4,1,:] = marginalized_2d[1,4,:] = np.min(np.min(np.min(sum_dev,axis = 3),axis = 2),axis = 0)
+    marginalized_2d[4,2,:] = marginalized_2d[2,4,:] = np.min(np.min(np.min(sum_dev,axis = 3),axis = 1),axis = 0)
+    marginalized_2d[4,3,:] = marginalized_2d[3,4,:] = np.min(np.min(np.min(sum_dev,axis = 2),axis = 1),axis = 0)
+
+    if plot:
+        levels = [2.3,4.61] #delta chi squared two parameters 68 90 % confidence
+        fig_fit = plt.figure(-1)
+        axs = fig_fit.subplots(5, 5)
+        for i in range(0,5): # y starting from top
+            for j in range(0,5): #x starting from left
+                if i > j:
+                    #plt.subplot(5,5,i+1+5*j)
+                    #axs[i, j].set_aspect('equal', 'box')
+                    extent = [evaluated_ranges[j,0],evaluated_ranges[j,n_grid_points-1],evaluated_ranges[i,0],evaluated_ranges[i,n_grid_points-1]]
+                    axs[i,j].imshow(marginalized_2d[i,j,:]-np.min(sum_dev),extent =extent,origin = 'lower', cmap = 'jet')
+                    axs[i,j].contour(evaluated_ranges[j],evaluated_ranges[i],marginalized_2d[i,j,:]-np.min(sum_dev),levels = levels,colors = 'white')
+                    axs[i,j].set_ylim(evaluated_ranges[i,0],evaluated_ranges[i,n_grid_points-1])
+                    axs[i,j].set_xlim(evaluated_ranges[j,0],evaluated_ranges[j,n_grid_points-1])
+                    axs[i,j].set_aspect((evaluated_ranges[j,0]-evaluated_ranges[j,n_grid_points-1])/(evaluated_ranges[i,0]-evaluated_ranges[i,n_grid_points-1]))
+                    if j == 0:
+                        axs[i, j].set_ylabel(fit_values_names[i])
+                    if i == 4:
+                        axs[i, j].set_xlabel("\n"+fit_values_names[j])
+                    if i<4:
+                        axs[i,j].get_xaxis().set_ticks([])
+                    if j>0:
+                        axs[i,j].get_yaxis().set_ticks([])
+
+                elif i < j:
+                    fig_fit.delaxes(axs[i,j])
+
+        for i in range(0,5):
+            #axes.subplot(5,5,i+1+5*i)
+            axs[i,i].plot(evaluated_ranges[i,:],marginalized_1d[i,:]-np.min(sum_dev))
+            axs[i,i].plot(evaluated_ranges[i,:],np.ones(len(evaluated_ranges[i,:]))*1.,color = 'k')
+            axs[i,i].plot(evaluated_ranges[i,:],np.ones(len(evaluated_ranges[i,:]))*2.7,color = 'k')
+            axs[i,i].yaxis.set_label_position("right")
+            axs[i,i].yaxis.tick_right()
+            axs[i,i].xaxis.set_label_position("top")
+            axs[i,i].xaxis.tick_top()
+            axs[i,i].set_xlabel(fit_values_names[i])
+
+        #axs[0,0].set_ylabel(fit_values_names[0])
+        #axs[4,4].set_xlabel(fit_values_names[4])
+        axs[4,4].xaxis.set_label_position("bottom")
+        axs[4,4].xaxis.tick_bottom()
+                                                    
+
+    #make a dictionary to return
+    fit_dict = {'fit_values': fit_values,'fit_values_names':fit_values_names, 'sum_dev': sum_dev, 'fit_result': fit_result,'marginalized_2d':marginalized_2d,'marginalized_1d':marginalized_1d,'evaluated_ranges':evaluated_ranges}#, 'x0':x0, 'z':z}
+    return fit_dict
 
 
 # function for fitting an iq sweep with the above equation
