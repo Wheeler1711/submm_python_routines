@@ -2,7 +2,7 @@ import numpy as np
 import scipy.optimize as optimization
 import matplotlib.pyplot as plt
 from KIDs import calibrate
-from numba import jit
+from numba import jit # to get working on python 2 I had to downgrade llvmlite pip install llvmlite==0.31.0
 
 
 # module for fitting resonances curves for kinetic inductance detectors.
@@ -25,7 +25,11 @@ J=np.exp(2j*np.pi/3)
 Jc=1/J
 
 @jit(nopython=True) 
-def cardan(a,b,c,d): #analytical root finding fast: using numba looks like x10 speed up 
+def cardan(a,b,c,d):
+    '''
+    analytical root finding fast: using numba looks like x10 speed up
+    returns only the largest real root
+    '''
     u=np.empty(2,np.complex128)
     z0=b/3/a
     a2,b2 = a*a,b*b    
@@ -56,7 +60,9 @@ def cardan(a,b,c,d): #analytical root finding fast: using numba looks like x10 s
 
 
 # function to descript the magnitude S21 of a non linear resonator
+@jit(nopython=True) 
 def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
+    '''
     # x is the frequeciesn your iq sweep covers
     # fr is the center frequency of the resonator
     # Qr is the quality factor of the resonator
@@ -81,7 +87,7 @@ def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
     # with nonlinear kinetic inductance
     #                                     yg = y+ a/(1+y^2)  where yg = Qr*xg and xg = (f-fr)/fr
     #    
-    
+    '''
     xlin = (x - flin)/flin
     xg = (x-fr)/fr
     yg = Qr*xg
@@ -100,7 +106,9 @@ def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
     z = (b0 +b1*xlin)*np.abs(1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))**2
     return z
 
+@jit(nopython=True)
 def linear_mag(x,fr,Qr,amp,phi,b0):
+    '''
     # simplier version for quicker fitting when applicable
     # x is the frequeciesn your iq sweep covers
     # fr is the center frequency of the resonator
@@ -121,6 +129,7 @@ def linear_mag(x,fr,Qr,amp,phi,b0):
     #
     # no y just xg
     # with no nonlinear kinetic inductance
+    '''
     if not np.isscalar(fr): #vectorize 
         x = np.reshape(x,(x.shape[0],1,1,1,1,1))
     xg = (x-fr)/fr
@@ -131,7 +140,9 @@ def linear_mag(x,fr,Qr,amp,phi,b0):
  
 
 # function to describe the i q loop of a nonlinear resonator
+@jit(nopython=True) 
 def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
+    '''
     # x is the frequeciesn your iq sweep covers
     # fr is the center frequency of the resonator
     # Qr is the quality factor of the resonator
@@ -158,6 +169,7 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     # with nonlinear kinetic inductance
     #                                     yg = y+ a/(1+y^2)  where yg = Qr*xg and xg = (f-fr)/fr
     #    
+    '''
     deltaf = (x - f0)
     xg = (x-fr)/fr
     yg = Qr*xg
@@ -176,8 +188,12 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
 
 
 
-# when using a fitter that can't handel complex number one needs to return both the real and imaginary components seperatly
-def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):    
+
+def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
+    '''
+    when using a fitter that can't handel complex number 
+    one needs to return both the real and imaginary components seperatly
+    '''
     deltaf = (x - f0)
     xg = (x-fr)/fr
     yg = Qr*xg
@@ -308,10 +324,12 @@ def brute_force_linear_mag_fit(x,z,ranges,n_grid_points,error = None, plot = Fal
 
 # function for fitting an iq sweep with the above equation
 def fit_nonlinear_iq(x,z,**keywords):
+    '''
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
     # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
     # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat  
+    '''
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
@@ -349,11 +367,13 @@ def fit_nonlinear_iq(x,z,**keywords):
     return fit_dict
 
 def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
+    '''
     # same as above funciton but takes fine and gain scans seperatly
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
     # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
     # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat  
+    '''
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
@@ -424,10 +444,12 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
 
 # same function but double fits so that it can get error and a proper covariance matrix out
 def fit_nonlinear_iq_with_err(x,z,**keywords):
+    '''
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
     # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
     # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat 
+    '''
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
@@ -474,10 +496,12 @@ def fit_nonlinear_iq_with_err(x,z,**keywords):
 
 # function for fitting an iq sweep with the above equation
 def fit_nonlinear_mag(x,z,**keywords):
+    '''
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
     # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
     # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat  
+    '''
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
@@ -501,11 +525,13 @@ def fit_nonlinear_mag(x,z,**keywords):
     return fit_dict
 
 def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
+    '''
     # same as above but fine and gain scans are provided seperatly
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
     # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
-    # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat  
+    # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat 
+    '''
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
@@ -553,8 +579,10 @@ def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     return fit_dict
 
 def amplitude_normalization(x,z):
+    '''
     # normalize the amplitude varation requires a gain scan
     #flag frequencies to use in amplitude normaliztion
+    '''
     index_use = np.where(np.abs(x-np.median(x))>100000) #100kHz away from resonator
     poly = np.polyfit(x[index_use],np.abs(z[index_use]),2)
     poly_func = np.poly1d(poly)
@@ -562,9 +590,11 @@ def amplitude_normalization(x,z):
     return normalized_data
 
 def amplitude_normalization_sep(gain_x,gain_z,fine_x,fine_z,stream_x,stream_z):
+    '''
     # normalize the amplitude varation requires a gain scan
     # uses gain scan to normalize does not use fine scan
     #flag frequencies to use in amplitude normaliztion
+    '''
     index_use = np.where(np.abs(gain_x-np.median(gain_x))>100000) #100kHz away from resonator
     poly = np.polyfit(gain_x[index_use],np.abs(gain_z[index_use]),2)
     poly_func = np.poly1d(poly)
@@ -578,10 +608,12 @@ def amplitude_normalization_sep(gain_x,gain_z,fine_x,fine_z,stream_x,stream_z):
                          'poly_data':poly_data}
     return amp_norm_dict
 
-def guess_x0_iq_nonlinear(x,z,verbose = False): 
+def guess_x0_iq_nonlinear(x,z,verbose = False):
+    '''
     # this is lest robust than guess_x0_iq_nonlinear_sep 
     # below. it is recommended to use that instead   
     #make sure data is sorted from low to high frequency
+    '''
     sort_index = np.argsort(x)
     x = x[sort_index]
     z = z[sort_index]
@@ -662,10 +694,12 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
     x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,i0_guess,q0_guess,tau_guess,fr_guess]
     return x0
 
-def guess_x0_mag_nonlinear(x,z,verbose = False): 
+def guess_x0_mag_nonlinear(x,z,verbose = False):
+    '''
     # this is lest robust than guess_x0_mag_nonlinear_sep 
     #below it is recommended to use that instead   
     #make sure data is sorted from low to high frequency
+    '''
     sort_index = np.argsort(x)
     x = x[sort_index]
     z = z[sort_index]
@@ -742,12 +776,14 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     return x0
 
 
-def guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):   
+def guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
+    '''
     # this is the same as guess_x0_iq_nonlinear except that it takes
     # takes the fine scan and the gain scan as seperate variables
     # this runs into less issues when trying to sort out what part of 
     # data is fine and what part is gain for the guessing 
     #make sure data is sorted from low to high frequency
+    '''
 
     #gain phase
     gain_phase = np.arctan2(np.real(gain_z),np.imag(gain_z))
@@ -849,12 +885,14 @@ def guess_x0_iq_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,i0_guess,q0_guess,tau_guess,fr_guess]
     return x0
 
-def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):   
+def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
+    '''
     # this is the same as guess_x0_mag_nonlinear except that it takes
     # takes the fine scan and the gain scan as seperate variables
     # this runs into less issues when trying to sort out what part of 
     # data is fine and what part is gain for the guessing 
     #make sure data is sorted from low to high frequency 
+    '''
 
     #phase of gain
     gain_phase = np.arctan2(np.real(gain_z),np.imag(gain_z))
