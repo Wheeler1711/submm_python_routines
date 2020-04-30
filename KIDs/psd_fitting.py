@@ -2,14 +2,14 @@ import numpy as np
 from scipy.stats import binned_statistic
 import scipy.optimize as optimization
 
-#set of modules for fit SED of kinetic inductance detectors
+#set of modules for fitting psd of kinetic inductance detectors
 #Written by Jordan 1/5/2017
 
 #To Do
 #add verbose = true keyword
 
 #Change Log
-#1/9/2017 Added sigma_increase_cutoff and sigma_increase_factor to fit_SED modules
+#1/9/2017 Added sigma_increase_cutoff and sigma_increase_factor to fit_psd modules
 
 
 # noise profiles
@@ -32,7 +32,8 @@ def std_of_mean(x):
         return np.std(x)/np.sqrt(np.size(x))
 
 
-def fit_SED_lor(x,y,**keywords):
+def fit_psd_lor(x,y,**keywords):
+    '''
     # keywards are
     # use_range ---is an n length tuple of frequencies to use while fitting
     # Example: [[1,57],[63,117],[123,177]] here we fit from 1 to 57Hz and 63 to 117 Hz and 123 to 177Hz avoid 60 Hz and harmonics
@@ -44,6 +45,7 @@ def fit_SED_lor(x,y,**keywords):
     # at low frequency as compared to high frequency
     # since there are less points at low frequencies than high frequencies I artificially increase the accuracy of the low frequency points
     # below sigma_increase_cutoff by scaling the error that the fitter uses by sigma_increase_factor
+    '''
     if ('sigma_increase_cutoff' in keywords):
         sigma_increase_cutoff = keywords['sigma_increase_cutoff']
     else:
@@ -82,7 +84,7 @@ def fit_SED_lor(x,y,**keywords):
 
     # log bin the data first or no    
     if ('log' in keywords):
-        print("SED will be log binned before fitting")
+        print("psd will be log binned before fitting")
         log = 1
         bins = np.logspace(np.log10(x[0]),np.log10(x[x.shape[0]-1]),100) #100 logspaced bins 
     else:
@@ -118,7 +120,8 @@ def fit_SED_lor(x,y,**keywords):
 
 
 
-def fit_SED(x,y,**keywords):
+def fit_psd(x,y,**keywords):
+    '''
     # keywards are
     # use_range ---is an n length tuple of frequencies to use while fitting
     # Example: [[1,57],[63,117],[123,177]] here we fit from 1 to 57Hz and 63 to 117 Hz and 123 to 177Hz avoid 60 Hz and harmonics
@@ -130,6 +133,7 @@ def fit_SED(x,y,**keywords):
     # at low frequency as compared to high frequency
     # since there are less points at low frequencies than high frequencies I artificially increase the accuracy of the low frequency points
     # below sigma_increase_cutoff by scaling the error that the fitter uses by sigma_increase_factor
+    '''
     if ('sigma_increase_cutoff' in keywords):
         sigma_increase_cutoff = keywords['sigma_increase_cutoff']
     else:
@@ -173,7 +177,7 @@ def fit_SED(x,y,**keywords):
 
     # log bin the data first or no    
     if ('log' in keywords):
-        print("SED will be log binned before fitting")
+        print("psd will be log binned before fitting")
         log = 1
         bins = np.logspace(np.log10(x[0]),np.log10(x[x.shape[0]-1]),100) #100 logspaced bins 
     else:
