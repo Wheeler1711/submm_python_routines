@@ -146,5 +146,18 @@ def responsivity(temp,pabs,tc = 1.,N0 = 4.*10**10,nstar =100.,tau_max = 100.,eta
     return dict
 
 def responsivity_help():
-    print "The input variables are temp,pabs,tc = 1.,N0 = 4.*10**10,nstar =100.,tau_max = 100.,eta_pb = 0.7,vol = 1.,fr = 100.,alpha_k = 1.,gamma_t = 1.,nu_opt = 250, n_gamma = 0."
-    print "The output variables are nth, nqp, tau_qp, s1, s2, xr, Qi_inv, r_x, r_qinv, sxx_gr, sxx_gr0, sxx_gamma"
+    print("The input variables are temp,pabs,tc = 1.,N0 = 4.*10**10,nstar =100.,tau_max = 100.,eta_pb = 0.7,vol = 1.,fr = 100.,alpha_k = 1.,gamma_t = 1.,nu_opt = 250, n_gamma = 0.")
+    print("The output variables are nth, nqp, tau_qp, s1, s2, xr, Qi_inv, r_x, r_qinv, sxx_gr, sxx_gr0, sxx_gamma")
+
+
+def f0dirshort(T, f00, Fdelta):
+    '''
+    fucntion that computes TLS frequency shift 
+     is center frequency in GHz, p2 is the product of filling factor and
+    loss tangent Fdelta_TLS, returns the frequency in GHz
+    Taken from Jiansong Gao's Matlab code
+    '''
+    f01K = 20.8366
+    ref0 =np.real(special.digamma(1/2 + 1/(2*np.pi*1j)*f00/f01K/T))-np.log(f00/f01K/T/(2*np.pi)); 
+    y = f00 + f00*Fdelta*1/np.pi*ref0;
+    return y
