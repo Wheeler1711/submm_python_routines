@@ -14,10 +14,11 @@ import scipy.special as special
 
 
 def nqp(t,tc,v,nqp_min):
-
-    #if ~keyword_set(nqp_min) then nqp_min=400. ; per cubic micron: zero-Temp residual QP density
-    #V is in cubic microns
-    #N0=1.72e10 for aluminum
+    '''
+    if ~keyword_set(nqp_min) then nqp_min=400. ; per cubic micron: zero-Temp residual QP density
+    V is in cubic microns
+    N0=1.72e10 for aluminum
+    '''
     N0=4.e10 # for TiN
     N0 = N0/1.6e-19 # now microns^3 / Joule
 
@@ -28,35 +29,41 @@ def nqp(t,tc,v,nqp_min):
     return Nqp
 
 def deltaf_f(t, tc, nu, alpha, gamma):
-    #From Steve Hailey-Dunsheath, 2 Februay 2016
-    #Calculate a model for the fractional frequency shift due to change in bath temperature
-    #This is (alpha)*(gamma/2)*[sigma2(T)/sigma2(T=0)-1], where sigma2(T) is
-    #from equation 2.92 in Gao thesis, and equation 20 in Gao+08 JLTP
+    '''
+    From Steve Hailey-Dunsheath, 2 Februay 2016
+    Calculate a model for the fractional frequency shift due to change in bath temperature
+    This is (alpha)*(gamma/2)*[sigma2(T)/sigma2(T=0)-1], where sigma2(T) is
+    from equation 2.92 in Gao thesis, and equation 20 in Gao+08 JLTP
 
-    #nu is in MHz
-    #if ~keyword_set(alpha) then alpha=1
-    #if ~keyword_set(gamma) then gamma=1
+    nu is in MHz
+    if ~keyword_set(alpha) then alpha=1
+    if ~keyword_set(gamma) then gamma=1
+    '''
     d_0 = 1.762*tc #factor of 1.762 is suspect
     xi = 6.626e-34*nu*1.e6/(2.*1.38e-23*t)
     model = -1.*alpha*gamma/2.*np.exp(-1.*d_0/t)*((2.*np.pi*t/d_0)**0.5 + 2.*np.exp(-1.*xi)*special.iv(0,xi))
     return model
 
 def df_response(t,tc,f):
-    #calculate d (df/f) / dT via finite difference
-    #f is in MHz
-    #calls deltaf_f which computes frequency shift
+    '''
+    calculate d (df/f) / dT via finite difference
+    f is in MHz
+    calls deltaf_f which computes frequency shift
+    '''
     delta_t = t/100.
     dff_dt = (deltaf_f(t+delta_t,tc,f,1,1) - deltaf_f(t-delta_t,tc,f,1,1))/(2*delta_t)
     return dff_dt
 
 
 def grnoise(t,tc,V,tau_qp,N0,f,nqp_min):
-# this function calculates gr noise assuming constant tau
-#fuction below responsivity probably does a better job. 
-# V in cubic microns
-#if ~keyword_set(N0) then N0=4.e10 ; microns^3 / eV
-#if ~keyword_set(tau_qp) then tau_qp = 5e-6 ; sec
-#if ~keyword_set(nqp_min) then nqp_min=400. ; QP per cubic micron at zero Temp
+    '''
+    this function calculates gr noise assuming constant tau
+    fuction below responsivity probably does a better job. 
+    V (volume in cubic microns)
+    if ~keyword_set(N0) then N0=4.e10 ; microns^3 / eV
+    if ~keyword_set(tau_qp) then tau_qp = 5e-6 ; sec
+    if ~keyword_set(nqp_min) then nqp_min=400. ; QP per cubic micron at zero Temp
+    '''
     N0 = N0/1.6e-19 # now microns^3 / Joule
 
     #ef^2 = 4 beta^2 Nqp tau_qp
@@ -77,8 +84,10 @@ def grnoise(t,tc,V,tau_qp,N0,f,nqp_min):
 
 
 def responsivity(temp,pabs,tc = 1.,N0 = 4.*10**10,nstar =100.,tau_max = 100.,eta_pb = 0.7,vol = 1.,fr = 100.,alpha_k = 1.,gamma_t = 1.,nu_opt = 250, n_gamma = 0.):
-    # specail thanks to Steve Hailey Dunsheath whose made this orginal function in idl 
-    #Define various constants 
+    '''
+    Special thanks to Steve Hailey Dunsheath whose made this orginal function in idl 
+    '''
+    #Define various constants
     k_B = 1.381*10**-23 #Boltzmann constant [J K^-1]
     ev_joule = 1.6022*10**-19 #eV/J ratio [eV J^-1]
     h_p = 6.626*10**-34 #Planck constant [J s]
