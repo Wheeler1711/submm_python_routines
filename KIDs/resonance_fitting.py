@@ -335,7 +335,7 @@ def fit_nonlinear_iq(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
+        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,1,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -379,7 +379,7 @@ def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(fine_x),500.,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(fine_x)],[np.max(fine_x),1000000,100,np.pi,5,np.inf,np.inf,1*10**-6,np.max(fine_x)])
+        bounds = ([np.min(fine_x),500.,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(fine_x)],[np.max(fine_x),1000000,1,np.pi,5,np.inf,np.inf,1*10**-6,np.max(fine_x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -507,7 +507,7 @@ def fit_nonlinear_mag(x,z,**keywords):
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),100,.01,-np.pi,0,-np.inf,-np.inf,np.min(x)],[np.max(x),200000,100,np.pi,5,np.inf,np.inf,np.max(x)])
+        bounds = ([np.min(x),100,.01,-np.pi,0,-np.inf,-np.inf,np.min(x)],[np.max(x),200000,1,np.pi,5,np.inf,np.inf,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
