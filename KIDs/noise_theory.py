@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.special as special
+import scipy.optimize as optimization
 
 # this is a list of definitions that can be used to predict noise in KIDS
 # right now it just contains the nessasary requirements for perdicting G-R noise in TiN
@@ -170,3 +171,13 @@ def f0dirshort(T, f00, Fdelta):
     ref0 =np.real(special.digamma(1/2 + 1/(2*np.pi*1j)*f00/f01K/T))-np.log(f00/f01K/T/(2*np.pi)); 
     y = f00 + f00*Fdelta*1/np.pi*ref0;
     return y
+
+def fit_tls(T,f,sigma = None,**keywords):
+    x0 = np.asarray((f[0],1e-5))
+    if sigma is not None:
+        print("using error")
+        print(sigma)
+        fit = optimization.curve_fit(f0dirshort, T, f,x0,sigma=sigma,absolute_sigma = True)
+    else:
+        fit = optimization.curve_fit(f0dirshort, T, f, x0)
+    return fit
