@@ -51,7 +51,7 @@ class interactive_plot(object):
         for i in range(0,len(self.kid_idx)):
             self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i], self.data[self.kid_idx][i], str(i))
 
-        if self.f_old.any != None:
+        if isinstance(self.f_old,np.ndarray):
             self.l2, = self.ax.plot(self.f_old,self.data_old,color = "C0",alpha = 0.25)
             self.p2, = self.ax.plot(self.f_old[self.kid_idx_old],self.data_old[self.kid_idx_old],"r*",markersize = 8,alpha = 0.1)
             self.text_dict_old = {}
