@@ -12,7 +12,8 @@ from numba import jit # to get working on python 2 I had to downgrade llvmlite p
 
 # To Do
 # I think the error analysis on the fit_nonlinear_iq_with_err probably needs some work
-# add in step by step fitting i.e. first amplitude normalizaiton, then cabel delay, then i0,q0 subtraction, then phase rotation, then the rest of the fit. 
+# add in step by step fitting i.e. first amplitude normalizaiton, then cabel delay, then i0,q0 subtraction, then phase rotation, then the rest of the fit.
+# need to have fit option that just specifies tau becuase that never really changes for your cryostat
 
 #Change log
 #JDW 2017-08-17 added in a keyword/function to allow for gain varation "amp_var" to be taken out before fitting
@@ -189,11 +190,18 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
 
 
 
-def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
+def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0,**keywords):
     '''
     when using a fitter that can't handel complex number 
     one needs to return both the real and imaginary components seperatly
     '''
+    if ('tau' in keywords):
+        use_given_tau = True
+        tau = keywords['tau']
+        print("hello")
+    else:
+        use_given_tau = False
+    
     deltaf = (x - f0)
     xg = (x-fr)/fr
     yg = Qr*xg
@@ -328,14 +336,21 @@ def fit_nonlinear_iq(x,z,**keywords):
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
     # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
-    # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat  
+    # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat 
+    # tau forces tau to specific value
+    # tau_guess fixes the guess for tau without have to specifiy all of x0
     '''
+    if ('tau' in keywords):
+        use_given_tau = True
+        tau = keywords['tau']
+    else:
+        use_given_tau = False
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
         #define default bounds
         print("default bounds used")
-        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,1*10**-9,np.min(x)],[np.max(x),200000,1,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
+        bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,0,np.min(x)],[np.max(x),200000,1,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
@@ -345,6 +360,10 @@ def fit_nonlinear_iq(x,z,**keywords):
         #x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
         x0 = guess_x0_iq_nonlinear(x,z,verbose = True)
         print(x0)
+    if ('fr_guess' in keywords):
+        x0[0] = keywords['fr_guess']
+    if ('tau_guess' in keywords):
+        x0[7] = keywords['tau_guess']
     #Amplitude normalization?
     do_amp_norm = 0
     if ('amp_norm' in keywords):
@@ -357,10 +376,19 @@ def fit_nonlinear_iq(x,z,**keywords):
             print("please specify amp_norm as True or False")
     if do_amp_norm == 1:
         z = amplitude_normalization(x,z)          
-    z_stacked = np.hstack((np.real(z),np.imag(z)))    
-    fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds)
-    fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
-    x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7],x0[8])
+    z_stacked = np.hstack((np.real(z),np.imag(z)))
+    
+    if use_given_tau == True:
+        del bounds[0][7]
+        del bounds[1][7]
+        del x0[7]
+        fit = optimization.curve_fit(lambda x_lamb,a,b,c,d,e,f,g,h: nonlinear_iq_for_fitter(x_lamb,a,b,c,d,e,f,g,tau,h), x, z_stacked,x0,bounds = bounds)
+        fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],tau,fit[0][7])
+        x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],tau,x0[7])
+    else:
+        fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds)
+        fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
+        x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7],x0[8])
 
     #make a dictionary to return
     fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z}
@@ -514,7 +542,8 @@ def fit_nonlinear_mag(x,z,**keywords):
         #define default intial guess
         print("default initial guess used")
         fr_guess = x[np.argmin(np.abs(z))]
-        x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
+        #x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
+        x0 = guess_x0_mag_nonlinear(x,z,verbose = True)
 
     fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,bounds = bounds)
     fit_result = nonlinear_mag(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7])
@@ -681,7 +710,7 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
         m_best = np.median(m[~np.isnan(m)])
         tau_guess = m_best/(2*np.pi)
     else:
-        tau_guess = 3*10**-7
+        tau_guess = 3*10**-9
         
     if verbose == True:
         print("fr guess  = %.2f MHz" %(fr_guess/10**6))
@@ -750,18 +779,15 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
     a_guess = 0
     
     #b0 and b1 guess
-    xlin = (gain_x - fr_guess)/fr_guess
-    b1_guess = (np.abs(gain_z)[-1]**2-np.abs(gain_z)[0]**2)/(xlin[-1]-xlin[0])
+    
+    if len(gain_z)>1:
+        xlin = (gain_x - fr_guess)/fr_guess
+        b1_guess = (np.abs(gain_z)[-1]**2-np.abs(gain_z)[0]**2)/(xlin[-1]-xlin[0])
+    else:
+        xlin = (fine_x - fr_guess)/fr_guess
+        b1_guess = (np.abs(fine_z)[-1]**2-np.abs(fine_z)[0]**2)/(xlin[-1]-xlin[0])
     b0_guess = np.median(np.abs(gain_z)**2)
         
-    #cabel delay guess tau
-    #y = mx +b
-    #m = (y2 - y1)/(x2-x1)
-    #b = y-mx
-    m = (gain_phase - np.roll(gain_phase,1))/(gain_x-np.roll(gain_x,1))
-    b = gain_phase -m*gain_x
-    m_best = np.median(m[~np.isnan(m)])
-    tau_guess = m_best/(2*np.pi)
        
     if verbose == True:
         print("fr guess  = %.2f MHz" %(fr_guess/10**6))
@@ -770,7 +796,6 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
         print("phi guess = %.2f" %phi_guess)
         print("b0 guess  = %.2f" %b0_guess)
         print("b1 guess  = %.2f" %b1_guess)
-        print("tau guess = %.2f x 10^-7" %(tau_guess/10**-7))
     
     x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,b0_guess,b1_guess,fr_guess]
     return x0
