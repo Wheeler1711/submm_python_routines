@@ -71,7 +71,7 @@ def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.
             print("On mac shift and control key requires matplotlib backend TkAgg.")
             print("")
 
-            plt.show(block = True)
+            #plt.show(block = True)
 
         def on_key_press(self, event):
             #print( event.key)
@@ -86,25 +86,25 @@ def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.
                 xlim_left, xlim_right = self.ax.get_xlim() 
                 xlim_size = xlim_right-xlim_left
                 self.ax.set_xlim(xlim_left+self.lim_shift_factor*xlim_size,xlim_right+self.lim_shift_factor*xlim_size)
-                plt.draw()       
+                self.fig.canvas.draw()
 
             if event.key == 'left': #pan left
                 xlim_left, xlim_right = self.ax.get_xlim() 
                 xlim_size = xlim_right-xlim_left
                 self.ax.set_xlim(xlim_left-self.lim_shift_factor*xlim_size,xlim_right-self.lim_shift_factor*xlim_size)
-                plt.draw()
+                self.fig.canvas.draw()
 
             if event.key == 'up': #pan up
                 ylim_left, ylim_right = self.ax.get_ylim() 
                 ylim_size = ylim_right-ylim_left
                 self.ax.set_ylim(ylim_left+self.lim_shift_factor*ylim_size,ylim_right+self.lim_shift_factor*ylim_size)
-                plt.draw()       
+                self.fig.canvas.draw()
 
             if event.key == 'down': #pan down
                 ylim_left, ylim_right = self.ax.get_ylim() 
                 ylim_size = ylim_right-ylim_left
                 self.ax.set_ylim(ylim_left-self.lim_shift_factor*ylim_size,ylim_right-self.lim_shift_factor*ylim_size)
-                plt.draw()
+                self.fig.canvas.draw()
 
             if event.key == 'z': #zoom in
                 xlim_left, xlim_right = self.ax.get_xlim() 
@@ -113,7 +113,7 @@ def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.
                 ylim_size = ylim_right-ylim_left
                 self.ax.set_xlim(xlim_left+self.zoom_factor*xlim_size,xlim_right-self.zoom_factor*xlim_size)
                 self.ax.set_ylim(ylim_left+self.zoom_factor*ylim_size,ylim_right-self.zoom_factor*ylim_size)
-                plt.draw()
+                self.fig.canvas.draw()
             elif event.key == 'Z':
                 print("Is caps lock on?")
 
@@ -124,7 +124,6 @@ def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.
                 ylim_size = ylim_right-ylim_left
                 self.ax.set_xlim(xlim_left-self.zoom_factor*xlim_size,xlim_right+self.zoom_factor*xlim_size)
                 self.ax.set_ylim(ylim_left-self.zoom_factor*ylim_size,ylim_right+self.zoom_factor*ylim_size)
-                plt.draw()
             elif event.key == 'X':
                 print("Is caps lock on?")
 
@@ -180,8 +179,8 @@ def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.
                     self.text_dict[i].set_text("")# clear all of the texts
             self.text_dict = {} # empty the dictionary
             for i in range(0,len(self.x_data)): #rebuild the dictionary
-                self.text_dict[i] = plt.text(self.x_data[i], self.y_data[i], str(i))
-            plt.draw()
+                self.text_dict[i] = self.ax.text(self.x_data[i], self.y_data[i], str(i))
+            self.fig.canvas.draw()
 
         def find_min(self):
             print("Finding minimum")
