@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import binned_statistic
 import scipy.optimize as optimization
+import matplotlib.pyplot as plt
 
 #set of modules for fitting psd of kinetic inductance detectors
 #Written by Jordan 1/5/2017
@@ -120,7 +121,7 @@ def fit_psd_lor(x,y,**keywords):
 
 
 
-def fit_psd(x,y,**keywords):
+def fit_psd(x,y,plot = False,**keywords):
     '''
     # keywards are
     # use_range ---is an n length tuple of frequencies to use while fitting
@@ -145,13 +146,7 @@ def fit_psd(x,y,**keywords):
         #define default bounds
         sigma_increase_factor = 5. 
 
-    # bounds with out these some paramter might converge to non physical values
-    if ('bounds' in keywords):
-        bounds = keywords['bounds']
-    else:
-        #define default bounds
-        print("default bounds used")
-        bounds = ([10**-20,10**-20,0],[10**-10,10**-10,3])  
+
     if ('use_range' in keywords):
         use_range = keywords['use_range']
         # create an index of the values you want to fit
@@ -171,9 +166,17 @@ def fit_psd(x,y,**keywords):
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
-        #define default intial guess
+        #define default intial guess # guess for b: b*freqs**-c = value => b = value/freqs**-c
         print("default initial guess used")        
-        x0  = np.array([1.*10**(-15.75), 1.*10**(-17),1]) # default values that work OK for superspec
+        x0  = np.array([y[index][-1], y[index][0]/x[index][0]**(-1.) ,1]) # default values that work OK for superspec
+    # bounds with out these some paramter might converge to non physical values
+    if ('bounds' in keywords):
+        bounds = keywords['bounds']
+    else:
+        #define default bounds
+        print("default bounds used")
+        #bounds = ([10**-20,10**-20,0],[10**-10,10**-10,3])
+        bounds = ([x0[0]/10.,x0[1]/10.,0],[x0[0]*10,x0[1]*10.,3])
 
     # log bin the data first or no    
     if ('log' in keywords):
@@ -213,6 +216,20 @@ def fit_psd(x,y,**keywords):
         else:
             sigma = binnedstd
         fit = optimization.curve_fit(noise_profile, binnedfreq, binnedvals, x0 ,sigma,bounds = bounds)
+
+    if plot == True:
+        plt.loglog(binnedfreq,binnedvals,label = "Data",linewidth = 2)
+        #plt.errorbar(binnedfreq,binned_psd_log,binned_std_log, fmt='o')
+        plt.loglog(binnedfreq,noise_profile(binnedfreq,x0[0],x0[1],x0[2]),linewidth = 2,label = "Initial Guess")
+        plt.loglog(binnedfreq,noise_profile(binnedfreq,fit[0][0],fit[0][1],fit[0][2]),linewidth = 2,label = "Fit")
+        plt.loglog(binnedfreq,noise_slope(binnedfreq,fit[0][1],fit[0][2]),linewidth = 2, label = "1/f^" + str(fit[0][2])[0:4])
+        plt.loglog(binnedfreq,noise_white(binnedfreq,fit[0][0]),linewidth = 2,label = "White"+ " " +  str(fit[0][0]*10**16)[0:4] +" x10^-16")
+        plt.legend()
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Sxx (1/Hz)")
+        plt.ylim(np.min(y),np.max(y))
+        plt.show(block = False)
+        
 
     return fit
 
