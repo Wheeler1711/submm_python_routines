@@ -63,9 +63,9 @@ class interactive_plot(object):
         self.add_list = []
         self.delete_list = []
         if platform.system() == 'Darwin':
-            print("please hold either the shift or control key \n while right clicking to add or remove points")
-        else:
             print("please hold either the a or d key \n while right clicking to add or delete points")
+        else:
+            print("please hold either the shift or control key \n while right clicking to add or remove points")
         print("You can use the arrow keys to pan around")
         print("You can use z and x keys to zoom in and out")
         print("close all plots when finished")
