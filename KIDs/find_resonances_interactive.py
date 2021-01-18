@@ -262,34 +262,35 @@ def filter_trace(path, bb_freqs, sweep_freqs):
     chan_freqs = np.hstack(chan_freqs)
     return chan_freqs, mags
 
+
 def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     # padd_data = True means we are going to symmetric copies of the data to the start and stop
     # to reduce/eliminate the discontinuities at the start and stop of a dataset due to filtering
     #
     # False means we're going to have transients at the start and stop of the data
     # kill the last data point if y has an odd length
-    if np.mod(len(y),2):
-    	y = y[0:-1]
+    if np.mod(len(y), 2):
+        y = y[0:-1]
     # add the weird padd
     # so, make a backwards copy of the data, then the data, then another backwards copy of the data
     if padd_data:
-    	y = np.append( np.append(np.flipud(y),y) , np.flipud(y) )
+        y = np.append(np.append(np.flipud(y), y), np.flipud(y))
     # take the FFT
     ffty = fftpack.fft(y)
     ffty = fftpack.fftshift(ffty)
     # make the companion frequency array
     delta = 1.0/(len(y)*tau)
     nyquist = 1.0/(2.0*tau)
-    freq = np.arange(-nyquist,nyquist,delta)
+    freq = np.arange(-nyquist, nyquist, delta)
     # turn this into a positive frequency array
     print((len(ffty)//2))
     pos_freq = freq[(len(ffty)//2):]
     # make the transfer function for the first half of the data
-    i_f_3db = min( np.where(pos_freq >= f_3db)[0] )
-    f_min = f_3db - (width/2.0)
-    i_f_min = min( np.where(pos_freq >= f_min)[0] )
-    f_max = f_3db + (width/2);
-    i_f_max = min( np.where(pos_freq >= f_max)[0] )
+    i_f_3db = min(np.where(pos_freq >= f_3db)[0])
+    f_min = f_3db - (width / 2.0)
+    i_f_min = min(np.where(pos_freq >= f_min)[0])
+    f_max = f_3db + (width / 2.0)
+    i_f_max = min(np.where(pos_freq >= f_max)[0])
     transfer_function = np.zeros(len(y)//2)
     transfer_function[0:i_f_min] = 1
     transfer_function[i_f_min:i_f_max] = (1 + np.sin(-np.pi * ((freq[i_f_min:i_f_max] - freq[i_f_3db])/width)))/2.0
@@ -297,27 +298,29 @@ def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     # symmetrize this to be [0 0 0 ... .8 .9 1 1 1 1 1 1 1 1 .9 .8 ... 0 0 0] to match the FFT
     transfer_function = np.append(np.flipud(transfer_function),transfer_function)
     # apply the filter, undo the fft shift, and invert the fft
-    filtered=np.real(fftpack.ifft(fftpack.ifftshift(ffty*transfer_function)))
+    filtered = np.real(fftpack.ifft(fftpack.ifftshift(ffty*transfer_function)))
     # remove the padd, if we applied it
     if padd_data:
-    	filtered = filtered[(len(y)//3):(2*(len(y)//3))]
+        filtered = filtered[(len(y)//3):(2*(len(y)//3))]
     # return the filtered data
     return filtered
 
-def find_vna_sweep(f,z,smoothing_scale =5.0e6,spacing_threshold = 100. ):
+
+def find_vna_sweep(f, z, smoothing_scale=5.0e6, spacing_threshold=100.0):
     '''
-    f is frequencies
+    f is frequencies (hz)
     z is complex S21
-    Smoothing scale is ....
+    Smoothing scale is ....hertz?
     spacing threshold is in kHz?
     '''
-    # first plot data and filter functin before removing filter function
-    filtermags = lowpass_cosine( 20*np.log10(np.abs(z)), (f[1]-f[0])*10**9, 1./smoothing_scale, 0.1 * (1.0/smoothing_scale))
+    # first plot data and filter function before removing filter function
+    filtermags = lowpass_cosine(20*np.log10(np.abs(z)), (f[1]-f[0])*10**9,
+                                1./smoothing_scale, 0.1 * (1.0/smoothing_scale))
     #plt.ion()
     plt.figure(2)
     #plt.clf()
-    plt.plot(f,20*np.log10(np.abs(z)),'b',label='#nofilter')
-    plt.plot(f[0:-1],filtermags,'g',label='Filtered')
+    plt.plot(f, 20 * np.log10(np.abs(z)), 'b', label='#nofilter')
+    plt.plot(f[0:-1], filtermags, 'g', label='Filtered')
     plt.xlabel('frequency (MHz)')
     plt.ylabel('dB')
     plt.legend()
@@ -326,9 +329,9 @@ def find_vna_sweep(f,z,smoothing_scale =5.0e6,spacing_threshold = 100. ):
     #print((20*np.log10(np.abs(z)))[0:-1].shape)
     # now we want to choose a threshold in dB to identify peaks
     
-    ipt = interactive_threshold_plot(f[0:-1],(20*np.log10(np.abs(z)))[0:-1]-filtermags,1.5)
+    ipt = interactive_threshold_plot(f[0: -1], (20 * np.log10(np.abs(z)))[0: -1] - filtermags, 1.5)
 
-    mags =(20*np.log10(np.abs(z)))[0:-1]
+    mags = (20*np.log10(np.abs(z)))[0:-1]
 
     peak_threshold = ipt.peak_threshold
     ilo = np.where( (mags-filtermags) < -1.0*peak_threshold)[0]
@@ -378,7 +381,7 @@ def find_vna_sweep(f,z,smoothing_scale =5.0e6,spacing_threshold = 100. ):
     print()
     kid_idx = np.delete(kid_idx, del_again)
 
-    ip = interactive_plot(chan_freqs,(mags-filtermags),kid_idx)
+    ip = interactive_plot(chan_freqs, (mags-filtermags), kid_idx)
 
     return ip
 
