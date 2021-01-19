@@ -1,9 +1,10 @@
 import numpy as np
-import sys, os
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+mpl.use(backend="TkAgg")
 from scipy import signal, ndimage, fftpack
 import platform
-from KIDs import resonance_fitting as rf
+from submm_python_routines.KIDs import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 
 '''
@@ -28,7 +29,7 @@ class interactive_plot(object):
     Convention is to supply the data in magnitude units i.e. 20*np.log10(np.abs(z))
     '''
 
-    def __init__(self,chan_freqs,data,kid_idx,f_old = None,data_old =None,kid_idx_old = None):
+    def __init__(self,chan_freqs, data, kid_idx, f_old=None, data_old=None, kid_idx_old=None):
         plt.rcParams['keymap.forward'] = ['v']
         plt.rcParams['keymap.back'] = ['c','backspace']# remove arrows from back and forward on plot
         self.chan_freqs = chan_freqs
@@ -74,12 +75,8 @@ class interactive_plot(object):
         plt.show(block = True)
         
     def on_key_press(self, event):
-        #print event.key
-	#has to be shift and ctrl because remote viewers only forward
-	#certain key combinations
-	#print event.key == 'd'
         # mac or windows
-        if platform.system() == 'Darwin':
+        if platform.system().lower() == 'darwin':
             if event.key == 'a':
                 self.shift_is_held = True
             if event.key == 'd':
@@ -90,19 +87,19 @@ class interactive_plot(object):
             if event.key == 'control':
                 self.control_is_held = True
                 
-        if event.key == 'right': #pan right
+        if event.key == 'right':  # pan right
             xlim_left, xlim_right = self.ax.get_xlim() 
             xlim_size = xlim_right-xlim_left
             self.ax.set_xlim(xlim_left+self.lim_shift_factor*xlim_size,xlim_right+self.lim_shift_factor*xlim_size)
             plt.draw()       
 
-        if event.key == 'left': #pan left
+        if event.key == 'left':  # pan left
             xlim_left, xlim_right = self.ax.get_xlim() 
             xlim_size = xlim_right-xlim_left
             self.ax.set_xlim(xlim_left-self.lim_shift_factor*xlim_size,xlim_right-self.lim_shift_factor*xlim_size)
             plt.draw()
 
-        if event.key == 'up': #pan up
+        if event.key == 'up':  # pan up
             ylim_left, ylim_right = self.ax.get_ylim() 
             ylim_size = ylim_right-ylim_left
             self.ax.set_ylim(ylim_left+self.lim_shift_factor*ylim_size,ylim_right+self.lim_shift_factor*ylim_size)
@@ -175,29 +172,34 @@ class interactive_plot(object):
 
 
 class interactive_threshold_plot(object):
-
-    def __init__(self,chan_freqs,data,peak_threshold):
+    def __init__(self, chan_freqs, data, peak_threshold):
         self.peak_threshold = peak_threshold
         self.chan_freqs = chan_freqs
         self.data = data
-        self.fig = plt.figure(2,figsize = (16,6))
+        self.fig = plt.figure(2, figsize=(16, 6))
         self.ax = self.fig.add_subplot(111)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
-        self.l1, = self.ax.plot(self.chan_freqs,self.data)
-        self.ilo = np.where( self.data < -1.0*self.peak_threshold)[0]     
-        self.p1, = self.ax.plot(self.chan_freqs[self.ilo],self.data[self.ilo],"r*")            
+        self.l1, = self.ax.plot(self.chan_freqs, self.data)
+        self.regions = None
+        self.ilo = None
+        self.local_minima = None
+        self.minima_as_windows = None
+        self.calc_regions()
+
+        self.p1, = self.ax.plot(self.chan_freqs[self.ilo], self.data[self.ilo], "r*")
+        self.p2, = self.ax.plot(self.chan_freqs[self.local_minima], self.data[self.local_minima], "b*")
         print("Press up or down to change the threshold by 0.1 dB or press t to enter a custom threshold value.")
         print("Close all plots when finished")
         plt.xlabel('frequency (MHz)')
         plt.ylabel('dB')
         self.ax.set_title("Peak Threshold "+str(self.peak_threshold))
-        plt.show(block = True)
+        plt.show(block=True)
         
     def on_key_press(self, event):
-        #print event.key
-	#has to be shift and ctrl because remote viewers only forward
-	#certain key combinations
-	#print event.key == 'd'
+        # print event.key
+        # has to be shift and ctrl because remote viewers only forward
+        # certain key combinations
+        # print event.key == 'd'
         if event.key == 'up':
            self.peak_threshold = self.peak_threshold +0.1
            self.refresh_plot()
@@ -208,29 +210,118 @@ class interactive_threshold_plot(object):
            self.peak_threshold = np.float(input("What threshold would you like in dB? "))
            self.refresh_plot()
 
-
     def refresh_plot(self):
-        self.ilo = np.where( self.data < -1.0*self.peak_threshold)[0] 
-        self.p1.set_data(self.chan_freqs[self.ilo],self.data[self.ilo])
-        self.ax.set_title("Peak Threshold "+str(self.peak_threshold))
+        self.calc_regions()
+        self.p1.set_data(self.chan_freqs[self.ilo], self.data[self.ilo])
+        self.p2.set_data(self.chan_freqs[self.local_minima], self.data[self.local_minima])
+        self.ax.set_title("Peak Threshold " + str(self.peak_threshold))
         plt.draw()
 
+    def calc_regions(self):
+        bool_threshhold = self.data < -1.0 * self.peak_threshold
+        # self.ilo = np.where(self.data < -1.0 * self.peak_threshold)[0]
+        self.ilo = []
+        self.regions = []
+        self.local_minima = []
+        is_in_theshhold_last = False
+        sub_region = []
+        for test_index, is_in_theshhold in list(enumerate(bool_threshhold)):
+            if is_in_theshhold:
+                self.ilo.append(test_index)
+                sub_region.append(test_index)
+            else:
+                if is_in_theshhold_last:
+                    # when the last point was in, but not this point it is time to finish the old region
+                    self.regions.append(sub_region)
+                    sub_region = []
+            is_in_theshhold_last = is_in_theshhold
+        else:
+            if sub_region:
+                self.regions.append(sub_region)
+        window_calc_data = []
+        # calculate the local minima in a simple brute force method
+        for region in self.regions:
+            minima_this_region = []
+            minima_this_region_index = []
+            found_this_region = False
+            if len(region) > 2:
+                for region_index in range(len(region) - 2):
+                    middle_region_index = region_index + 1
+                    middle_data_index = region[middle_region_index]
+                    left = self.data[region[region_index]]
+                    middle = self.data[middle_data_index]
+                    right = self.data[region[region_index + 2]]
+                    if middle < left and middle <= right:
+                        found_this_region = True
+                        self.local_minima.append(middle_data_index)
+                        minima_this_region.append(middle_data_index)
+                        minima_this_region_index.append(middle_region_index)
+            if found_this_region:
+                window_calc_data.append((region, minima_this_region_index, minima_this_region))
 
-                
+        # calculate the resonator windows
+        self.minima_as_windows = []
+        data_index_minima_left = None
+        single_window = None
+        right_window_not_found = False
+        data_index_bound = 0
+        for region, minima_this_region_index, minima_this_region in window_calc_data:
+            data_index_region_bound_left = region[0]
+            data_index_region_bound_right = region[-1]
+            # consider combining minima here
+
+
+
+
+            for region_index, data_index_minima in zip(minima_this_region_index, minima_this_region):
+                # halfway to the next resonator
+                if single_window is not None:
+                    data_index_bound = int(np.round((data_index_minima_left + data_index_minima) / 2))
+                    if right_window_not_found:
+                        single_window["right_max"] = single_window["right_window"] = data_index_bound
+                    else:
+                        single_window["right_max"] = data_index_bound
+                    self.minima_as_windows.append(single_window)
+                # the window where resonator is located
+                if region_index == minima_this_region_index[0]:
+                    data_index_boundary_left = data_index_region_bound_left
+                else:
+                    data_index_boundary_left = data_index_bound
+                if region_index == minima_this_region_index[-1]:
+                    data_index_boundary_right = data_index_region_bound_right
+                    right_window_not_found = False
+                else:
+                    right_window_not_found = True
+                if right_window_not_found:
+                    single_window = {"left_max": data_index_bound, "left_window": data_index_boundary_left,
+                                     "minima": data_index_minima}
+                else:
+                    single_window = {"left_max": data_index_bound, "left_window": data_index_boundary_left,
+                                     "minima": data_index_minima, "right_window": data_index_boundary_right}
+                data_index_minima_left = single_window["minima"]
+        else:
+            # finish the last step in the loop
+            data_index_bound = len(self.data)
+            if right_window_not_found:
+                single_window["right_max"] = single_window["right_window"] = data_index_bound
+            else:
+                single_window["right_max"] = data_index_bound
+            self.minima_as_windows.append(single_window)
 
 
 def compute_dI_and_dQ(I,Q,freq=None,filterstr='SG',do_deriv=True):
-	#Given I,Q,freq arrays
+    """	#Given I,Q,freq arrays
 	#input filterstr = 'SG' for sav-gol filter with builtin gradient, 'SGgrad' savgol then apply gradient to filtered
-	#do_deriv: if want to look at filtered non differentiated data
+	#do_deriv: if want to look at filtered non differentiated data"""
     if freq==None:
         df=1.0
     else:
         df = freq[1]-freq[0]
     dI=filtered_differential(I, df,filtertype=filterstr,do_deriv=do_deriv)
     dQ=filtered_differential(Q, df,filtertype=filterstr,do_deriv=do_deriv)
-    return dI,dQ
-   
+    return dI, dQ
+
+
 def filtered_differential(data,df,filtertype=None,do_deriv=True):
     '''take 1d array data with spacing df. return filtered version of data depending on filterrype'''
     if filtertype==None:
@@ -238,11 +329,11 @@ def filtered_differential(data,df,filtertype=None,do_deriv=True):
     window=13; n=3
     if filtertype=='SG':
         if do_deriv==True:  
-            out = savgol_filter(data, window, n, deriv=1, delta=df)
+            out = signal.savgol_filter(data, window, n, deriv=1, delta=df)
         else:
-            out = savgol_filter(data, window, n, deriv=0, delta=df)
-    if filtertype=='SGgrad':    
-        tobegrad = savgol_filter(data, window, n)
+            out = signal.savgol_filter(data, window, n, deriv=0, delta=df)
+    if filtertype =='SGgrad':
+        tobegrad = signal.savgol_filter(data, window, n)
         out = np.gradient(tobegrad,df)
     return out
 
@@ -296,7 +387,7 @@ def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     transfer_function[i_f_min:i_f_max] = (1 + np.sin(-np.pi * ((freq[i_f_min:i_f_max] - freq[i_f_3db])/width)))/2.0
     transfer_function[i_f_max:(len(freq)//2)] = 0
     # symmetrize this to be [0 0 0 ... .8 .9 1 1 1 1 1 1 1 1 .9 .8 ... 0 0 0] to match the FFT
-    transfer_function = np.append(np.flipud(transfer_function),transfer_function)
+    transfer_function = np.append(np.flipud(transfer_function), transfer_function)
     # apply the filter, undo the fft shift, and invert the fft
     filtered = np.real(fftpack.ifft(fftpack.ifftshift(ffty*transfer_function)))
     # remove the padd, if we applied it
@@ -342,8 +433,8 @@ def find_vna_sweep(f, z, smoothing_scale=5.0e6, spacing_threshold=100.0):
     new_mags = mags - filtermags
     new_mags[iup] = 0
     labeled_image, num_objects = ndimage.label(new_mags)
-    indices = ndimage.measurements.minimum_position(new_mags,labeled_image,np.arange(num_objects)+1)
-    kid_idx = np.array(indices, dtype = 'int')
+    indices = ndimage.measurements.minimum_position(new_mags, labeled_image, np.arange(num_objects)+1)
+    kid_idx = np.array(indices, dtype='int')
     chan_freqs = f[0:-1]*1000.
 
 
