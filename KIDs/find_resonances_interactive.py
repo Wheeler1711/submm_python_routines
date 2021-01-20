@@ -27,11 +27,13 @@ get the frequencies out from f[ip.kid_idx]
 
 class SingleWindow(NamedTuple):
     left_max: int
+    left_fitter_pad: int
     left_pad: int
     left_window: int
     minima: int
     right_window: int
     right_pad: int
+    right_fitter_pad: int
     right_max: int
 
 
@@ -182,10 +184,13 @@ class interactive_plot(object):
 
 
 class interactive_threshold_plot(object):
-    def __init__(self, f_Hz, s21_mag, peak_threshold_dB, spacing_threshold_Hz=None, window_padding=1.2):
+    def __init__(self, f_Hz, s21_mag, peak_threshold_dB, spacing_threshold_Hz=None,
+                 window_pad_factor=1.2, fitter_pad_factor=5.0):
         self.peak_threshold_dB = peak_threshold_dB
         self.spacing_threshold_Hz = spacing_threshold_Hz
-        self.window_padding = window_padding
+
+        self.window_pad_factor = window_pad_factor
+        self.fitter_pad_factor = fitter_pad_factor
         self.f_Hz = f_Hz
         self.f_GHz = f_Hz * 1.0e-9
         self.s21_mag = s21_mag
@@ -292,16 +297,25 @@ class interactive_threshold_plot(object):
                 if single_window is not None:
                     data_index_bound = int(np.round((data_index_minima_left + data_index_minima) / 2))
                     if right_window_not_found:
-                        single_window["right_max"] = single_window["right_pad"] = single_window["right_window"] = data_index_bound
+                        single_window["right_max"] = single_window["right_pad"] = \
+                            single_window["right_fitter_pad"] = single_window["right_window"] = data_index_bound
                     else:
                         single_window["right_max"] = data_index_bound
                         test_right_pad = single_window["minima"] \
                                          + int(np.round((single_window["right_window"] - single_window["minima"]) \
-                                                        * self.window_padding))
+                                                        * self.window_pad_factor))
                         if single_window["right_max"] < test_right_pad:
                             single_window["right_pad"] = single_window["right_max"]
                         else:
                             single_window["right_pad"] = test_right_pad
+                        test_right_fitter_pad = single_window["minima"] \
+                                         + int(np.round((single_window["right_window"] - single_window["minima"]) \
+                                                        * self.fitter_pad_factor))
+                        if single_window["right_max"] < test_right_fitter_pad:
+                            single_window["right_fitter_pad"] = single_window["right_max"]
+                        else:
+                            single_window["right_fitter_pad"] = test_right_fitter_pad
+
 
                     self.minima_as_windows.append(SingleWindow(**single_window))
                 # the window where resonator is located
@@ -323,11 +337,18 @@ class interactive_threshold_plot(object):
                 # window padding
                 test_left_pad = single_window["minima"] \
                                 - int(np.round((single_window["minima"] - single_window["left_window"]) \
-                                               * self.window_padding))
+                                               * self.window_pad_factor))
                 if test_left_pad < single_window["left_max"]:
                     single_window["left_pad"] = single_window["left_max"]
                 else:
                     single_window["left_pad"] = test_left_pad
+                test_left_fitter_pad = single_window["minima"] \
+                                - int(np.round((single_window["minima"] - single_window["left_window"]) \
+                                               * self.fitter_pad_factor))
+                if test_left_fitter_pad < single_window["left_max"]:
+                    single_window["left_fitter_pad"] = single_window["left_max"]
+                else:
+                    single_window["left_fitter_pad"] = test_left_fitter_pad
 
 
                 data_index_minima_left = single_window["minima"]
@@ -340,18 +361,24 @@ class interactive_threshold_plot(object):
                 single_window["right_max"] = data_index_bound
                 test_right_pad = single_window["minima"] + \
                                  int(np.round((single_window["right_window"] - single_window["minima"])
-                                              * self.window_padding))
+                                              * self.window_pad_factor))
                 if single_window["right_max"] < test_right_pad:
                     single_window["right_pad"] = single_window["right_max"]
                 else:
                     single_window["right_pad"] = test_right_pad
+                test_right_fitter_pad = single_window["minima"] \
+                                        + int(np.round((single_window["right_window"] - single_window["minima"]) \
+                                                       * self.fitter_pad_factor))
+                if single_window["right_max"] < test_right_fitter_pad:
+                    single_window["right_fitter_pad"] = single_window["right_max"]
+                else:
+                    single_window["right_fitter_pad"] = test_right_fitter_pad
             self.minima_as_windows.append(SingleWindow(**single_window))
         self.local_minima = [single_window.minima for single_window in self.minima_as_windows]
         # spacing conflicts across all regions
         self.local_minima, self.minima_as_windows = \
             self.resolve_spacing_conflicts(minima_this_region=self.local_minima,
                                            minima_this_region_index=self.minima_as_windows)
-
 
     def resolve_spacing_conflicts(self, minima_this_region, minima_this_region_index):
         found_spacing_conflict = True
