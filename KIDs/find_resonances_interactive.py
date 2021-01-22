@@ -404,7 +404,7 @@ class InteractiveThresholdPlot(object):
                 else:
                     single_window["right_pad"] = test_right_pad
                 test_right_fitter_pad = single_window["minima"] \
-                                        + int(np.round((single_window["right_window"] - single_window["minima"]) \
+                                        + int(np.round((single_window["right_window"] - single_window["minima"])
                                                        * self.fitter_pad_factor))
                 if single_window["right_max"] < test_right_fitter_pad:
                     single_window["right_fitter_pad"] = single_window["right_max"]
