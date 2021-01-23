@@ -249,7 +249,7 @@ class InteractiveThresholdPlot(object):
             print("Close all plots when finished")
             plt.xlabel('frequency (GHz)')
             plt.ylabel('dB')
-            self.ax.set_title(F"Peak Threshold {'%2.2f' % self.peak_threshold_dB} dB")
+            self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.")
             plt.show(block=True)
 
     def on_key_press(self, event):
@@ -271,7 +271,7 @@ class InteractiveThresholdPlot(object):
         self.calc_regions()
         self.p1.set_data(self.f_GHz[self.ilo], self.s21_mag[self.ilo])
         self.p2.set_data(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima])
-        self.ax.set_title(F"Peak Threshold {'%2.2f' % self.peak_threshold_dB} dB")
+        self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.")
         plt.draw()
 
     def calc_regions(self):
