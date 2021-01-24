@@ -374,14 +374,14 @@ class InteractiveThresholdPlot(object):
                                      "minima": data_index_minima, "right_window": data_index_boundary_right}
                 # window padding
                 test_left_pad = single_window["minima"] \
-                                - int(np.round((single_window["minima"] - single_window["left_window"]) \
+                                - int(np.round((single_window["minima"] - single_window["left_window"])
                                                * self.window_pad_factor))
                 if test_left_pad < single_window["left_max"]:
                     single_window["left_pad"] = single_window["left_max"]
                 else:
                     single_window["left_pad"] = test_left_pad
                 test_left_fitter_pad = single_window["minima"] \
-                                       - int(np.round((single_window["minima"] - single_window["left_window"]) \
+                                       - int(np.round((single_window["minima"] - single_window["left_window"])
                                                       * self.fitter_pad_factor))
                 if test_left_fitter_pad < single_window["left_max"]:
                     single_window["left_fitter_pad"] = single_window["left_max"]
@@ -437,11 +437,11 @@ class InteractiveThresholdPlot(object):
                         value_left_minima = self.s21_mag[data_index_minima_left_test]
                         value_right_minima = self.s21_mag[data_index_minima_right_test]
                         if value_left_minima < value_right_minima:
-                            index_location_to_remove = counter
-                            index_location_to_keep = counter + 1
-                        else:
                             index_location_to_remove = counter + 1
                             index_location_to_keep = counter
+                        else:
+                            index_location_to_remove = counter
+                            index_location_to_keep = counter + 1
                         # data for the print statement
                         data_index_kept = minima_this_region[index_location_to_keep]
                         data_index_removed = minima_this_region[index_location_to_remove]
