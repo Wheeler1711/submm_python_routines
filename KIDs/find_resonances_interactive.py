@@ -73,11 +73,14 @@ class SingleWindow(NamedTuple):
 class InteractivePlot(object):
     """
     Convention is to supply the data in magnitude units i.e. 20*np.log10(np.abs(z))
+    frequencies should be supplied in Hz
     """
 
     def __init__(self, chan_freqs, data, kid_idx, f_old=None, data_old=None, kid_idx_old=None):
         plt.rcParams['keymap.forward'] = ['v']
         plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
+        plt.rcParams['keymap.quit'] = ['k'] #remove q for quit make it k for kill
+        plt.rcParams['keymap.home'] = ['h'] #remove r for home only make it h
         self.chan_freqs = chan_freqs
         self.data = data
         self.f_old = f_old
@@ -111,13 +114,21 @@ class InteractivePlot(object):
         self.control_is_held = False
         self.add_list = []
         self.delete_list = []
+        print("The controls are:")
         if platform.system() == 'Darwin':
-            print("please hold either the a or d key \n while right clicking to add or delete points")
+            print("Hold the a key while right clicking to add points")
+            print("Hold the d key while right clicking to delete points")
         else:
-            print("please hold either the shift or control key \n while right clicking to add or remove points")
-        print("You can use the arrow keys to pan around")
-        print("You can use z and x keys to zoom in and out")
-        print("close all plots when finished")
+            print("Hold the shift key while right clicking to add points")
+            print("Hold the control key while right clicking to delete points")
+        print("Use the arrow keys to pan around plot")
+        print("Use z to zoom")
+        print("Use x to Xplode")
+        print("Use q to zoom in x axis")
+        print("Use w go Xplode in x axis")
+        print("Use e to zoom in y axis")
+        print("Use r go Xplode in y axis")
+        print("Close all plots when finished")
         plt.xlabel('Frequency (GHz)')
         plt.ylabel('Power (dB)')
         plt.show(block=True)
@@ -181,6 +192,30 @@ class InteractivePlot(object):
             self.ax.set_ylim(ylim_left - self.zoom_factor * ylim_size, ylim_right + self.zoom_factor * ylim_size)
             plt.draw()
 
+        if event.key == 'q':  # zoom in x axis only
+            xlim_left, xlim_right = self.ax.get_xlim()
+            xlim_size = xlim_right - xlim_left
+            self.ax.set_xlim(xlim_left + self.zoom_factor * xlim_size, xlim_right - self.zoom_factor * xlim_size)
+            plt.draw()
+
+        if event.key == 'w':  # zoom out x axis only
+            xlim_left, xlim_right = self.ax.get_xlim()
+            xlim_size = xlim_right - xlim_left
+            self.ax.set_xlim(xlim_left - self.zoom_factor * xlim_size, xlim_right + self.zoom_factor * xlim_size)
+            plt.draw()
+
+        if event.key == 'e':  # zoom in y axis only
+            ylim_left, ylim_right = self.ax.get_ylim()
+            ylim_size = ylim_right - ylim_left
+            self.ax.set_ylim(ylim_left + self.zoom_factor * ylim_size, ylim_right - self.zoom_factor * ylim_size)
+            plt.draw()
+
+        if event.key == 'r':  # zoom out y axis only
+            ylim_left, ylim_right = self.ax.get_ylim()
+            ylim_size = ylim_right - ylim_left
+            self.ax.set_ylim(ylim_left - self.zoom_factor * ylim_size, ylim_right + self.zoom_factor * ylim_size)
+            plt.draw()
+
     def on_key_release(self, event):
         # windows or mac
         if platform.system() == 'Darwin':
@@ -198,12 +233,12 @@ class InteractivePlot(object):
         if event.button == 3:
             if self.shift_is_held:  # add point
                 print("adding point", event.xdata)
-                self.kid_idx = np.hstack((self.kid_idx, np.argmin(np.abs(self.chan_freqs - event.xdata))))
+                self.kid_idx = np.hstack((self.kid_idx, np.argmin(np.abs(self.chan_freqs - event.xdata*10**9))))
                 self.kid_idx = self.kid_idx[np.argsort(self.kid_idx)]
                 self.refresh_plot()
             elif self.control_is_held:  # delete point
                 print("removing point", event.xdata)
-                delete_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata))
+                delete_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata*10**9))
                 self.kid_idx = np.delete(self.kid_idx, delete_index)
                 self.refresh_plot()
                 # self.delete_list.append(event.xdata)
@@ -212,7 +247,7 @@ class InteractivePlot(object):
                 print("please hold either the shift or control key while right clicking to add or remove points")
 
     def refresh_plot(self):
-        self.p1.set_data(self.chan_freqs[self.kid_idx], self.data[self.kid_idx])
+        self.p1.set_data(self.chan_freqs[self.kid_idx]/10**9, self.data[self.kid_idx])
         for i in range(0, self.kid_idx_len):
             self.text_dict[i].set_text("")  # clear all of the texts
         self.text_dict = {}
