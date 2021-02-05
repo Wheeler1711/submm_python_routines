@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 import os
 from scipy import signal, fftpack
 import platform
-from submm_python_routines.KIDs import resonance_fitting as rf
+try:
+    from submm_python_routines.KIDs import resonance_fitting as rf
+except:
+    from KIDs import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 from typing import NamedTuple
 mpl.use(backend="TkAgg")
@@ -89,19 +92,19 @@ class InteractivePlot(object):
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
-        self.l1, = self.ax.plot(self.chan_freqs, self.data)
-        self.p1, = self.ax.plot(self.chan_freqs[self.kid_idx], self.data[self.kid_idx], "r*", markersize=8)
+        self.l1, = self.ax.plot(self.chan_freqs/10**9, self.data)
+        self.p1, = self.ax.plot(self.chan_freqs[self.kid_idx]/10**9, self.data[self.kid_idx], "r*", markersize=8)
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
-            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i], self.data[self.kid_idx][i], str(i))
+            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i]/10**9, self.data[self.kid_idx][i], str(i))
 
         if isinstance(self.f_old, np.ndarray):
-            self.l2, = self.ax.plot(self.f_old, self.data_old, color="C0", alpha=0.25)
-            self.p2, = self.ax.plot(self.f_old[self.kid_idx_old], self.data_old[self.kid_idx_old], "r*", markersize=8,
+            self.l2, = self.ax.plot(self.f_old/10**9, self.data_old, color="C0", alpha=0.25)
+            self.p2, = self.ax.plot(self.f_old[self.kid_idx_old]/10**9, self.data_old[self.kid_idx_old], "r*", markersize=8,
                                     alpha=0.1)
             self.text_dict_old = {}
             for i in range(0, len(self.kid_idx_old)):
-                self.text_dict_old[i] = plt.text(self.f_old[self.kid_idx_old][i], self.data_old[self.kid_idx_old][i],
+                self.text_dict_old[i] = plt.text(self.f_old[self.kid_idx_old][i]/10**9, self.data_old[self.kid_idx_old][i],
                                                  str(i), color='Grey')
 
         self.shift_is_held = False
@@ -115,8 +118,8 @@ class InteractivePlot(object):
         print("You can use the arrow keys to pan around")
         print("You can use z and x keys to zoom in and out")
         print("close all plots when finished")
-        plt.xlabel('frequency (MHz)')
-        plt.ylabel('dB')
+        plt.xlabel('Frequency (GHz)')
+        plt.ylabel('Power (dB)')
         plt.show(block=True)
 
     def on_key_press(self, event):
@@ -214,7 +217,7 @@ class InteractivePlot(object):
             self.text_dict[i].set_text("")  # clear all of the texts
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
-            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i], self.data[self.kid_idx][i], str(i))
+            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i]/10**9, self.data[self.kid_idx][i], str(i))
         self.kid_idx_len = len(self.kid_idx)
         plt.draw()
 
@@ -247,8 +250,8 @@ class InteractiveThresholdPlot(object):
             self.p2, = self.ax.plot(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima], "b*")
             print("Press up or down to change the threshold by 0.1 dB or press t to enter a custom threshold value.")
             print("Close all plots when finished")
-            plt.xlabel('frequency (GHz)')
-            plt.ylabel('dB')
+            plt.xlabel('Frequency (GHz)')
+            plt.ylabel('Power (dB)')
             self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.")
             plt.show(block=True)
 
@@ -582,8 +585,8 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
     plt.figure(2)
     plt.plot(f_GHz, s21_mags, 'b', label='#nofilter')
     plt.plot(f_GHz, filtermags, 'g', label='Filtered')
-    plt.xlabel('frequency (GHz)')
-    plt.ylabel('dB')
+    plt.xlabel('Frequency (GHz)')
+    plt.ylabel('Power (dB)')
     plt.legend()
     plt.show()
 
@@ -594,7 +597,7 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
                                    spacing_threshold_Hz=spacing_threshold_Hz)
 
     # Zero everything but the resonators
-    highpass_mags[highpass_mags > -1.0 * ipt.peak_threshold_dB] = 0
+    #highpass_mags[highpass_mags > -1.0 * ipt.peak_threshold_dB] = 0
 
     # the spacing thresholding was move to be inside the interactive threshold class
     kid_idx = ipt.local_minima

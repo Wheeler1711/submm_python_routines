@@ -1,7 +1,10 @@
 import numpy as np
 import scipy.optimize as optimization
 import matplotlib.pyplot as plt
-from submm_python_routines.KIDs import calibrate
+try:
+    from submm_python_routines.KIDs import calibrate
+except:
+    from KIDs import calibrate
 from numba import jit # to get working on python 2 I had to downgrade llvmlite pip install llvmlite==0.31.0
 
 
