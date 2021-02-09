@@ -258,14 +258,18 @@ class InteractivePlot(object):
 
 
 class InteractiveThresholdPlot(object):
-    def __init__(self, f_Hz, s21_mag, peak_threshold_dB, spacing_threshold_Hz=None,
+    def __init__(self, f_Hz, s21_mag, peak_threshold_dB, spacing_threshold_Hz=1.0e5,
                  window_pad_factor=1.2, fitter_pad_factor=5.0, debug_mode=False):
+        plt.rcParams['keymap.forward'] = ['v']
+        plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
         self.peak_threshold_dB = peak_threshold_dB
         self.spacing_threshold_Hz = spacing_threshold_Hz
+        
 
         self.window_pad_factor = window_pad_factor
         self.fitter_pad_factor = fitter_pad_factor
         self.f_Hz = f_Hz
+        self.spacing_threshold_Q = np.mean(self.f_Hz)/self.spacing_threshold_Hz
         self.f_GHz = f_Hz * 1.0e-9
         self.s21_mag = s21_mag
 
@@ -284,10 +288,11 @@ class InteractiveThresholdPlot(object):
             self.p1, = self.ax.plot(self.f_GHz[self.ilo], self.s21_mag[self.ilo], "r*")
             self.p2, = self.ax.plot(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima], "b*")
             print("Press up or down to change the threshold by 0.1 dB or press t to enter a custom threshold value.")
+            print("Press left or right to change the spacing threshold or y to enter a custom threshold value.")
             print("Close all plots when finished")
-            plt.xlabel('Frequency (GHz)')
+            self.ax.set_xlabel(F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
             plt.ylabel('Power (dB)')
-            self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.")
+            self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
             plt.show(block=True)
 
     def on_key_press(self, event):
@@ -301,15 +306,27 @@ class InteractiveThresholdPlot(object):
         if event.key == 'down':
             self.peak_threshold_dB = self.peak_threshold_dB - 0.1
             self.refresh_plot()
+        if event.key == 'left':
+            self.spacing_threshold_Hz = self.spacing_threshold_Hz/1.4
+            self.spacing_threshold_Q = np.mean(self.f_Hz)/self.spacing_threshold_Hz
+            self.refresh_plot()
+        if event.key == 'right':
+            self.spacing_threshold_Hz = self.spacing_threshold_Hz*1.4
+            self.spacing_threshold_Q = np.mean(self.f_Hz)/self.spacing_threshold_Hz
+            self.refresh_plot()
         if event.key == 't':
             self.peak_threshold_dB = np.float(input("What threshold would you like in dB? "))
+            self.refresh_plot()
+        if event.key == 'y':
+            self.spacing_threshold_Hz = np.float(input("What Spacing threshold would you like in dB? "))
             self.refresh_plot()
 
     def refresh_plot(self):
         self.calc_regions()
         self.p1.set_data(self.f_GHz[self.ilo], self.s21_mag[self.ilo])
         self.p2.set_data(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima])
-        self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.")
+        self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
+        self.ax.set_xlabel(F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
         plt.draw()
 
     def calc_regions(self):
