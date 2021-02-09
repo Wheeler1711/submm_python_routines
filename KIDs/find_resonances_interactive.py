@@ -535,6 +535,79 @@ def filtered_differential(data, df, filtertype=None, do_deriv=True):
     return out
 
 
+
+class InteractiveFilterPlot(object):
+    def __init__(self, f_Hz, s21_mag,smoothing_scale_Hz=5.0e6):
+        self.smoothing_scale_Hz = smoothing_scale_Hz
+        self.f_Hz = f_Hz
+        self.f_GHz = f_Hz * 1.0e-9
+        self.s21_mag = s21_mag
+
+        self.fig = plt.figure(2, figsize=(16, 6))
+        self.ax = self.fig.add_subplot(111)
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
+
+        # first plot data and filter function before removing filter function
+        self.filtermags = lowpass_cosine(y=self.s21_mag,
+                                    tau=self.f_Hz[1] - self.f_Hz[0],
+                                    f_3db=1. / self.smoothing_scale_Hz,
+                                    width=0.1 * (1.0 / self.smoothing_scale_Hz),
+                                    padd_data=True)
+        # the cosine filter drops the last point is the array has an pdd number of points
+        self.len_filtered = len(self.filtermags)
+        self.s21_mag = self.s21_mag[:self.len_filtered]
+        self.f_Hz = self.f_Hz[:self.len_filtered]
+        self.f_GHz = self.f_Hz * 1.0e-9
+        # calculations for peak spacing (rejection based on threshold)
+        self.highpass_mags = self.s21_mag - self.filtermags        
+        self.l1, = self.ax.plot(self.f_GHz, self.s21_mag, label='#nofilter')
+        self.l2, = self.ax.plot(self.f_GHz, self.filtermags, label='#filter')
+        self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
+
+
+        print("Press left or right to change the smothing scale by 10% or press t to enter a custom threshold value.")
+        print("Close all plots when finished")
+        plt.xlabel('Frequency (GHz)')
+        plt.ylabel('Power (dB)')
+        plt.legend()
+        plt.show(block=True)
+
+    def on_key_press(self, event):
+        # print event.key
+        # has to be shift and ctrl because remote viewers only forward
+        # certain key combinations
+        # print event.key == 'd'
+        if event.key == 'left':
+            self.smoothing_scale_Hz = self.smoothing_scale_Hz/1.4
+            self.refresh_plot()
+        if event.key == 'right':
+            self.smoothing_scale_Hz = self.smoothing_scale_Hz*1.4
+            self.refresh_plot()
+        if event.key == 't':
+            self.smoothing_scale_Hz = np.float(input("What smoothing scale would you like in Hz? "))
+            self.refresh_plot()
+
+    def refresh_plot(self):
+        # first plot data and filter function before removing filter function
+        self.filtermags = lowpass_cosine(y=self.s21_mag,
+                                    tau=self.f_Hz[1] - self.f_Hz[0],
+                                    f_3db=1. / self.smoothing_scale_Hz,
+                                    width=0.1 * (1.0 / self.smoothing_scale_Hz),
+                                    padd_data=True)
+        # the cosine filter drops the last point is the array has an odd number of points
+        self.len_filtered = len(self.filtermags)
+        self.s21_mag = self.s21_mag[:self.len_filtered]
+        self.f_Hz = self.f_Hz[:self.len_filtered]
+        self.f_GHz = self.f_Hz * 1.0e-9
+        # calculations for peak spacing (rejection based on threshold)
+        self.highpass_mags = self.s21_mag - self.filtermags
+        self.l1.set_data(self.f_GHz, self.s21_mag)
+        self.l2.set_data(self.f_GHz, self.filtermags)
+        self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
+    
+        plt.draw()
+
+
 def filter_trace(path, bb_freqs, sweep_freqs):
     chan_I, chan_Q = open_stored_sweep(path)
     channels = np.arange(np.shape(chan_I)[1])
@@ -602,32 +675,13 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
     spacing threshold (Hz)
     """
     # first plot data and filter function before removing filter function
-    s21_mags = 20 * np.log10(np.abs(z))
-    filtermags = lowpass_cosine(y=s21_mags,
-                                tau=f_Hz[1] - f_Hz[0],
-                                f_3db=1. / smoothing_scale_Hz,
-                                width=0.1 * (1.0 / smoothing_scale_Hz),
-                                padd_data=True)
-    # the cosine filter drops the last point is the array has an pdd number of points
-    len_filtered = len(filtermags)
-    s21_mags = s21_mags[:len_filtered]
-    f_Hz = f_Hz[:len_filtered]
-    f_GHz = f_Hz * 1.0e-9
-    # calculations for peak spacing (rejection based on threshold)
-    highpass_mags = s21_mags - filtermags
-
-    # results plot for filter
-    plt.figure(2)
-    plt.plot(f_GHz, s21_mags, 'b', label='#nofilter')
-    plt.plot(f_GHz, filtermags, 'g', label='Filtered')
-    plt.xlabel('Frequency (GHz)')
-    plt.ylabel('Power (dB)')
-    plt.legend()
-    plt.show()
+    s21_mag = 20*np.log10(np.abs(z))
+    ipf = InteractiveFilterPlot(f_Hz,s21_mag,smoothing_scale_Hz = smoothing_scale_Hz)
+    
 
     # identify peaks using the interactive threshold plot
-    ipt = InteractiveThresholdPlot(f_Hz=f_Hz,
-                                   s21_mag=highpass_mags,
+    ipt = InteractiveThresholdPlot(f_Hz=ipf.f_Hz,
+                                   s21_mag=ipf.highpass_mags,
                                    peak_threshold_dB=1.5,
                                    spacing_threshold_Hz=spacing_threshold_Hz)
 
@@ -636,7 +690,7 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
 
     # the spacing thresholding was move to be inside the interactive threshold class
     kid_idx = ipt.local_minima
-    ip = InteractivePlot(f_Hz, highpass_mags, kid_idx)
+    ip = InteractivePlot(ipf.f_Hz, ipf.highpass_mags, kid_idx)
     return ip
 
 
