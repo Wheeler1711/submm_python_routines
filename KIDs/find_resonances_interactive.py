@@ -318,7 +318,7 @@ class InteractiveThresholdPlot(object):
             self.peak_threshold_dB = np.float(input("What threshold would you like in dB? "))
             self.refresh_plot()
         if event.key == 'y':
-            self.spacing_threshold_Hz = np.float(input("What Spacing threshold would you like in dB? "))
+            self.spacing_threshold_Hz = np.float(input("What Spacing threshold would you like in Hz? "))
             self.refresh_plot()
 
     def refresh_plot(self):
@@ -580,13 +580,13 @@ class InteractiveFilterPlot(object):
         self.l1, = self.ax.plot(self.f_GHz, self.s21_mag, label='#nofilter')
         self.l2, = self.ax.plot(self.f_GHz, self.filtermags, label='#filter')
         self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
+        plt.legend(loc = 1)
 
 
-        print("Press left or right to change the smothing scale by 10% or press t to enter a custom threshold value.")
+        print("Press left or right to change the smothing scale by 10% or press t to enter a custom smoothing scale value.")
         print("Close all plots when finished")
         plt.xlabel('Frequency (GHz)')
         plt.ylabel('Power (dB)')
-        plt.legend()
         plt.show(block=True)
 
     def on_key_press(self, event):
@@ -661,7 +661,7 @@ def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     nyquist = 1.0 / (2.0 * tau)
     freq = np.arange(-nyquist, nyquist, delta)
     # turn this into a positive frequency array
-    print((len(ffty) // 2))
+    #print((len(ffty) // 2))
     pos_freq = freq[(len(ffty) // 2):]
     # make the transfer function for the first half of the data
     i_f_3db = min(np.where(pos_freq >= f_3db)[0])
