@@ -58,6 +58,7 @@ def open_stored_sweep(savepath,load_std = False):
     else:
         return Is, Qs
 
+
 class SingleWindow(NamedTuple):
     left_max: int
     left_fitter_pad: int
