@@ -10,7 +10,6 @@ except:
     from KIDs import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 from typing import NamedTuple
-mpl.use(backend="TkAgg")
 
 
 """
@@ -767,8 +766,11 @@ def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
                 plt.plot(np.real(fit['fit_result']), np.imag(fit['fit_result']), label='fit')
                 plt.plot(np.real(fit['x0_result']), np.imag(fit['x0_result']), label='guess')
                 plt.legend()
-        except:
+        except Exception as inst:
             print("could not fit")
+            print(type(inst))    # the exception instance
+            print(inst.args)     # arguments stored in .args
+            #print(inst)          # __str__ allows args to be printed directly,
             fits_dict_iq[i] = 'bad fit'
         try:
             fit2 = rf.fit_nonlinear_mag(res_freq_array[i, :][~np.isnan(res_freq_array[i, :])],
@@ -782,8 +784,11 @@ def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
                 plt.plot(res_freq_array[i, :][~np.isnan(res_freq_array[i, :])],
                          10 * np.log10(np.abs(fit2['x0_result'])), label='guess')
                 plt.legend()
-        except:
+        except Exception as inst:
             print("could not fit")
+            print(type(inst))    # the exception instance
+            print(inst.args)     # arguments stored in .args
+            #print(inst)          # __str__ allows args to be printed directly,
             fits_dict_mag[i] = 'bad fit'
         pdf_pages.savefig(fig)
         plt.close()
