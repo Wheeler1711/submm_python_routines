@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.special as special
 import scipy.optimize as optimization
+import matplotlib.pyplot as plt
 
 # this is a list of definitions that can be used to predict noise in KIDS
 # right now it just contains the nessasary requirements for perdicting G-R noise in TiN
@@ -44,6 +45,14 @@ def deltaf_f(t, tc, nu, alpha, gamma):
     xi = 6.626e-34*nu*1.e6/(2.*1.38e-23*t)
     model = -1.*alpha*gamma/2.*np.exp(-1.*d_0/t)*((2.*np.pi*t/d_0)**0.5 + 2.*np.exp(-1.*xi)*special.iv(0,xi))
     return model
+
+def deltaf_f_vec(t,tc,nu,alpha,gamma):
+    d_0 = 1.762*tc #factor of 1.762 is suspect
+    t = np.reshape(t,(t.shape[0],1,1))
+    xi = 6.626e-34*nu*1.e6/(2.*1.38e-23*t)
+    model = -1.*alpha*gamma/2.*np.exp(-1.*d_0/t)*((2.*np.pi*t/d_0)**0.5 + 2.*np.exp(-1.*xi)*special.iv(0,xi))
+    return model
+
 
 def df_response(t,tc,f):
     '''
@@ -181,3 +190,55 @@ def fit_tls(T,f,sigma = None,**keywords):
     else:
         fit = optimization.curve_fit(f0dirshort, T, f, x0)
     return fit
+
+def fit_tc_brute(t,df_over_f,nuref,tc_range = (0.5,1.5),alpha_range = (0,1), n_grid_points=100, error=None, plot = True,Verbose = False,**keywords):
+    '''
+    brute force fitter for fitting Tc and alpha assuming gamma =1
+    but of alpha and gamma are degenerate
+    t is temperature in kelvin
+    df_over_f is f-f0/f0 
+    '''
+
+    if error is None:
+        error = np.ones(len(t))
+
+    tc_values = np.linspace(tc_range[0], tc_range[1], n_grid_points)
+    alpha_values = np.linspace(alpha_range[0], alpha_range[1], n_grid_points)
+    evaluated_ranges = np.vstack((tc_values, alpha_values))
+
+    a, b= np.meshgrid(tc_values, alpha_values, indexing="ij")  # always index ij
+
+    #evaluated = noise_profile_lor_vec(x[index_for_fitting], a, b, c, d)
+    evaluated = deltaf_f_vec(t,a,nuref,b,1)
+    data_values = np.reshape(df_over_f, (df_over_f.shape[0], 1, 1))
+    error = np.reshape(error, (error.shape[0], 1, 1))
+    #print(evaluated.shape)
+    # print(data_values.shape)
+    # print(error.shape)
+    sum_dev = np.sum(((evaluated - data_values) ** 2 / error ** 2),
+                     axis=0)  # comparing in magnitude space rather than magnitude squared
+
+
+    min_index = np.where(sum_dev == np.min(sum_dev))
+    if Verbose:
+        print("grid values at minimum are")
+        print(min_index)
+    index1 = min_index[0][0]
+    index2 = min_index[1][0]
+    fit_values = np.asarray((tc_values[index1], alpha_values[index2]))
+
+    fit_values_names = ('tc', 'alpha')
+    fit_result = deltaf_f(t, tc_values[index1], nuref,alpha_values[index2],1)
+
+    if plot:
+        extent = [evaluated_ranges[1,0],evaluated_ranges[1,n_grid_points-1],evaluated_ranges[0,0],evaluated_ranges[0,n_grid_points-1]]
+        aspect = (evaluated_ranges[1,n_grid_points-1]-evaluated_ranges[1,0])/(evaluated_ranges[0,n_grid_points-1]-evaluated_ranges[0,0])
+        plt.figure()
+        plt.imshow(np.log10(sum_dev-np.min(sum_dev)),extent =extent,aspect = aspect,origin = 'lower', cmap = 'jet')
+        plt.xlabel("alpha")
+        plt.ylabel("Tc")
+        plt.colorbar(label = 'Log10(sum residuals squared)')
+
+    fit_dict = {'fit_values': fit_values, 'fit_values_names': fit_values_names, 'sum_dev': sum_dev,
+                'fit_result': fit_result,'evaluated_ranges': evaluated_ranges}  #'marginalized_2d':marginalized_2d,'marginalized_1d':marginalized_1d,
+    return fit_dict
