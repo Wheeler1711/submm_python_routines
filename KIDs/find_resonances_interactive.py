@@ -750,7 +750,8 @@ def slice_vna(f, z, kid_index, q_slice=2000):
 
 
 def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
-    pdf_pages = PdfPages(plot_filename + ".pdf")
+    if do_plots:
+        pdf_pages = PdfPages(plot_filename + ".pdf")
     fits_dict_mag = {}
     fits_dict_iq = {}
     for i in range(0, res_freq_array.shape[0]):
@@ -790,9 +791,11 @@ def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
             print(inst.args)     # arguments stored in .args
             #print(inst)          # __str__ allows args to be printed directly,
             fits_dict_mag[i] = 'bad fit'
-        pdf_pages.savefig(fig)
-        plt.close()
-    pdf_pages.close()
+        if do_plots:
+            pdf_pages.savefig(fig)
+            plt.close()
+    if do_plots:
+        pdf_pages.close()
 
     return fits_dict_iq, fits_dict_mag
 
