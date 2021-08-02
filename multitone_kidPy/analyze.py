@@ -7,7 +7,7 @@ from scipy.stats import binned_statistic
 from scipy import interpolate
 from KIDs import calibrate
 import pickle
-from KIDs import PCA
+from KIDs import PCA_implementation as PCA
 
 
 # this function fits a fine and gain scan combo produced by the ASU multitone system
@@ -449,180 +449,6 @@ def fit_fine_gain(fine_name,gain_name):
     np.savetxt(outfile_dir+"/"+"all_fits_iq.csv",all_fits_iq,delimiter = ',')
 
 
-def calibrate_multi(fine_filename,gain_filename,stream_filename,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./",sample_rate = 488.28125, **keywords):
-
-    fine_dict = read_multitone.read_iq_sweep(fine_filename)
-    gain_dict = read_multitone.read_iq_sweep(gain_filename)
-    stream_dict = read_multitone.read_stream(stream_filename)
-
-    gain_z = gain_dict['I'] +1.j*gain_dict['Q']
-    fine_z = fine_dict['I'] +1.j*fine_dict['Q']
-    stream_z = stream_dict['I_stream'][skip_beginning:] +1.j*stream_dict['Q_stream'][skip_beginning:]
-    stream_time = np.asarray(stream_dict['packet_count'])[skip_beginning:]*1/sample_rate
-    stream_time = stream_time - stream_time[0]
-
-
-    #bin the data if you like
-    if bin_num !=1:
-        for i in range(0,stream_z.shape[1]):
-            if i == 0:
-                stream_z_downsamp = np.zeros((stream_z.shape[0]/bin_num,stream_z.shape[1]),dtype = 'complex')
-            stream_z_downsamp[:,i] = np.mean(stream_z[0:stream_z.shape[0]/bin_num*bin_num,i].reshape(-1,bin_num),axis = 1) #int math
-        stream_time_downsamp = np.mean(stream_time[0:stream_time.shape[0]/bin_num*bin_num].reshape(-1,bin_num),axis = 1) #int math 
-        stream_z = stream_z_downsamp
-        stream_time = stream_time_downsamp
-        
-
-    #initalize some arrays to hold the calibrated data
-    stream_corr_all = np.zeros(stream_z.shape,dtype = 'complex')
-    gain_corr_all = np.zeros(gain_z.shape,dtype = 'complex')
-    fine_corr_all = np.zeros(fine_z.shape,dtype = 'complex')
-    stream_df_over_f_all = np.zeros(stream_z.shape)
-
-    pdf_pages = PdfPages(outfile_dir+"cal_plots.pdf")
-
-    for k in range(0,min(fine_dict['I'].shape[1], stream_z.shape[1])):
-        print(k)
-
-
-        fig = plt.figure(k,figsize = (16,10))
-
-        plt.subplot(241,aspect = 'equal')
-        plt.title("Raw data")
-        plt.plot(fine_dict['I'][:,k],fine_dict['Q'][:,k],'o')
-        plt.plot(np.real(stream_z[:,k][::plot_period]),np.imag(stream_z[:,k][::plot_period]),'.')
-        plt.plot(gain_dict['I'][:,k],gain_dict['Q'][:,k],'o')
-
-        plt.subplot(242)
-        plt.title("Raw data")
-        plt.plot(fine_dict['I'][:,k],fine_dict['Q'][:,k],'o')
-        plt.plot(np.real(stream_z[:,k][::plot_period]),np.imag(stream_z[:,k][::plot_period]),'.')
-
-        
-        f_stream = fine_dict['freqs'][len(fine_dict['freqs'][:,k])/2,k]*10**6
-        #normalize amplitude varation in gain scan
-        amp_norm_dict = resonance_fitting.amplitude_normalization_sep(gain_dict['freqs'][:,k]*10**6,
-                                                                          gain_z[:,k],
-                                                                          fine_dict['freqs'][:,k]*10**6,
-                                                                          fine_z[:,k],
-                                                                          f_stream,
-                                                                          stream_z[:,k])
-
-        plt.subplot(243)
-        plt.title("Gain amplitude variation fit")
-        plt.plot(gain_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(gain_z[:,k])**2),'o')
-        plt.plot(gain_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(amp_norm_dict['normalized_gain'])**2),'o')
-        plt.plot(fine_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(amp_norm_dict['normalized_fine'])**2),'o')
-        plt.plot(gain_dict['freqs'][:,k]*10**6,10*np.log10(np.abs(amp_norm_dict['poly_data'])**2))
-
-        plt.subplot(244)
-        plt.title("Data nomalized for gain amplitude variation")
-        plt.plot(np.real(amp_norm_dict['normalized_fine']),np.imag(amp_norm_dict['normalized_fine']),'o')
-        #plt.plot(gain_dict['freqs'][:,k]*10**6,np.log10(np.abs(amp_norm_dict['poly_data'])**2))
-        plt.plot(np.real(amp_norm_dict['normalized_stream'][::plot_period]),np.imag(amp_norm_dict['normalized_stream'][::plot_period]),'.')
-
-        #fit the gain
-        gain_phase = np.arctan2(np.real(amp_norm_dict['normalized_gain']),np.imag(amp_norm_dict['normalized_gain']))
-        tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_phase)
-        
-        #gain_phase = np.arctan2(np.real(gain_z[:,k]),np.imag(gain_z[:,k]))
-        #tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_phase)
-        
-        plt.subplot(245)
-        plt.title("Gain phase fit")
-        plt.plot(gain_dict['freqs'][:,k],gain_phase_rot,'o')
-        plt.plot(gain_dict['freqs'][:,k],fit_data_phase)
-        plt.xlabel("Frequency (MHz)")
-        plt.ylabel("Phase")
-
-        #remove cable delay
-        gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*10**6,amp_norm_dict['normalized_gain'],tau)
-        fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*10**6,amp_norm_dict['normalized_fine'],tau)
-        stream_corr = calibrate.remove_cable_delay(f_stream,amp_norm_dict['normalized_stream'],tau)
-        #gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*10**6,gain_z[:,k],tau)
-        #fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*10**6,fine_z[:,k],tau)
-        #stream_corr = calibrate.remove_cable_delay(f_stream,stream_z[:,k],tau)
-        
-        plt.subplot(246)
-        plt.title("Cable delay removed")
-        plt.plot(np.real(gain_corr),np.imag(gain_corr),'o')
-        plt.plot(np.real(fine_corr),np.imag(fine_corr),'o')
-        plt.plot(np.real(stream_corr)[10:-10][::plot_period],np.imag(stream_corr)[10:-10][::plot_period],'.')
-
-        # fit a cicle to the data
-        xc, yc, R, residu  = calibrate.leastsq_circle(np.real(fine_corr),np.imag(fine_corr))
-
-        #move the data to the origin
-
-        gain_corr = gain_corr - xc -1j*yc
-        fine_corr = fine_corr - xc -1j*yc
-        stream_corr = stream_corr  - xc -1j*yc
-
-        # rotate so streaming data is at 0 pi
-        phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
-        if ("rotate_fine_first" in keywords): # if you have data that covers a large part of the iq loop
-            med_phase = np.arctan2(np.imag(fine_corr),np.real(fine_corr))[0]+np.pi
-        else:
-            med_phase = np.median(phase_stream)
-
-        gain_corr_all[:,k]  = gain_corr = gain_corr*np.exp(-1j*med_phase) 
-        fine_corr_all[:,k] = fine_corr = fine_corr*np.exp(-1j*med_phase) 
-        stream_corr_all[:,k] = stream_corr = stream_corr*np.exp(-1j*med_phase)
-
-
-        plt.subplot(247)
-        plt.title("Moved to 0,0 and rotated")
-        plt.plot(np.real(stream_corr)[2:-1][::plot_period],np.imag(stream_corr)[2:-1][::plot_period],'.')
-        plt.plot(np.real(gain_corr),np.imag(gain_corr),'o')
-        plt.plot(np.real(fine_corr),np.imag(fine_corr),'o')
-        calibrate.plot_data_circle(np.real(fine_corr)-xc,np.imag(fine_corr)-yc, 0, 0, R)
-
-        phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
-        use_index = np.where((-np.pi/2.<phase_fine) & (phase_fine<np.pi/2))
-        phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
-
-        #interp phase to frequency
-        f_interp = interpolate.interp1d(phase_fine, fine_dict['freqs'][:,k],kind = 'quadratic',bounds_error = False,fill_value = 0)
-
-        phase_small = np.linspace(np.min(phase_fine),np.max(phase_fine),1000)
-        freqs_stream = f_interp(phase_stream)
-        stream_df_over_f_all[:,k] = stream_df_over_f = freqs_stream/np.mean(freqs_stream)-1.
-
-        plt.subplot(248)
-        plt.plot(phase_fine,fine_dict['freqs'][:,k],'o')
-        plt.plot(phase_small,f_interp(phase_small),'--')
-        plt.plot(phase_stream[::plot_period],freqs_stream[::plot_period],'.')
-        plt.ylim(np.min(freqs_stream)-(np.max(freqs_stream)-np.min(freqs_stream))*3,np.max(freqs_stream)+(np.max(freqs_stream)-np.min(freqs_stream))*3)
-        plt.xlim(np.min(phase_stream)-np.pi/4,np.max(phase_stream)+np.pi/4)
-        plt.xlabel("phase")
-        plt.ylabel("Frequency")
-
-
-
-        pdf_pages.savefig(fig)
-        plt.close(fig)
-
-    pdf_pages.close()
-
-
-    #save everything to a dictionary
-    cal_dict = {'fine_z': fine_z,
-                    'gain_z': gain_z,
-                    'stream_z': stream_z,
-                    'fine_freqs':fine_dict['freqs'],
-                    'gain_freqs':fine_dict['freqs'],
-                    'stream_corr':stream_corr_all,
-                    'gain_corr':gain_corr_all,
-                    'fine_corr':fine_corr_all,
-                    'stream_df_over_f':stream_df_over_f_all,
-                    'time':stream_dict['time'],
-                    'stream_time':stream_time}
-
-    #save the dictionary
-    pickle.dump( cal_dict, open(outfile_dir+ "cal.p", "wb" ),2 )
-    return cal_dict
-
-
 def calibrate_list(fine_filename,gain_filename,stream_list,skip_beginning = 0,plot_period = 10,bin_num = 1,outfile_dir = "./",sample_rate = 488.28125):
     #this is for batch fitting stream data in multiple dir files, mostly
     #for the beam map separate
@@ -736,25 +562,279 @@ def calibrate_list(fine_filename,gain_filename,stream_list,skip_beginning = 0,pl
     return stream_df_over_f_all, stream_time, cal_dict
 
 
+def calibrate_multi(fine_filename, gain_filename, stream_filename,
+        skip_beginning=0, plot_period=10, bin_num=1, outfile_dir="./",
+        sample_rate=488.28125, plot=True, **keywords):
+
+    #read in the scans
+    fine_dict = read_multitone.read_iq_sweep(fine_filename)
+    gain_dict = read_multitone.read_iq_sweep(gain_filename)
+    stream_dict = read_multitone.read_stream(stream_filename)
+
+    #convert output to complex data
+    gain_z = gain_dict['I'] +1.j*gain_dict['Q']
+    fine_z = fine_dict['I'] +1.j*fine_dict['Q']
+    stream_z = stream_dict['I_stream'][skip_beginning:] +1.j*stream_dict['Q_stream'][skip_beginning:]
+    #generate relative packet times
+    stream_time = np.asarray(stream_dict['packet_count'])[skip_beginning:]*1/sample_rate
+    stream_time = stream_time - stream_time[0]
+
+
+    #bin the data if you like
+    if bin_num !=1:
+        stream_z_downsamp = sum([stream_z
+            [:,i:bin_num * (stream_z.shape[1]//bin_num):bin_num]
+                for i in range(bin_num)]) / bin_num
+        stream_time_downsamp = sum([stream_time
+            [:,i:bin_num * (stream_time.shape[1]//bin_num):bin_num]
+                for i in range(bin_num)]) / bin_num
+        stream_z = stream_z_downsamp
+        stream_time = stream_time_downsamp
+        
+
+    #initalize some arrays to hold the calibrated data
+    stream_corr_all = np.zeros(stream_z.shape,dtype = 'complex')
+    gain_corr_all = np.zeros(gain_z.shape,dtype = 'complex')
+    fine_corr_all = np.zeros(fine_z.shape,dtype = 'complex')
+    stream_df_over_f_all = np.zeros(stream_z.shape)
+    circle_fit = np.ndarray((fine_dict['I'].shape[1],4))
+    amp_dicts = []
+    cable_delay_data = []
+
+
+    for k in range(0,fine_dict['I'].shape[1]):
+        print(k)
+        
+        f_stream = fine_dict['freqs'][len(fine_dict['freqs'][:,k])/2,k]*10**6
+        #normalize amplitude varation in gain scan
+        amp_norm_dict = resonance_fitting.amplitude_normalization_sep(
+                gain_dict['freqs'][:,k]*1e6,
+                gain_z[:,k],
+                fine_dict['freqs'][:,k]*1e6,
+                fine_z[:,k],
+                f_stream,
+                stream_z[:,k])
+        amp_dicts.append(amp_norm_dict)
+
+        #fit the gain
+        gain_phase = np.arctan2(np.real(amp_norm_dict['normalized_gain']),
+                np.imag(amp_norm_dict['normalized_gain']))
+        tau,fit_data_phase,gain_phase_rot = calibrate.fit_cable_delay(
+                gain_dict['freqs'][:,k]*1e6,gain_phase)
+        cable_delay_data.append(
+                (gain_phase, tau, fit_data_phase, gain_phase_rot))
+        
+        #remove cable delay
+        gain_corr = calibrate.remove_cable_delay(gain_dict['freqs'][:,k]*1e6,amp_norm_dict['normalized_gain'],tau)
+        fine_corr = calibrate.remove_cable_delay(fine_dict['freqs'][:,k]*1e6,amp_norm_dict['normalized_fine'],tau)
+        stream_corr = calibrate.remove_cable_delay(f_stream,amp_norm_dict['normalized_stream'],tau)
+        
+        # fit a cicle to the data
+        xc, yc, R, residu  = calibrate.leastsq_circle(np.real(fine_corr),np.imag(fine_corr))
+        circle_fit[k,0:3] = np.array([xc, yc, R])
+
+        #move the data to the origin
+        gain_corr = gain_corr - xc -1j*yc
+        fine_corr = fine_corr - xc -1j*yc
+        stream_corr = stream_corr  - xc -1j*yc
+
+        # rotate so streaming data is at 0 pi
+        phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
+        if ("rotate_fine_first" in keywords): # if you have data that covers a large part of the iq loop
+            med_phase = np.arctan2(np.imag(fine_corr),np.real(fine_corr))[0]+np.pi
+        else:
+            med_phase = np.median(phase_stream)
+        circle_fit[k,-1] = med_phase
+
+        gain_corr_all[:,k]  = gain_corr = gain_corr*np.exp(-1j*med_phase) 
+        fine_corr_all[:,k] = fine_corr = fine_corr*np.exp(-1j*med_phase) 
+        stream_corr_all[:,k] = stream_corr = stream_corr*np.exp(-1j*med_phase)
+
+
+        phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
+        use_index = np.where((-np.pi/2.<phase_fine) & (phase_fine<np.pi/2))
+        phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
+
+        #interp phase to frequency
+        f_interp = interpolate.interp1d(phase_fine, fine_dict['freqs'][:,k],kind = 'quadratic',bounds_error = False,fill_value = 0)
+
+        phase_small = np.linspace(np.min(phase_fine),np.max(phase_fine),1000)
+        freqs_stream = f_interp(phase_stream)
+        stream_df_over_f_all[:,k] = stream_df_over_f = freqs_stream/np.mean(freqs_stream)-1.
+
+
+    #save everything to a dictionary
+    cal_dict = {'fine_z': fine_z,
+                    'gain_z': gain_z,
+                    'stream_z': stream_z,
+                    'fine_freqs':fine_dict['freqs'],
+                    'gain_freqs':gain_dict['freqs'],
+                    'stream_corr':stream_corr_all,
+                    'gain_corr':gain_corr_all,
+                    'fine_corr':fine_corr_all,
+                    'stream_df_over_f':stream_df_over_f_all,
+                    'time':stream_dict['time'],
+                    'stream_time':stream_time}
+
+    #plot the data if desired
+    if plot:
+        plot_calibrate(cal_dict, circle_fit, amp_dicts, cable_delay_data,
+        plot_period, outfile_dir)
+
+    #save the dictionary
+    pickle.dump( cal_dict, open(outfile_dir+ "cal.p", "wb" ),2 )
+    return cal_dict
+
+
+def plot_calibrate(cal_dict, circle_fit, amp_dicts, cable_delay_data,
+        plot_period, outfile_dir='./'):
+    pdf_pages = PdfPages(outfile_dir+"cal_plots.pdf")
+    for k in range(cal_dict['fine_z'].shape[1]):
+        fig = plt.figure(k,figsize = (16,10))
+
+        #plot the raw data
+        plt.subplot(241,aspect = 'equal')
+        plt.title("Raw data")
+        plt.plot(np.real(cal_dict['fine_z'][:,k]),
+                np.imag(cal_dict['fine_z'][:,k]),'o')
+        plt.plot(np.real(cal_dict['stream_z'][:,k][::plot_period]),
+                np.imag(cal_dict['stream_z'][:,k][::plot_period]),'.')
+        plt.plot(np.real(cal_dict['gain_z'])[:,k],
+                np.imag(cal_dict['gain_z'])[:,k],'o')
+
+        #plot fine and stream data
+        plt.subplot(242)
+        plt.title("Raw data")
+        plt.plot(np.real(cal_dict['fine_z'])[:,k],
+                np.imag(cal_dict['fine_z'])[:,k],'o')
+        plt.plot(np.real(cal_dict['stream_z'][:,k][::plot_period]),
+                np.imag(cal_dict['stream_z'][:,k][::plot_period]),'.')
+
+        #plot the fit of the gain amp/phase variation       
+        plt.subplot(243)
+        plt.title("Gain amplitude variation fit")
+        plt.plot(cal_dict['gain_freqs'][:,k]*1e6,
+                20.*np.log10(np.abs(cal_dict['gain_z'][:,k])),'o')
+        plt.plot(cal_dict['gain_freqs'][:,k]*1e6,
+                10.*np.log10(np.abs(amp_dicts[k]['normalized_gain'])**2),'o')
+        plt.plot(cal_dict['fine_freqs'][:,k]*1e6,
+                10.*np.log10(np.abs(amp_dicts[k]['normalized_fine'])**2),'o')
+        plt.plot(cal_dict['gain_freqs'][:,k]*1e6,
+                20.*np.log10(np.abs(amp_dicts[k]['poly_data'])))
+
+        #plot gain amp variation
+        plt.subplot(244)
+        plt.title("Data nomalized for gain amplitude variation")
+        plt.plot(np.real(amp_dicts[k]['normalized_fine']),
+                np.imag(amp_dicts[k]['normalized_fine']),'o')
+        plt.plot(np.real(amp_dicts[k]['normalized_stream'][::plot_period]),
+                np.imag(amp_dicts[k]['normalized_stream'][::plot_period]),'.')
+
+        gain_phase, tau, fit_data_phase, gain_phase_rot = cable_delay_data[k]
+        #plot gain phase fit
+        plt.subplot(245)
+        plt.title("Gain phase fit")
+        plt.plot(cal_dict['gain_freqs'][:,k],gain_phase_rot,'o')
+        plt.plot(cal_dict['gain_freqs'][:,k],fit_data_phase)
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Phase")
+
+        #unpack corr data       
+        gain_corr = cal_dict['gain_corr'][:,k]
+        fine_corr = cal_dict['fine_corr'][:,k]
+        stream_corr = cal_dict['stream_corr'][:,k]
+        #reverse the circle offset and rotation
+        med_phase = circle_fit[k,-1]
+        xc = circle_fit[k,0]
+        yc = circle_fit[k,1]
+        R = circle_fit[k,2]
+        gain_corr0 = gain_corr * np.exp(1.j*med_phase) + xc + 1.j * yc
+        fine_corr0 = fine_corr * np.exp(1.j*med_phase) + xc + 1.j * yc
+        stream_corr0 = stream_corr * np.exp(1.j*med_phase) + xc + 1.j * yc
+        
+
+        plt.subplot(246)
+        plt.title("Cable delay removed")
+        plt.plot(np.real(gain_corr0),np.imag(gain_corr0),'o')
+        plt.plot(np.real(fine_corr0),np.imag(fine_corr0),'o')
+        plt.plot(np.real(stream_corr0)[10:-10][::plot_period],
+                np.imag(stream_corr0)[10:-10][::plot_period],'.')
+
+        #center and rotate IQ circle
+        plt.subplot(247)
+        plt.title("Moved to 0,0 and rotated")
+        plt.plot(np.real(stream_corr)[2:-1][::plot_period],
+                np.imag(stream_corr)[2:-1][::plot_period],'.')
+        plt.plot(np.real(gain_corr),np.imag(gain_corr),'o')
+        plt.plot(np.real(fine_corr),np.imag(fine_corr),'o')
+        calibrate.plot_data_circle(np.real(fine_corr)-xc,np.imag(fine_corr)-yc,
+                0, 0, R)
+
+        #redo the phase fitting
+        phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
+        use_index = np.where((-np.pi/2.<phase_fine) & (phase_fine<np.pi/2))
+        phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
+
+        #interp phase to frequency
+        f_interp = interpolate.interp1d(phase_fine, cal_dict['fine_freqs'][:,k],
+                kind = 'quadratic',bounds_error = False,fill_value = 0)
+
+        phase_small = np.linspace(np.min(phase_fine),np.max(phase_fine),1000)
+        freqs_stream = f_interp(phase_stream)
+
+        #plot the stream phase
+        plt.subplot(248)
+        plt.plot(phase_fine,cal_dict['fine_freqs'][:,k],'o')
+        plt.plot(phase_small,f_interp(phase_small),'--')
+        plt.plot(phase_stream[::plot_period],freqs_stream[::plot_period],'.')
+        plt.ylim(np.min(freqs_stream)-(np.max(freqs_stream)-np.min(freqs_stream))*3,np.max(freqs_stream)+(np.max(freqs_stream)-np.min(freqs_stream))*3)
+        plt.xlim(np.min(phase_stream)-np.pi/4,np.max(phase_stream)+np.pi/4)
+        plt.xlabel("phase")
+        plt.ylabel("Frequency")
+
+
+
+        pdf_pages.savefig(fig)
+        plt.close(fig)
+
+    pdf_pages.close()
+
+
+def fft_noise(z_stream,df_over_f,sample_rate):
+    npts_fft = int(2**(np.floor(np.log2(df_over_f.size)))) 
+    Sxx = 2*fftpack.fft(df_over_f,n = npts_fft)*np.conj(fftpack.fft(df_over_f,n = npts_fft))/sample_rate*npts_fft/npts_fft**2
+    #perpendicular should be radial on the circle
+    per_stream = np.abs(z_stream)
+    #radius times angle should be distance along the circle and should work if 
+    #noise ball is not small
+    par_stream = np.mean(per_stream) * np.arctan2(np.imag(z_stream), np.real(z_stream))
+    S_per = 2*fftpack.fft(per_stream,n = npts_fft)*np.conj(
+            fftpack.fft(per_stream,n = npts_fft)
+            )/sample_rate*npts_fft/npts_fft**2
+    S_par = 2*fftpack.fft(par_stream,n = npts_fft)*np.conj(
+            fftpack.fft(par_stream,n = npts_fft))/sample_rate*npts_fft/npts_fft**2
+    fft_freqs = fftpack.fftfreq(npts_fft,1./sample_rate)
+    return fft_freqs,Sxx,S_per,S_par
+
+
 def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA = 0):
-    pdf_pages = PdfPages(outfile_dir+"psd_plots.pdf")
 
     if n_comp_PCA >0:
         do_PCA = True
         #do PCA on the data
-        PCA_dict = PCA.PCA(cal_dict['stream_df_over_f'],n_comp_PCA,sample_rate = sample_rate)
+        cleaned, removed = PCA.PCA_SVD(cal_dict['stream_df_over_f'],n_comp_PCA,
+                plot=True)
     else:
         do_PCA = False
 
-    for k in range(0,min(cal_dict['fine_corr'].shape[1],
-             cal_dict['stream_df_over_f'].shape[1])):
+    for k in range(0,cal_dict['fine_corr'].shape[1]):
         print(k)
 
 
         #lets fourier transfer that crap
-        fft_freqs,Sxx,S_per,S_par = calibrate.fft_noise(cal_dict['stream_corr'][:,k],cal_dict['stream_df_over_f'][:,k],sample_rate)
+        fft_freqs,Sxx,S_per,S_par = fft_noise(cal_dict['stream_corr'][:,k],cal_dict['stream_df_over_f'][:,k],sample_rate)
         if do_PCA:
-            fft_freqs_2,Sxx_clean,S_per_2,S_par_2 = calibrate.fft_noise(cal_dict['stream_corr'][:,k],PCA_dict['cleaned'][:,k],sample_rate)
+            fft_freqs_2,Sxx_clean,S_per_2,S_par_2 = fft_noise(cal_dict['stream_corr'][:,k],cleaned[:,k], sample_rate)
         if k == 0:
             #intialize some arrays
             Sxx_all = np.zeros((Sxx.shape[0],cal_dict['fine_corr'].shape[1]))
@@ -764,7 +844,7 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
 
         Sxx_all[:,k] = np.abs(Sxx)
         if do_PCA:
-            Sxx_all_clean = np.abs(Sxx_clean)
+            Sxx_all_clean[:,k] = np.abs(Sxx_clean)
         S_per_all[:,k] = np.abs(S_per)
         S_par_all[:,k] = np.abs(S_par)
 
@@ -791,36 +871,6 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
         S_par_binned_all[:,k] = binnedpar
         amp_subtracted_all[:,k] = amp_subtracted
 
-
-        fig = plt.figure(k,figsize = (16,6))
-        plt.subplot(122)
-        plt.title("Sxx")
-        #plt.loglog(fft_freqs,np.abs(Sxx))
-        plt.loglog(binnedfreq,np.abs(binnedpsd),linewidth = 2,label = "Sxx raw")
-        if do_PCA:
-            plt.loglog(binnedfreq,np.abs(binnedpsd_clean),linewidth = 2,label = "PCA " +str(n_comp_PCA)+" comps")
-        plt.loglog(binnedfreq,amp_subtracted,linewidth = 2,label = "raw amp subtracted")
-        #plt.ylim(10**-18,10**-15)
-        plt.ylabel("Sxx (1/Hz)")
-        plt.xlabel("Frequency (Hz)")
-        plt.legend()
-
-        plt.subplot(121)
-        plt.title("Res indx = "+str(k))
-        #plt.loglog(fft_freqs,S_per)
-        #plt.loglog(fft_freqs,S_par)
-
-        plt.loglog(binnedfreq,binnedper,label = "amp noise")
-        plt.loglog(binnedfreq,binnedpar,label = "detect noise")
-        plt.legend()
-        #plt.ylim(10**2,10**6)
-        plt.xlabel("Frequency (Hz)")
-
-        pdf_pages.savefig(fig)
-        plt.close(fig)
-
-    pdf_pages.close()
-
     #make a psd dictionary
     psd_dict = {'fft_freqs':fft_freqs,
                     'Sxx':Sxx_all,
@@ -834,7 +884,75 @@ def noise_multi(cal_dict, sample_rate = 488.28125,outfile_dir = "./",n_comp_PCA 
                     'Sxx_clean':Sxx_all_clean,
                     'Sxx_binned_clean':Sxx_binned_all_clean}
 
+    #plot the stuff
+    plot_noise_multi(psd_dict, N_PCA=n_comp_PCA, outfile_dir=outfile_dir) 
     #save the psd dictionary
     pickle.dump( psd_dict, open( outfile_dir+"psd.p", "wb" ),2 )
 
     return psd_dict
+
+
+def plot_noise_multi(psd_dict, white_avg=100., N_PCA=0, outfile_dir = "./"):
+    #create the PDF file
+    pdf_pages = PdfPages(outfile_dir+"psd_plots.pdf")
+    #was there a PCA analysis
+    do_PCA = (N_PCA > 0)
+    #calculate white noise levels and plot them
+    freq_mask = psd_dict['fft_freqs'] > white_avg
+    N_res = psd_dict['Sxx'].shape[1]
+    Sxx_avg = np.ndarray((N_res,))
+    par_per_ratio = np.ndarray((N_res,))
+    for i in range(N_res):
+        Sxx_avg[i] = np.mean(psd_dict['Sxx'][:,i][freq_mask])
+        par_per_ratio[i] = np.mean(psd_dict['S_par'][:,i][freq_mask]
+                ) / np.mean(psd_dict['S_per'][:,i][freq_mask])
+    fig = plt.figure(9000,figsize = (16,6))
+    plt.subplot(122)
+    plt.title("White Noise Levels")
+    plt.semilogy(np.arange(N_res), Sxx_avg, 'bo')
+    plt.ylabel("Sxx (1/Hz)")
+    plt.xlabel("Resonator Index")
+    plt.subplot(121)
+    plt.title("Total to Amplifier Ratio")
+    plt.plot(np.arange(N_res), par_per_ratio, 'go')
+    plt.ylabel("Ratio of Parallel to Perpendicular")
+    plt.xlabel("Resonator Index")
+    pdf_pages.savefig(fig)
+    plt.close(fig)
+    #loop over the resonators
+    for k in range(N_res):
+        fig = plt.figure(k,figsize = (16,6))
+        #plot Sxx raw and with amplifier subtracted
+        plt.subplot(122)
+        plt.title("Sxx")
+        plt.loglog(psd_dict['binned_freqs'],
+                np.abs(psd_dict['Sxx_binned'][:,k]),linewidth = 2,
+                label = "Sxx raw")
+        if do_PCA:
+            plt.loglog(psd_dict['binned_freqs'],
+                    np.abs(psd_dict['Sxx_binned_clean'][:,k]),linewidth = 2,
+                    label = "PCA {0} comps".format(N_PCA))
+        plt.loglog(psd_dict['binned_freqs'],
+                psd_dict['amp_subtracted'][:,k],
+                linewidth = 2, label="raw amp subtracted")
+        plt.ylabel("Sxx (1/Hz)")
+        plt.xlabel("Frequency (Hz)")
+        plt.legend()
+
+        #plot noise independant quadratures
+        plt.subplot(121)
+        plt.title("Res indx = "+str(k))
+
+        plt.loglog(psd_dict['binned_freqs'],psd_dict['S_per_binned'][:,k],
+                label = "amp noise")
+        plt.loglog(psd_dict['binned_freqs'],psd_dict['S_par_binned'][:,k],
+                label = "detect noise")
+        plt.legend()
+        plt.xlabel("Frequency (Hz)")
+
+        #save and close the figure
+        pdf_pages.savefig(fig)
+        plt.close(fig)
+
+    #close the pdf file so everything gets flushed to the disk
+    pdf_pages.close()
