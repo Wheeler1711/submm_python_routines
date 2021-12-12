@@ -50,7 +50,7 @@ def std_of_mean(x):
                                  1./2/np.pi/x[index_for_fitting][np.argmin(np.abs(white_guess/2.-y[index_for_fitting]))]]) # look for 3dB decrease from white noise guess
         print("guess values are")
         print(x0_guess)
-        ranges = np.asarray(([x0_guess[0]/2,x0_guess[1]/20,0.5,x0_guess[3]/2],[ x0_guess[0]*2,x0_guess[1]*10,2,x0_guess[3]*2]))
+        ranges = np.asarray(([x0_guess[0]/2,x0_guess[1]/20,0.5,x0_guess[3]/4],[ x0_guess[0]*2.0,x0_guess[1]*10,2,x0_guess[3]*4]))
                 
 
     if error is None:
@@ -208,6 +208,7 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
         freq_range = (x[0], x[-1])
 
     index_for_fitting = np.where(((x >= freq_range[0]) & (x <= freq_range[1])))
+ 
 
     if ('ranges' in keywords):
         ranges = keywords['ranges']
@@ -218,13 +219,16 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
         else:
             white_index = len(y[index_for_fitting]) // 2  # noise is white in the middle of psd
 
+        # only look at frequencies greater than white noise frequency
+        index_for_time_constant = np.where(x >= x[white_index])
+
         white_guess = y[index_for_fitting][white_index]
         x0_guess = np.array([white_guess,
                              (y[index_for_fitting][0] - white_guess) / x[index_for_fitting][0] ** (-1.),
                              # assume 1/f dominates at lowest frequency but still subtract off white noise
                              1,  # guess 1/f is index is 1
-                             1. / 2 / np.pi / x[index_for_fitting][np.argmin(np.abs(white_guess / 2. - y[
-                                 index_for_fitting]))]])  # look for 3dB decrease from white noise guess
+                             1. / 2 / np.pi / x[index_for_time_constant][np.argmin(np.abs(white_guess / 2. - y[
+                                 index_for_time_constant]))]])  # look for 3dB decrease from white noise guess
         print("guess values are")
         print(x0_guess)
         ranges = np.asarray(([x0_guess[0] / 2, x0_guess[1] / 20, 0.5, x0_guess[3] / 2],
