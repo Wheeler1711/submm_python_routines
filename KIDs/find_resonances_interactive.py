@@ -717,6 +717,8 @@ def slice_vna(f, z, kid_index, q_slice=2000):
     # delta f = f/Q
     df = f[1] - f[0]
     n_iq_points = int(f[0] / q_slice // df)
+    if np.mod(n_iq_points,2) == 0:
+        n_iq_points = n_iq_points+1
     print(n_iq_points)
     res_freq_array = np.zeros((len(kid_index), n_iq_points))
     res_array = np.zeros((len(kid_index), n_iq_points)).astype('complex')
