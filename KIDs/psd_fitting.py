@@ -220,18 +220,22 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
             white_index = len(y[index_for_fitting]) // 2  # noise is white in the middle of psd
 
         # only look at frequencies greater than white noise frequency
-        index_for_time_constant = np.where(x >= x[white_index])
+        index_for_time_constant = np.where(x >= x[index_for_fitting][white_index])
 
         white_guess = y[index_for_fitting][white_index]
+        # assume 1/f dominates at lowest frequency but still subtract off white noise
+        one_over_f_guess = (y[index_for_fitting][0] - white_guess) / x[index_for_fitting][0] ** (-1.)
+        if one_over_f_guess<0: #unpysical to be less than 0 must be small though
+            one_over_f_guess = white_guess/10.
         x0_guess = np.array([white_guess,
-                             (y[index_for_fitting][0] - white_guess) / x[index_for_fitting][0] ** (-1.),
+                             one_over_f_guess,
                              # assume 1/f dominates at lowest frequency but still subtract off white noise
                              1,  # guess 1/f is index is 1
                              1. / 2 / np.pi / x[index_for_time_constant][np.argmin(np.abs(white_guess / 2. - y[
                                  index_for_time_constant]))]])  # look for 3dB decrease from white noise guess
         print("guess values are")
         print(x0_guess)
-        ranges = np.asarray(([x0_guess[0] / 2, x0_guess[1] / 20, 0.5, x0_guess[3] / 2],
+        ranges = np.asarray(([x0_guess[0] / 2, x0_guess[1] / 20, 0.4, x0_guess[3] / 2],
                              [x0_guess[0] * 2, x0_guess[1] * 10, 2, x0_guess[3] * 2]))
 
     if error is None:
@@ -268,7 +272,7 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
     x0_guess_result = noise_profile_lor(x, x0_guess[0], x0_guess[1], x0_guess[2], x0_guess[3])
     noise_slope_result = noise_slope(x, fit_values[1], fit_values[2])
     fine_freqs = np.logspace(np.log10(freq_range[0]), np.log10(freq_range[1]), 10000)
-    print(fine_freqs)
+    #print(fine_freqs)
     knee = fine_freqs[np.argmin(np.abs(fit_values[1] * fine_freqs ** -fit_values[2] - fit_values[0]))]
 
     fit_dict = {'fit_values': fit_values, 'fit_values_names': fit_values_names, 'sum_dev': sum_dev,
