@@ -42,7 +42,7 @@ def fit_cable_delay(gain_f,gain_phase):
     # first we move from -pi to pi to 0 to 2pi so we can use a modulus function
     # then we shift the phase so that the center point in on pi
     # gain f in Hz
-    gain_phase = np.mod(gain_phase+np.pi-((gain_phase[len(gain_phase)/2]+np.pi)-np.pi),2*np.pi)
+    gain_phase = np.mod(gain_phase+np.pi-((gain_phase[len(gain_phase)//2]+np.pi)-np.pi),2*np.pi)
     #shift back to -pi to pi space for fun
     gain_phase = gain_phase -np.pi
     p_phase = np.polyfit(gain_f,gain_phase,1)
@@ -60,7 +60,7 @@ def fit_cable_delay(gain_f,gain_phase):
     # first we move from -pi to pi to 0 to 2pi so we can use a modulus function
     # then we shift the phase so that the center point in on pi
     # gain f in Hz
-    gain_phase = np.mod(gain_phase+np.pi-((gain_phase[len(gain_phase)/2]+np.pi)-np.pi),2*np.pi)
+    gain_phase = np.mod(gain_phase+np.pi-((gain_phase[len(gain_phase)//2]+np.pi)-np.pi),2*np.pi)
     #shift back to -pi to pi space for fun
     gain_phase = gain_phase -np.pi
     p_phase = np.polyfit(gain_f,gain_phase,1)
