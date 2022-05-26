@@ -10,6 +10,8 @@ except:
     from KIDs import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 from typing import NamedTuple
+from PyQt5.QtCore import pyqtRemoveInputHook
+pyqtRemoveInputHook() #input() breaks during interactive plot on linux without this
 
 
 """
@@ -81,6 +83,7 @@ class InteractivePlot(object):
         plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
         plt.rcParams['keymap.quit'] = ['k'] #remove q for quit make it k for kill
         plt.rcParams['keymap.home'] = ['h'] #remove r for home only make it h
+        plt.rcParams['keymap.fullscreen'] = ['shift+='] #remove ('f', 'ctrl+f'), make +
         self.chan_freqs = chan_freqs
         self.data = data
         self.f_old = f_old
