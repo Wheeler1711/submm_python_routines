@@ -76,7 +76,7 @@ class InteractivePlot(object):
     frequencies should be supplied in Hz
     """
 
-    def __init__(self, chan_freqs, data, kid_idx, f_old=None, data_old=None, kid_idx_old=None):
+    def __init__(self, chan_freqs, data, kid_idx, flags = None, f_old=None, data_old=None, kid_idx_old=None):
         plt.rcParams['keymap.forward'] = ['v']
         plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
         plt.rcParams['keymap.quit'] = ['k'] #remove q for quit make it k for kill
@@ -86,7 +86,11 @@ class InteractivePlot(object):
         self.f_old = f_old
         self.data_old = data_old
         self.kid_idx_old = kid_idx_old
+        print(kid_idx)
         self.kid_idx = kid_idx
+        if flags is None:
+            self.flags = []
+            for i in range(len(self.kid_idx)): self.flags.append([])
         self.lim_shift_factor = 0.2
         self.zoom_factor = 0.1  # no greater than 0.5
         self.kid_idx_len = len(kid_idx)
@@ -96,6 +100,8 @@ class InteractivePlot(object):
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
         self.l1, = self.ax.plot(self.chan_freqs/10**9, self.data)
+        self.flagged_indexes = self.get_flagged_indexes()
+        self.fp1, = self.ax.plot(self.chan_freqs[self.flagged_indexes]/10**9, self.data[self.flagged_indexes], "yo", markersize=9)
         self.p1, = self.ax.plot(self.chan_freqs[self.kid_idx]/10**9, self.data[self.kid_idx], "r*", markersize=8)
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
@@ -112,6 +118,7 @@ class InteractivePlot(object):
 
         self.shift_is_held = False
         self.control_is_held = False
+        self.f_is_held = False
         self.add_list = []
         self.delete_list = []
         print("The controls are:")
@@ -121,6 +128,7 @@ class InteractivePlot(object):
         else:
             print("Hold the shift key while right clicking to add points")
             print("Hold the control key while right clicking to delete points")
+        print("Hold the f key while right clicking to flag points")
         print("Use the arrow keys to pan around plot")
         print("Use z to zoom")
         print("Use x to Xplode")
@@ -146,6 +154,9 @@ class InteractivePlot(object):
             if event.key == 'control':
                 self.control_is_held = True
 
+        if event.key == 'f':
+            self.f_is_held = True
+                
         if event.key == 'right':  # pan right
             xlim_left, xlim_right = self.ax.get_xlim()
             xlim_size = xlim_right - xlim_left
@@ -229,24 +240,47 @@ class InteractivePlot(object):
             if event.key == 'control':
                 self.control_is_held = False
 
+        if event.key == 'f':
+            self.f_is_held = False
+
     def onClick(self, event):
         if event.button == 3:
             if self.shift_is_held:  # add point
                 print("adding point", event.xdata)
-                self.kid_idx = np.hstack((self.kid_idx, np.argmin(np.abs(self.chan_freqs - event.xdata*10**9))))
-                self.kid_idx = self.kid_idx[np.argsort(self.kid_idx)]
+                self.kid_idx.append(np.argmin(np.abs(self.chan_freqs - event.xdata*10**9)))
+                self.flags.append([])
+                zipped_lists = zip(self.kid_idx,self.flags)
+                sorted_pairs = sorted(zipped_lists)
+                tuples = zip(*sorted_pairs)
+                self.kid_idx, self.flags = [list(tuple) for tuple in tuples]
+                #self.kid_idx.sort()
                 self.refresh_plot()
             elif self.control_is_held:  # delete point
                 print("removing point", event.xdata)
                 delete_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata*10**9))
-                self.kid_idx = np.delete(self.kid_idx, delete_index)
+                self.kid_idx.pop(delete_index)
+                self.flags.pop(delete_index)
                 self.refresh_plot()
-                # self.delete_list.append(event.xdata)
-                # plt.plot(event.xdata,event.ydata,"x",markersize = 20,mew = 5)
+            elif self.f_is_held: #flag resonator
+                print("flagging point", event.xdata)
+                flag_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata*10**9))
+                print("current flags: ",self.flags[flag_index])
+                flag = input("Enter flag string: ").lower()
+                if flag == "c":
+                    flag = "collision"
+                elif flag == "s":
+                    flag = "shallow"
+                else:
+                    pass
+                self.flags[flag_index].append(flag)
+                print("Flags are now: ",self.flags[flag_index])
+                self.refresh_plot()
             else:
                 print("please hold either the shift or control key while right clicking to add or remove points")
 
     def refresh_plot(self):
+        self.flagged_indexes = self.get_flagged_indexes()
+        self.fp1.set_data(self.chan_freqs[self.flagged_indexes]/10**9, self.data[self.flagged_indexes])
         self.p1.set_data(self.chan_freqs[self.kid_idx]/10**9, self.data[self.kid_idx])
         for i in range(0, self.kid_idx_len):
             self.text_dict[i].set_text("")  # clear all of the texts
@@ -255,6 +289,22 @@ class InteractivePlot(object):
             self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i]/10**9, self.data[self.kid_idx][i], str(i))
         self.kid_idx_len = len(self.kid_idx)
         plt.draw()
+
+    def get_flagged_indexes(self):
+        flags_empty = True
+        for flag_list in self.flags:
+            if not flag_list:
+                pass
+            else:
+                flags_empty = False
+        if not flags_empty:
+            zipped = zip(self.kid_idx,self.flags)
+            pairs_with_flags = [pair for pair in zipped if len(pair[1])>0]
+            tuples = zip(*pairs_with_flags)
+            flagged_indexes, just_flags = [list(tuple) for tuple in tuples]
+            return flagged_indexes
+        else:
+            return []
 
 
 class InteractiveThresholdPlot(object):
