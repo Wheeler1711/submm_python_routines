@@ -1018,3 +1018,51 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
     
     x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,b0_guess,b1_guess,fr_guess]
     return x0
+
+
+def fit_nonlinear_iq_multi(f,z,tau = None):
+    '''
+    wrapper for handle n resonator fits at once
+    f and zshoule have shape n_iq_points x n_res points 
+    '''
+    center_freqs = f[f.shape[0]//2,:]
+    if tau is not None:
+        all_fits_iq = np.zeros((f.shape[1],8))
+    else:
+        all_fits_iq = np.zeros((f.shape[1],9))
+        
+    for i in range(0,f.shape[1]):
+        f_single = f[:,i]
+        z_single = z[:,i]
+        #flag data that is too close to other resonators              
+        distance = center_freqs-center_freqs[i]
+        if center_freqs[i] != np.min(center_freqs): #don't do if lowest frequency resonator
+            closest_lower_dist = -np.min(np.abs(distance[np.where(distance<0)]))
+            closest_lower_index = np.where(distance ==closest_lower_dist)[0][0]
+            halfway_low = (center_freqs[i] + center_freqs[closest_lower_index])/2.
+        else:
+            halfway_low = 0
+
+        if center_freqs[i] != np.max(center_freqs): #don't do if highest frequenct
+            closest_higher_dist = np.min(np.abs(distance[np.where(distance>0)]))
+            closest_higher_index = np.where(distance ==closest_higher_dist)[0][0]
+            halfway_high = (center_freqs[i] + center_freqs[closest_higher_index])/2.
+        else:
+            halfway_high = np.inf
+           
+        use_index = np.where(((f_single>halfway_low) & (f_single<halfway_high)))
+        f_single = f_single[use_index]
+        z_single= z_single[use_index]
+
+        try:
+            x0 = guess_x0_iq_nonlinear(f_single,z_single,verbose = True)
+            if tau is not None:
+                fit_dict_iq = fit_nonlinear_iq(f_single,z_single,x0=x0,tau = tau)
+            else:
+                fit_dict_iq = fit_nonlinear_iq(f_single,z_single,x0=x0)
+            all_fits_iq[i,:] = fit_dict_iq['fit'][0]
+        except Exception as e:
+            print(e)
+            print("failed to fit")
+
+    return all_fits_iq

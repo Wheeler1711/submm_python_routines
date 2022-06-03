@@ -52,24 +52,20 @@ def fit_cable_delay(gain_f,gain_phase):
 
     return tau,fit_data_phase,gain_phase
 
-
-def fit_cable_delay(gain_f,gain_phase):
-    #fitting is complicated when phase wraps from
-    # positive pi to negative pi
-    # so we apply a phase offset ot get the data to be centered at 0 phase
-    # first we move from -pi to pi to 0 to 2pi so we can use a modulus function
-    # then we shift the phase so that the center point in on pi
+def fit_cable_delay_from_slope(f,phase,plot = True):
     # gain f in Hz
-    gain_phase = np.mod(gain_phase+np.pi-((gain_phase[len(gain_phase)//2]+np.pi)-np.pi),2*np.pi)
-    #shift back to -pi to pi space for fun
-    gain_phase = gain_phase -np.pi
-    p_phase = np.polyfit(gain_f,gain_phase,1)
-    tau = p_phase[0]/(2.*np.pi)
-    poly_func_phase = np.poly1d(p_phase)
-    fit_data_phase = poly_func_phase(gain_f)
-
-    return tau,fit_data_phase,gain_phase
-
+    phase_gradient = np.gradient(phase)/np.gradient(f)/2/np.pi
+    tau = np.median(phase_gradient)
+    if plot:
+        plt.plot(f/10**6,phase_gradient,label = "data")
+        plt.plot(f/10**6,tau*np.ones(len(f)),label = "fit")
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Phase gradient")
+        plt.legend()
+        plt.title("Tau = "+str(tau))
+        plt.show()
+    return tau,phase_gradient
+        
 def remove_cable_delay(f,z,tau):
     z_corr = z*np.exp(2j*np.pi*tau*f)
     return z_corr
