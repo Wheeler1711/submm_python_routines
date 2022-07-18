@@ -78,7 +78,7 @@ class single_tone(object):
 		freqs = np.linspace(center_freq - span/2, center_freq + span/2, numpoints)
 
 		for k in range(0, numpoints):
-			print k
+			print(k)
 			self.anritsu.set_frequency(freqs[k])
 			time.sleep(self.switch_time)
 
@@ -297,7 +297,7 @@ class single_tone(object):
 			time.sleep(0.5)
 			self.output_attn_value = self.output_attn.get_attenuation()
 		else:
-			print "Output not connected!"
+			print("Output not connected!")
 
 	def power_sweep(self, low_power, high_power, step, center_freq, filename = ""):
 
