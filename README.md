@@ -17,10 +17,14 @@ A 15 minute introduction video for *git* is available at  https://www.youtube.co
 
 
 
-## Python
+## Python3
+Get the latest version of Python3
+
 https://www.python.org/downloads/
 
 ## QT5
+This is for the matplotlib backend based on QT5
+
 https://doc.qt.io/qt-5/supported-platforms.html
 
 # Installation
@@ -47,10 +51,10 @@ Configure the virtual environment for DetMap or from the terminal.
 This step is only done one time to initialize the virtual environment.
 
 Window and Linux Tested in Windows PowerShell and OSX Terminal. Some python 
-installations will need python3 instead of python.
+installations will need to call `python3` instead of `python`. Check your python version with
+`python --version` if it comes back with 2.7.x, try `python3 --version` and expect to get 3.x.x. 
 
 ```
-python --version 
 python -m pip install --upgrade pip
 pip install virtualenv
 virtualenv venv
@@ -99,8 +103,7 @@ check the installation by starting a python console session with:
 Then test with:
 
 ```
-import submm_python_routines
-from submm_python_routines.KIDs.find_resonances_interactive import InteractiveFilterPlot
+from KIDs.find_resonances_interactive import InteractiveFilterPlot
 ```
 
 then exit the console session with 
