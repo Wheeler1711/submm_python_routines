@@ -110,8 +110,66 @@ then exit the console session with
 
 ```quit()```
 
+## Run a Jupiter Server with Docker
+To create a Jupyter notebook from the code in this repository without python. 
 
-### Add the submm_python_routines folder to your python path
+A Docker image is built with the code in this repository. 
+From that image, a new container is launched with the permissions
+and settings so that the full repository can be demonstrated.
+This container reads/writes the code in DetMap/detmap, edits in the Jupyter
+Server propagate to the local repository. With git, this is all a user needs to
+test and contribute to this repository.
+
+Tested and designed to work on any platform.
+
+1. Docker and docker-compose must be installed
+   - get/install docker for your computer at
+   [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
+
+   - get/install docker-compose at:
+[https://docs.docker.com/compose/install/](https://docs.docker.com/compose/install/)
+
+2. Start the docker engine
+   - Check Apps for Windows, OSX
+   - Use a command-line call in unix
+   - It is possible configure the docker engine to start on start-up for your machine.
+
+3. Testing Docker Engine and Client
+The docker *engine/Server* and client must both be running. Check for them in terminal with:
+
+`docker version`
+
+4. Go into DetMap
+
+```cd DetMap```
+
+5. One command to build and deploy the docker container with a Jupyter server.
+   - Depending on how your permissions and operating system you may need use `sudo` 
+   - If you have issues make sure the docker engine is running (step 3).
+   - The first time build takes about 10 minutes.
+   - Subsequent builds will take 2-3 seconds using cached data.
+   - The notebook is arable on any browsers (I like Chrome) at:
+[http://127.0.0.1:8888/lab?token=](http://127.0.0.1:8888/lab?token=).
+   - Use the password/token: `docker`
+
+```docker-compose up --build```
+
+6. Edit and run code
+
+Changes made in the browser to files in DetMap/detmap directory in the container are saved 
+in the local computer at the same path, DetMap/detmap. You can shut down the server and not
+lose any work.
+
+7. Shut Down the Jupyter server
+    - Shut Down using the browser's drop down menu.
+    - or by using `ctrl-c` in the terminal.
+
+8. Clean up the container network built with docker-compose with one terminal command
+    - This is best practice operation.
+
+```docker-compose down```
+
+## Add the submm_python_routines folder to your python path
 to modify your PYTHONPATH environment variable, add the following line to your `~/.bashrc` (linux) or
 `~/.bash_profile` (mac)  or for  windows see [creating-and-modifying-environment-variables-on-windows](https://docs.oracle.com/en/database/oracle/machine-learning/oml4r/1.5.1/oread/creating-and-modifying-environment-variables-on-windows.html).
 

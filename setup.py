@@ -23,6 +23,6 @@ setup(name='submm_python_routines',
       url="https://github.com/simonsobs/DetMap",
       data_files=[(local_samples_dir, sample_data_files)],
       install_requires=['PyQt5-Qt5', 'six', 'PyQt5-sip', 'pyparsing', 'pillow', 'numpy<1.23.0,>=1.18',
-                        'llvmlite', 'kiwisolver', 'matplotlib', 'zipp', 'importlib-metadata'
+                        'llvmlite', 'kiwisolver', 'matplotlib', 'zipp', 'importlib-metadata',
                         'fonttools', 'cycler', 'scipy', 'python-dateutil', 'PyQt5', 'packaging', 'numba']
       )
