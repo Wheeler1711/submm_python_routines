@@ -1,0 +1,17 @@
+version: '3.5'
+
+services:
+    detmap-jupyter:
+        build:
+            context: .
+        user: root
+        ports:
+            - 8888:8888
+        environment:
+            JUPYTER_TOKEN: "docker"
+            GRANT_SUDO: "yes"
+            DOCKER_STACKS_JUPYTER_CMD: "lab"
+            CHOWN_EXTRA: "/submm"
+            CHOWN_EXTRA_OPTS: "-R"
+        volumes:
+            - .:/submm
