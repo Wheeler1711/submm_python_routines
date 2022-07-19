@@ -6,7 +6,7 @@ from scipy import signal, fftpack
 import platform
 try:
     from submm_python_routines.KIDs import resonance_fitting as rf
-except:
+except ModuleNotFoundError:
     from KIDs import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 from typing import NamedTuple

@@ -4,13 +4,16 @@ import time
 
 from lab_brick.core import Attenuator
 
+
 def attenuation_change(device, status_byte, count, byteblock, val):
-	print "User Defined Callback for attenuation_level_change"
-	print "Attenuation: " + str(val)
-	
+	print("User Defined Callback for attenuation_level_change")
+	print("Attenuation: " + str(val))
+
+
 def attenuation_response(device, status_byte, count, byteblock, val):
-	print "User Defined Callback for attenuation_level_response"
-	print "Attenuation: " + str(val)
+	print("User Defined Callback for attenuation_level_response")
+	print("Attenuation: " + str(val))
+
 
 if __name__ == '__main__':
 
@@ -18,7 +21,7 @@ if __name__ == '__main__':
 		opts, args = getopt.getopt(sys.argv[1:], "hv:p:", ["help", "vid=", "pid="])
 	except getopt.GetoptError as err:
 		# print help information and exit:
-		print str(err)  # will print something like "option -a not recognized"
+		print(str(err))  # will print something like "option -a not recognized"
 		usage()
 		sys.exit(2)
 		

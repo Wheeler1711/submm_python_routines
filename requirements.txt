@@ -1,0 +1,7 @@
+numpy<1.23,>=1.18
+matplotlib
+scipy
+PyQt5
+numba
+# only needed for python versions less than 3.9
+importlib-metadata

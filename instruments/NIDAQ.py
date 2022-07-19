@@ -144,13 +144,11 @@ class NIDAQ(object):
 		# This method is used to show user all of the
 		# available functions for NIDAQ
 		
-		print "\t Available Functions"
-		print "\t -------------------"
-		print "\t 1) stream_1ch"
-		print "\t 2) stream_2ch"
-		print "\t 3) stream_3ch"
-		print "\t 4) average_1ch"
-		print "\t 5) average_2ch"
-
-		
+		print("\t Available Functions")
+		print("\t -------------------")
+		print("\t 1) stream_1ch")
+		print("\t 2) stream_2ch")
+		print("\t 3) stream_3ch")
+		print("\t 4) average_1ch")
+		print("\t 5) average_2ch")
 		
