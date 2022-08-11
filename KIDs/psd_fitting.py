@@ -191,6 +191,8 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
     ranges is the ranges for each parameter i.e. np.asarray(([a_low,b_low,c_low,d_low],[a_high,b_high,c_high,d_high]))
     freq_range = (f_low,f_high) bounds over which the psd should be fit
     white_freq = 50 (i.e) Hz if using the automated range it is very useful to specify where the noise psd is white (frequency independant)
+    use_range ---is an n length tuple of frequencies to use while fitting
+    Example: [[1,57],[63,117],[123,177]] here we fit from 1 to 57Hz and 63 to 117 Hz and 123 to 177Hz avoid 60 Hz and harmonics
 
     due to the vector nature of the calculations used by this brute for fitter
     n_grid_points will be limited by your computers ram and it grows fast
@@ -207,7 +209,15 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
     else:
         freq_range = (x[0], x[-1])
 
-    index_for_fitting = np.where(((x >= freq_range[0]) & (x <= freq_range[1])))
+    if ('use_range' in keywords):
+        use_range = keywords['use_range']
+        # create an index of the values you want to fit
+        index_for_fitting = np.where((x>use_range[0][0]) & (x<use_range[0][1]) )[0]
+        for i in range(1,len(use_range)):
+            index2 = np.where((x>use_range[i][0]) & (x<use_range[i][1]) )
+            index_for_fitting = np.hstack((index_for_fitting,index2[0]))  
+    else:
+        index_for_fitting = np.where(((x >= freq_range[0]) & (x <= freq_range[1])))
  
 
     if ('ranges' in keywords):
