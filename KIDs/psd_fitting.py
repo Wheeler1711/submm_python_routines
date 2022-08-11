@@ -192,17 +192,24 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
     freq_range = (f_low,f_high) bounds over which the psd should be fit
     white_freq = 50 (i.e) Hz if using the automated range it is very useful to specify where the noise psd is white (frequency independant)
     use_range ---is an n length tuple of frequencies to use while fitting
-    Example: [[1,57],[63,117],[123,177]] here we fit from 1 to 57Hz and 63 to 117 Hz and 123 to 177Hz avoid 60 Hz and harmonics
+    Example: [[1,57],[63,117],[123,177]] here we fit from 1 to 57Hz and 63 to 117 Hz and 123 to 177Hz avoid 60 Hz and harmonic
+    slope: looking for TLS with a exponent of 0.5 the just force slope to be slope = 0.5
 
     due to the vector nature of the calculations used by this brute for fitter
     n_grid_points will be limited by your computers ram and it grows fast
-    for example 300points 50^4*(2bytes per float*(2arrays) = 3.5GB of ram
+    for example 50^4*(2bytes per float*(2arrays) = 3.5GB of ram
     just watch your resources when you fit if you exceed your ram you will write to disk and the fit will never finish
 
     To Do add in marginilaztions for error bars like in the brute force fitter in resonance fitting
     also add in the corner plot for marginalized values
     would be good to add in a nested version of this where it fits again over a smaller paramter space
+    -Done for slope should think about making it general
     """
+
+    if ('slope' in keywords):
+        slope = keywords['slope']
+    else:
+        slope = None
 
     if ('freq_range' in keywords):
         freq_range = keywords['freq_range']
@@ -250,35 +257,71 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
 
     if error is None:
         error = np.ones(len(x[index_for_fitting]))
+      
+    if not slope:
+        a_values = np.linspace(ranges[0][0], ranges[1][0], n_grid_points)
+        b_values = np.linspace(ranges[0][1], ranges[1][1], n_grid_points)
+        c_values = np.linspace(ranges[0][2], ranges[1][2], n_grid_points)
+        d_values = np.linspace(ranges[0][3], ranges[1][3], n_grid_points)
+        evaluated_ranges = np.vstack((a_values, b_values, c_values, d_values))
 
-    a_values = np.linspace(ranges[0][0], ranges[1][0], n_grid_points)
-    b_values = np.linspace(ranges[0][1], ranges[1][1], n_grid_points)
-    c_values = np.linspace(ranges[0][2], ranges[1][2], n_grid_points)
-    d_values = np.linspace(ranges[0][3], ranges[1][3], n_grid_points)
-    evaluated_ranges = np.vstack((a_values, b_values, c_values, d_values))
+        a, b, c, d = np.meshgrid(a_values, b_values, c_values, d_values, indexing="ij")  # always index ij
 
-    a, b, c, d = np.meshgrid(a_values, b_values, c_values, d_values, indexing="ij")  # always index ij
+        evaluated = noise_profile_lor_vec(x[index_for_fitting], a, b, c, d)
+        
+        data_values = np.reshape(y[index_for_fitting], (y[index_for_fitting].shape[0], 1, 1, 1, 1))
+        error = np.reshape(error, (y[index_for_fitting].shape[0], 1, 1, 1, 1))
+        print(evaluated.shape)
+        print(data_values.shape)
+        print(error.shape)
+        sum_dev = np.sum(((evaluated - data_values) ** 2 / error ** 2),
+                         axis=0)  # comparing in magnitude space rather than magnitude squared
+        # print(sum_dev.shape)
 
-    evaluated = noise_profile_lor_vec(x[index_for_fitting], a, b, c, d)
-    data_values = np.reshape(y[index_for_fitting], (y[index_for_fitting].shape[0], 1, 1, 1, 1))
-    error = np.reshape(error, (y[index_for_fitting].shape[0], 1, 1, 1, 1))
-    # print(evaluated.shape)
-    # print(data_values.shape)
-    # print(error.shape)
-    sum_dev = np.sum(((evaluated - data_values) ** 2 / error ** 2),
-                     axis=0)  # comparing in magnitude space rather than magnitude squared
-    # print(sum_dev.shape)
+        min_index = np.where(sum_dev == np.min(sum_dev))
+        print("grid values at minimum are")
+        print(min_index)
+        index1 = min_index[0][0]
+        index2 = min_index[1][0]
+        index3 = min_index[2][0]
+        index4 = min_index[3][0]
 
-    min_index = np.where(sum_dev == np.min(sum_dev))
-    print("grid values at minimum are")
-    print(min_index)
-    index1 = min_index[0][0]
-    index2 = min_index[1][0]
-    index3 = min_index[2][0]
-    index4 = min_index[3][0]
-    fit_values = np.asarray((a_values[index1], b_values[index2], c_values[index3], d_values[index4]))
+        fit_values = np.asarray((a_values[index1], b_values[index2], c_values[index3], d_values[index4]))
+    else:
+        a_values = np.linspace(ranges[0][0], ranges[1][0], n_grid_points)
+        b_values = np.linspace(ranges[0][1], ranges[1][1], n_grid_points)
+        #c_values = np.linspace(ranges[0][2], ranges[1][2], n_grid_points)
+        d_values = np.linspace(ranges[0][3], ranges[1][3], n_grid_points)
+        evaluated_ranges = np.vstack((a_values, b_values, d_values))
+
+        a, b, d = np.meshgrid(a_values, b_values, d_values, indexing="ij")  # always index ij
+      
+        noise_profile_fixed_slope = lambda x_lamb,a,b,c,d: noise_profile_lor_vec(x_lamb,a,b,slope,d)
+        evaluated = noise_profile_fixed_slope(x[index_for_fitting],a,b,slope,d)
+        evaluated = evaluated[:,0,:,:,:]
+        data_values = np.reshape(y[index_for_fitting], (y[index_for_fitting].shape[0], 1, 1, 1))
+        error = np.reshape(error, (y[index_for_fitting].shape[0], 1, 1, 1))
+        
+        # print(evaluated.shape)
+        # print(data_values.shape)
+        # print(error.shape)
+        
+        sum_dev = np.sum(((evaluated - data_values) ** 2 / error ** 2),
+                         axis=0)  # comparing in magnitude space rather than magnitude squared
+        # print(sum_dev.shape)
+
+        min_index = np.where(sum_dev == np.min(sum_dev))
+        print("grid values at minimum are")
+        print(min_index)
+        index1 = min_index[0][0]
+        index2 = min_index[1][0]
+        #index3 = min_index[2][0]
+        index4 = min_index[2][0]
+        
+        fit_values = np.asarray((a_values[index1], b_values[index2], slope, d_values[index4]))
+
     fit_values_names = ('a (white)', 'b (1/f)', 'c (1/f exponent)', 'd (tau)')
-    fit_result = noise_profile_lor(x, a_values[index1], b_values[index2], c_values[index3], d_values[index4])
+    fit_result = noise_profile_lor(x, fit_values[0], fit_values[1], fit_values[2], fit_values[3])
     x0_guess_result = noise_profile_lor(x, x0_guess[0], x0_guess[1], x0_guess[2], x0_guess[3])
     noise_slope_result = noise_slope(x, fit_values[1], fit_values[2])
     fine_freqs = np.logspace(np.log10(freq_range[0]), np.log10(freq_range[1]), 10000)
