@@ -4,6 +4,9 @@
 # Python build
 *.pyc
 
+# cache files
+*__pycache__*
+
 # Temp files
 *~
 
@@ -15,7 +18,8 @@ venv
 env
 
 # Build
-dist
+dist_setup
+dist*
 build
 submm.egg-info/
 submm_python_routines.egg-info/
