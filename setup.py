@@ -19,8 +19,8 @@ for file_basename in os.listdir(local_samples_dir):
             sample_data_files.append(os.path.join(local_samples_dir, file_basename))
 
 
-setup(name='submm_chw3k5',
-      version='1.0.4',
+setup(name='submm',
+      version='1.0.0',
       description='Python routines for submm astronomy instrumentation',
       author='Jordan Wheeler',
       author_email='wheeler1711@gmail.com',
