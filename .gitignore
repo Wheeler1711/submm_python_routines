@@ -17,3 +17,6 @@ env
 # Build
 dist
 build
+submm.egg-info/
+submm_python_routines.egg-info/
+
