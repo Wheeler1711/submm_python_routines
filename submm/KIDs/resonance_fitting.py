@@ -11,7 +11,7 @@ from numba import jit # to get working on python 2 I had to downgrade llvmlite p
 # module for fitting resonances curves for kinetic inductance detectors.
 # written by Jordan Wheeler 12/21/16
 
-# for example see test_fit.py in this directory
+# for example see res_fit.ipynb in this demos directory
 
 # To Do
 # I think the error analysis on the fit_nonlinear_iq_with_err probably needs some work
@@ -82,7 +82,7 @@ def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
     # the frist two terms in the large parentasis and all other terms are farmilar to me
     # but I am not sure where the last term comes from though it does seem to be important for fitting
     #
-    #                          /        (j phi)            (j phi)   \  2
+    #                          /        (j phi)            (j phi)   |  2
     #|S21|^2 = (b0+b1 x_lin)* |1 -amp*e^           +amp*(e^       -1) |^
     #                         |   ------------      ----              |
     #                          \     (1+ 2jy)         2              /
@@ -126,7 +126,7 @@ def linear_mag(x,fr,Qr,amp,phi,b0):
     # the frist two terms in the large parentasis and all other terms are farmilar to me
     # but I am not sure where the last term comes from though it does seem to be important for fitting
     #
-    #                 /        (j phi)            (j phi)   \  2
+    #                 /        (j phi)            (j phi)   |  2
     #|S21|^2 = (b0)* |1 -amp*e^           +amp*(e^       -1) |^
     #                |   ------------      ----              |
     #                 \     (1+ 2jxg)         2              /
@@ -164,7 +164,7 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     # the frist two terms in the large parentasis and all other terms are farmilar to me
     # but I am not sure where the last term comes from though it does seem to be important for fitting
     #
-    #                    (-j 2 pi deltaf tau)  /        (j phi)            (j phi)   \
+    #                    (-j 2 pi deltaf tau)  /        (j phi)            (j phi)   |
     #        (i0+j*q0)*e^                    *|1 -amp*e^           +amp*(e^       -1) |
     #                                         |   ------------      ----              |
     #                                          \     (1+ 2jy)         2              /
@@ -334,7 +334,7 @@ def brute_force_linear_mag_fit(x,z,ranges,n_grid_points,error = None, plot = Fal
 
 
 # function for fitting an iq sweep with the above equation
-def fit_nonlinear_iq(x,z,**keywords):
+def fit_nonlinear_iq(x,z,verbose = True,**keywords):
     '''
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
@@ -352,17 +352,19 @@ def fit_nonlinear_iq(x,z,**keywords):
         bounds = keywords['bounds']
     else:
         #define default bounds
-        print("default bounds used")
+        if verbose:
+            print("default bounds used")
         bounds = ([np.min(x),50,.01,-np.pi,0,-np.inf,-np.inf,0,np.min(x)],[np.max(x),200000,1,np.pi,5,np.inf,np.inf,1*10**-6,np.max(x)])
     if ('x0' in keywords):
         x0 = keywords['x0']
     else:
         #define default intial guess
-        print("default initial guess used")
+        if verbose:
+            print("default initial guess used")
         #fr_guess = x[np.argmin(np.abs(z))]
         #x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
-        x0 = guess_x0_iq_nonlinear(x,z,verbose = True)
-        print(x0)
+        x0 = guess_x0_iq_nonlinear(x,z,verbose = verbose)
+        #print(x0)
     if ('fr_guess' in keywords):
         x0[0] = keywords['fr_guess']
     if ('tau_guess' in keywords):
@@ -386,15 +388,46 @@ def fit_nonlinear_iq(x,z,**keywords):
         del bounds[1][7]
         del x0[7]
         fit = optimization.curve_fit(lambda x_lamb,a,b,c,d,e,f,g,h: nonlinear_iq_for_fitter(x_lamb,a,b,c,d,e,f,g,tau,h), x, z_stacked,x0,bounds = bounds)
-        fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],tau,fit[0][7])
-        x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],tau,x0[7])
+        
+        fit = list(fit)
+        fit[0] = np.insert(fit[0],7,tau)
+        #fill covariance matrix#
+        cov = np.ones((fit[1].shape[0]+1,fit[1].shape[1]+1))*-1
+        cov[0:7,0:7] = fit[1][0:7,0:7]
+        cov[8,8] = fit[1][7,7]
+        cov[8,0:7] = fit[1][7,0:7]
+        cov[0:7,8] = fit[1][0:7,7]
+        fit[1] = cov
+        fit = tuple(fit)
+
+        #print(fit[1])
+
+        x0 = np.insert(x0,7,tau)
+
     else:
         fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked,x0,bounds = bounds)
-        fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
-        x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7],x0[8])
+
+    # human readable results
+    fr = fit[0][0]
+    Qr = fit[0][1]
+    amp = fit[0][2]
+    phi = fit[0][3]
+    a = fit[0][4]
+    i0 = fit[0][5]
+    q0 = fit[0][6]
+    tau = fit[0][7]
+    Qc = Qr / amp
+    Qi = 1.0 / ((1.0 / Qr) - (1.0 / Qc))
+           
+    fit_result = nonlinear_iq(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7],fit[0][8])
+    x0_result = nonlinear_iq(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7],x0[8])
+
+    if verbose:
+        print_fit_string_nonlinear_iq(fit[0],print_header = False,label = "Fit  ")
 
     #make a dictionary to return
-    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z}
+    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,
+                    'fr':fr,'Qr':Qr,'amp':amp,'phi':phi,'a':a,'i0':i0,'q0':q0,'tau':tau,'Qi':Qi,'Qc':Qc}
     return fit_dict
 
 def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
@@ -526,7 +559,7 @@ def fit_nonlinear_iq_with_err(x,z,**keywords):
 
 
 # function for fitting an iq sweep with the above equation
-def fit_nonlinear_mag(x,z,**keywords):
+def fit_nonlinear_mag(x,z,verbose = True,**keywords):
     '''
     # keywards are
     # bounds ---- which is a 2d tuple of low the high values to bound the problem by
@@ -546,14 +579,29 @@ def fit_nonlinear_mag(x,z,**keywords):
         print("default initial guess used")
         fr_guess = x[np.argmin(np.abs(z))]
         #x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
-        x0 = guess_x0_mag_nonlinear(x,z,verbose = True)
+        x0 = guess_x0_mag_nonlinear(x,z,verbose = verbose)
 
     fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z)**2 ,x0,bounds = bounds)
-    fit_result = nonlinear_mag(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7])
-    x0_result = nonlinear_mag(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7])
+    fit_result = np.sqrt(nonlinear_mag(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4],fit[0][5],fit[0][6],fit[0][7]))
+    x0_result = np.sqrt(nonlinear_mag(x,x0[0],x0[1],x0[2],x0[3],x0[4],x0[5],x0[6],x0[7]))
+
+    if verbose:
+        print_fit_string_nonlinear_mag(fit[0],print_header = False,label = "Fit  ")
+
+    # human readable results
+    fr = fit[0][0]
+    Qr = fit[0][1]
+    amp = fit[0][2]
+    phi = fit[0][3]
+    a = fit[0][4]
+    b0 = fit[0][5]
+    b1 = fit[0][6]
+    Qc = Qr / amp
+    Qi = 1.0 / ((1.0 / Qr) - (1.0 / Qc))
 
     #make a dictionary to return
-    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z}
+    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,
+                    'fr':fr,'Qr':Qr,'amp':amp,'phi':phi,'a':a,'b0':b0,'b1':b1,'Qi':Qi,'Qc':Qc}
     return fit_dict
 
 def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
@@ -714,16 +762,14 @@ def guess_x0_iq_nonlinear(x,z,verbose = False):
         tau_guess = m_best/(2*np.pi)
     else:
         tau_guess = 3*10**-9
+
+    x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,i0_guess,q0_guess,tau_guess,fr_guess]
         
     if verbose == True:
-        print("fr guess  = %.2f MHz" %(fr_guess/10**6))
-        print("Q guess   = %.2f kHz, %.1f" % ((Q_guess_Hz/10**3),Q_guess))
-        print("amp guess = %.2f" %amp_guess)
-        print("i0 guess  = %.2f" %i0_guess)
-        print("q0 guess  = %.2f" %q0_guess)
-        print("tau guess = %.2f x 10^-7" %(tau_guess/10**-7))
+        print_fit_string_nonlinear_iq(x0)
+
     
-    x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,i0_guess,q0_guess,tau_guess,fr_guess]
+
     return x0
 
 def guess_x0_mag_nonlinear(x,z,verbose = False):
@@ -791,16 +837,12 @@ def guess_x0_mag_nonlinear(x,z,verbose = False):
         b1_guess = (np.abs(fine_z)[-1]**2-np.abs(fine_z)[0]**2)/(xlin[-1]-xlin[0])
     b0_guess = np.median(np.abs(gain_z)**2)
         
-       
-    if verbose == True:
-        print("fr guess  = %.2f MHz" %(fr_guess/10**6))
-        print("Q guess   = %.2f kHz, %.1f" % ((Q_guess_Hz/10**3),Q_guess))
-        print("amp guess = %.2f" %amp_guess)
-        print("phi guess = %.2f" %phi_guess)
-        print("b0 guess  = %.2f" %b0_guess)
-        print("b1 guess  = %.2f" %b1_guess)
-    
     x0 = [fr_guess,Q_guess,amp_guess,phi_guess,a_guess,b0_guess,b1_guess,fr_guess]
+    
+    if verbose == True:
+        print_fit_string_nonlinear_mag(x0)
+    
+
     return x0
 
 
@@ -1022,7 +1064,7 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
 
 def fit_nonlinear_iq_multi(f,z,tau = None):
     '''
-    wrapper for handle n resonator fits at once
+    wrapper for handling n resonator fits at once
     f and zshoule have shape n_iq_points x n_res points 
     '''
     center_freqs = f[f.shape[0]//2,:]
@@ -1066,3 +1108,71 @@ def fit_nonlinear_iq_multi(f,z,tau = None):
             print("failed to fit")
 
     return all_fits_iq
+
+def print_fit_string_nonlinear_iq(vals,print_header = True,label = "Guess"):
+    Qc_guess = vals[1] / vals[2]
+    Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
+    if print_header:
+        print("Resonator at %.2f MHz" %(vals[0]/10**6))
+        print(f'     |                             Variables fit                           '+
+                  '\033[1;30;42m|Derived variables|\033[0;0m')
+    guess_header_str  =  '     |'
+    guess_header_str += ' fr (MHz)|' 
+    guess_header_str += '   Q    |'
+    guess_header_str += ' amp |'
+    guess_header_str += ' phi  |'
+    guess_header_str += ' a   |'
+    guess_header_str += '   i0     |'
+    guess_header_str += '   q0     |'
+    guess_header_str += ' tau (ns)\033[1;30;42m|'
+    guess_header_str += '   Qi   |'
+    guess_header_str += '   Qc   |\033[0;0m'
+
+    guess_str  =  label
+    guess_str += f'| {"%3.4f" % (vals[0]/10**6)}' 
+    guess_str += f'| {"%7.0f" % (vals[1])}'
+    guess_str += f'| {"%0.2f" % (vals[2])}'
+    guess_str += f'| {"% 1.2f" % (vals[3])}'
+    guess_str += f'| {"%0.2f" % (vals[4])}'
+    guess_str += f'| {"% .2E" % (vals[5])}'
+    guess_str += f'| {"% .2E" % (vals[6])}'
+    guess_str += f'| {"%6.2f" % (vals[7]*10**9)}  '
+    guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
+    guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
+    
+    if print_header:
+        print(guess_header_str)
+    print(guess_str)
+
+def print_fit_string_nonlinear_mag(vals,print_header = True,label = "Guess"):
+    Qc_guess = vals[1] / vals[2]
+    Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
+    if print_header:
+        print("Resonator at %.2f MHz" %(vals[0]/10**6))
+        print(f'     |                       Variables fit                       '+
+                  '\033[1;30;42m|Derived variables|\033[0;0m')
+    guess_header_str  =  '     |'
+    guess_header_str += ' fr (MHz)|' 
+    guess_header_str += '   Q    |'
+    guess_header_str += ' amp |'
+    guess_header_str += ' phi  |'
+    guess_header_str += ' a   |'
+    guess_header_str += '   b0     |'
+    guess_header_str += '   b1     \033[1;30;42m|'
+    guess_header_str += '   Qi   |'
+    guess_header_str += '   Qc   |\033[0;0m'
+
+    guess_str  =  label
+    guess_str += f'| {"%3.4f" % (vals[0]/10**6)}' 
+    guess_str += f'| {"%7.0f" % (vals[1])}'
+    guess_str += f'| {"%0.2f" % (vals[2])}'
+    guess_str += f'| {"% 1.2f" % (vals[3])}'
+    guess_str += f'| {"%0.2f" % (vals[4])}'
+    guess_str += f'| {"% .2E" % (vals[5])}'
+    guess_str += f'| {"% .2E" % (vals[6])}'
+    guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
+    guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
+    
+    if print_header:
+        print(guess_header_str)
+    print(guess_str)
