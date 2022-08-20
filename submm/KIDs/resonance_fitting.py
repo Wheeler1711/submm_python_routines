@@ -1118,7 +1118,7 @@ def print_fit_string_nonlinear_iq(vals,print_header = True,label = "Guess"):
                   '\033[1;30;42m|Derived variables|\033[0;0m')
     guess_header_str  =  '     |'
     guess_header_str += ' fr (MHz)|' 
-    guess_header_str += '   Q    |'
+    guess_header_str += '   Qr   |'
     guess_header_str += ' amp |'
     guess_header_str += ' phi  |'
     guess_header_str += ' a   |'
@@ -1153,7 +1153,7 @@ def print_fit_string_nonlinear_mag(vals,print_header = True,label = "Guess"):
                   '\033[1;30;42m|Derived variables|\033[0;0m')
     guess_header_str  =  '     |'
     guess_header_str += ' fr (MHz)|' 
-    guess_header_str += '   Q    |'
+    guess_header_str += '   Qr   |'
     guess_header_str += ' amp |'
     guess_header_str += ' phi  |'
     guess_header_str += ' a   |'
