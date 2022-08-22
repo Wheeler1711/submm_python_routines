@@ -44,11 +44,6 @@ directory. Programs like, [Homebrew](https://brew.sh/) will do this step for
 you. If you see SSL errors in Python, it is probably because you skip the
 certificate step.
 
-## QT5
-This is for the matplotlib backend based on QT5
-
-https://doc.qt.io/qt-5/supported-platforms.html
-
 # Installation
 
 ## Download
