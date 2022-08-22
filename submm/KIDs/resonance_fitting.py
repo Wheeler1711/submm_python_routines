@@ -1065,13 +1065,27 @@ def guess_x0_mag_nonlinear_sep(fine_x,fine_z,gain_x,gain_z,verbose = False):
 def fit_nonlinear_iq_multi(f,z,tau = None):
     '''
     wrapper for handling n resonator fits at once
-    f and zshoule have shape n_iq_points x n_res points 
+    f and z should have shape n_iq_points x n_res points 
+    return same thing as fitter but in arrays for all resonators
     '''
+
     center_freqs = f[f.shape[0]//2,:]
-    if tau is not None:
-        all_fits_iq = np.zeros((f.shape[1],8))
-    else:
-        all_fits_iq = np.zeros((f.shape[1],9))
+
+    all_fits = np.zeros((f.shape[1],9))
+    all_fit_results = np.zeros((f.shape[1],f.shape[0]))
+    all_x0_results = np.zeros((f.shape[1],f.shape[0]))
+    all_masks = np.zeros((f.shape[1],f.shape[0]))
+    all_x0 = np.zeros((f.shape[1],9))
+    all_fr = np.zeros(f.shape[1])
+    all_Qr = np.zeros(f.shape[1])
+    all_amp = np.zeros(f.shape[1])
+    all_phi = np.zeros(f.shape[1])
+    all_a = np.zeros(f.shape[1])
+    all_i0 = np.zeros(f.shape[1])
+    all_q0 = np.zeros(f.shape[1])
+    all_tau = np.zeros(f.shape[1])
+    all_Qi = np.zeros(f.shape[1])
+    all_Qc = np.zeros(f.shape[1])
         
     for i in range(0,f.shape[1]):
         f_single = f[:,i]
@@ -1093,21 +1107,47 @@ def fit_nonlinear_iq_multi(f,z,tau = None):
             halfway_high = np.inf
            
         use_index = np.where(((f_single>halfway_low) & (f_single<halfway_high)))
+        mask = np.zeros(len(f_single))
+        mask[use_index] = 1
         f_single = f_single[use_index]
         z_single= z_single[use_index]
+        
 
         try:
-            x0 = guess_x0_iq_nonlinear(f_single,z_single,verbose = True)
             if tau is not None:
-                fit_dict_iq = fit_nonlinear_iq(f_single,z_single,x0=x0,tau = tau)
+                fit_dict_iq = fit_nonlinear_iq(f_single,z_single,tau = tau)
             else:
-                fit_dict_iq = fit_nonlinear_iq(f_single,z_single,x0=x0)
-            all_fits_iq[i,:] = fit_dict_iq['fit'][0]
+                fit_dict_iq = fit_nonlinear_iq(f_single,z_single)
+                
+            all_fits[i,:] = fit_dict_iq['fit'][0]
+            #all_fit_results[i,:] = fit_dict_iq['fit_result']
+            #all_x0_results[i,:] = fit_dict_iq['x0_result']
+            all_fit_results[i,:]  = nonlinear_iq(f[:,i],all_fits[i,0],all_fits[i,1],all_fits[i,2],all_fits[i,3],all_fits[i,4],
+                                                     all_fits[i,5],all_fits[i,6],all_fits[i,7],all_fits[i,8])
+            all_x0_results[i,:] = nonlinear_iq(f[:,i],fit_dict_iq['x0'][0],fit_dict_iq['x0'][1],fit_dict_iq['x0'][2],
+                                                   fit_dict_iq['x0'][3],fit_dict_iq['x0'][4],fit_dict_iq['x0'][5],
+                                                   fit_dict_iq['x0'][6],fit_dict_iq['x0'][7],fit_dict_iq['x0'][8])
+            all_masks[i,:] = mask
+            all_x0[i,:] = fit_dict_iq['x0']
+            all_fr[i] = fit_dict_iq['fr']
+            all_Qr[i] = fit_dict_iq['Qr']
+            all_amp[i] = fit_dict_iq['amp']
+            all_phi[i] = fit_dict_iq['phi']
+            all_a[i] = fit_dict_iq['a']
+            all_i0[i] = fit_dict_iq['i0']
+            all_q0[i] = fit_dict_iq['q0']
+            all_tau[i] = fit_dict_iq['tau']
+            all_Qc[i] = all_Qr[i]/all_amp[i]
+            all_Qi[i] = 1.0 / ((1.0 / all_Qr[i]) - (1.0 / all_Qc[i]))
+            
         except Exception as e:
             print(e)
             print("failed to fit")
 
-    return all_fits_iq
+    all_fits_dict = {'fits': all_fits, 'fit_results': all_fit_results, 'x0_results': all_x0_results, 'masks':all_masks,'x0':all_x0,
+                    'fr':all_fr,'Qr':all_Qr,'amp':all_amp,'phi':all_phi,'a':all_a,'i0':all_i0,'q0':all_q0,'tau':all_tau,'Qi':all_Qi,'Qc':all_Qc}
+
+    return all_fits_dict
 
 def print_fit_string_nonlinear_iq(vals,print_header = True,label = "Guess"):
     Qc_guess = vals[1] / vals[2]
