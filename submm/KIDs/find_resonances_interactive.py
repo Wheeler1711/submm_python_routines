@@ -9,8 +9,11 @@ except ModuleNotFoundError:
     from submm.KIDs import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 from typing import NamedTuple
-from PyQt5.QtCore import pyqtRemoveInputHook
-pyqtRemoveInputHook() #input() breaks during interactive plot on linux without this
+try:
+    from PyQt5.QtCore import pyqtRemoveInputHook
+    pyqtRemoveInputHook() #input() breaks during interactive plot on linux without this if using Qt backend
+except:
+    pass
 
 
 """
@@ -763,7 +766,7 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
     return ip
 
 
-def slice_vna(f, z, kid_index, q_slice=2000):
+def slice_vna(f, z, kid_index, q_slice=2000,flag_collided = True):
     # make f in Hz for fitting
     # Q = f/(delta f) for fitting is determined by the lowest frequencies assumed to be at index 0
     # delta f = f/Q
@@ -781,25 +784,22 @@ def slice_vna(f, z, kid_index, q_slice=2000):
 
         res_freq_array[i, :] = f[a:b]
         res_array[i, :] = z[a:b]
-        # if i == 4:
-        #     plt.plot(res_freq_array[i,:],20*np.log10(np.abs(res_array[i,:])))
-        if i < len(kid_index) - 1:  # dont check last res
-            # print(i)
-            if kid_index[i + 1] - kid_index[i] < n_iq_points:  # collision at higher frequency
-                high_cutoff = int((kid_index[i + 1] + kid_index[i]) / 2)
-                # print(i,a,high_cutoff,b)
-                res_freq_array[i, high_cutoff - a:] = np.nan
-                res_array[i, high_cutoff - a:] = np.nan * (1 + 1j)
-        if i != 0:  # dont check first res
-            # print(i)
-            if kid_index[i] - kid_index[i - 1] < n_iq_points:
-                low_cutoff = int((kid_index[i] + kid_index[i - 1]) / 2)
-                # print(i,a,low_cutoff,b)
-                res_freq_array[i, :low_cutoff - a] = np.nan
-                res_array[i, :low_cutoff - a] = np.nan * (1 + 1j)
-        # if i == 4:
-        #     plt.plot(res_freq_array[i,:],20*np.log10(np.abs(res_array[i,:])),'--')
-        #     plt.show()
+        if flag_collided:
+            if i < len(kid_index) - 1:  # dont check last res
+                # print(i)
+                if kid_index[i + 1] - kid_index[i] < n_iq_points:  # collision at higher frequency
+                    high_cutoff = int((kid_index[i + 1] + kid_index[i]) / 2)
+                    # print(i,a,high_cutoff,b)
+                    res_freq_array[i, high_cutoff - a:] = np.nan
+                    res_array[i, high_cutoff - a:] = np.nan * (1 + 1j)
+            if i != 0:  # dont check first res
+                # print(i)
+                if kid_index[i] - kid_index[i - 1] < n_iq_points:
+                    low_cutoff = int((kid_index[i] + kid_index[i - 1]) / 2)
+                    # print(i,a,low_cutoff,b)
+                    res_freq_array[i, :low_cutoff - a] = np.nan
+                    res_array[i, :low_cutoff - a] = np.nan * (1 + 1j)
+
     return res_freq_array, res_array
 
 

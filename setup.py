@@ -30,9 +30,8 @@ setup(name='submm',
       include_package_data=True,
       python_requires='>3.8',
       install_requires=['numpy<1.23,>=1.18',
-                        'matplotlib',
+                        'matplotlib>=3.5.2',
                         'scipy',
-                        'PyQt5',
                         'numba',
                         'importlib-metadata']
       )

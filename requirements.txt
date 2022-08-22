@@ -1,10 +1,7 @@
 # The version range is for numba
 numpy<1.23,>=1.18
-matplotlib
+matplotlib>=3.5.2
 scipy
-PyQt5
 numba
 # only needed for python versions less than 3.9
 importlib-metadata
-# for Depoying a jupyter server to run notebook files
-jupyterlab
