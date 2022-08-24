@@ -6,7 +6,7 @@ from numpy import fft
 import matplotlib.pyplot as plt
 
 
-def PCA_SVD(orig_array, n_comp_remove, plot=False):
+def PCA_SVD(orig_array, n_comp_remove, plot=False,sample_rate =488.28125,outfile_dir = "./" ):
     """This is a Principal Component Analysis cleaning of common modes from the 
     data. This is the implementation using Single Value Decomposition which is
     usually held as a better implementation, but may be undesireable for long
@@ -57,7 +57,7 @@ def PCA_SVD(orig_array, n_comp_remove, plot=False):
     cleaned_array += mean_array
     delta = orig_array - cleaned_array
     if plot:
-        plot_PCA(U, S, Vh, var_array, mean_array)
+        plot_PCA(U, S, Vh, var_array, mean_array,sample_rate = sample_rate,outfile_dir = outfile_dir)
 
     #return both the cleaned array and the components removed
     
@@ -96,13 +96,13 @@ def PCA_covariance(array, n_comp_remove):
     component_streams = np.dot(array, eigen_vec)
 
 
-def plot_PCA(U, S, Vh, variance, mean):
+def plot_PCA(U, S, Vh, variance, mean,sample_rate = 488.28125,outfile_dir = "./"):
     """For diagnostics and understanding what the PCA is removing, this 
     plots the timestream and psd of every principal component, along with the 
     mixing matrix (how the components map onto the original timestreams
     """
     mapping_matrix = U * S
-    pdf_pages = PdfPages('./PCA_plots.pdf')
+    pdf_pages = PdfPages(outfile_dir+'PCA_plots.pdf')
 
     fig = plt.figure()
     plt.suptitle('Mixing Matrix')
@@ -111,7 +111,7 @@ def plot_PCA(U, S, Vh, variance, mean):
     pdf_pages.savefig(fig)
     plt.close(fig)
 
-    sample_rate = 488.28125
+    
     t_vals = np.linspace(0, Vh.shape[1] / sample_rate, Vh.shape[1])
     fft_freqs = fft.fftfreq(Vh.shape[1],1./sample_rate)
     for i in range(Vh.shape[0]):
