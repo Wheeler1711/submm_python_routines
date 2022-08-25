@@ -192,19 +192,13 @@ def nonlinear_iq(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
 
 
 
-
-def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0,**keywords):
+@jit(nopython=True) 
+def nonlinear_iq_for_fitter(x,fr,Qr,amp,phi,a,i0,q0,tau,f0):
     '''
     when using a fitter that can't handel complex number 
     one needs to return both the real and imaginary components seperatly
     '''
-    if ('tau' in keywords):
-        use_given_tau = True
-        tau = keywords['tau']
-        print("hello")
-    else:
-        use_given_tau = False
-    
+
     deltaf = (x - f0)
     xg = (x-fr)/fr
     yg = Qr*xg
