@@ -223,3 +223,27 @@ To modify your PYTHONPATH environment variable, add the following line to your `
 
 where you replace `/Users/jordan/submm_python_routines` with the local installation path.
 
+## Examples 
+### Resonance fitting
+Maybe the most useful part of this code is the fitting of non-linear resonators. Care has been taken to make sure that resonance fitting is very fast so you can fit many resonators in real-time.
+You can try it out by doing the following
+
+```
+cd submm_python_routines
+python
+```
+```
+from submm.demo import res_fit_demo
+res_fit_demo.run()
+```
+### Interactive plotting tools
+Real systems are never ideal. At least not anything I make. So when you have a lot of resonators some will have collided or some will just be weird. We try to make our automated code very good but when all else fails some human intervention will be needed. As such we have made some interactive plotting tools using matplotlib that allow for more sophisticated interaction with your data to better facilitate human interaction. In particular, there are interactive tools for identifying resonators and interactive tools for plotting resonators for examination. Try it out by running the below.
+```
+cd submm_python_routines
+python submm/demo/find_res_and_fit.py
+```
+or 
+```
+python3 submm/demo/find_res_and_fit.py
+```
+
