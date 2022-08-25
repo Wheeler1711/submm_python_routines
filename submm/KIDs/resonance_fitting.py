@@ -6,7 +6,7 @@ try:
 except:
     from submm.KIDs import calibrate
 from numba import jit # to get working on python 2 I had to downgrade llvmlite pip install llvmlite==0.31.0
-
+# numba seems to make the fitting 10 times faster
 
 # module for fitting resonances curves for kinetic inductance detectors.
 # written by Jordan Wheeler 12/21/16
@@ -1072,8 +1072,8 @@ def fit_nonlinear_iq_multi(f,z,tau = None):
     center_freqs = f[f.shape[0]//2,:]
 
     all_fits = np.zeros((f.shape[1],9))
-    all_fit_results = np.zeros((f.shape[1],f.shape[0]))
-    all_x0_results = np.zeros((f.shape[1],f.shape[0]))
+    all_fit_results = np.zeros((f.shape[1],f.shape[0]),dtype=np.complex_)
+    all_x0_results = np.zeros((f.shape[1],f.shape[0]),dtype=np.complex_)
     all_masks = np.zeros((f.shape[1],f.shape[0]))
     all_x0 = np.zeros((f.shape[1],9))
     all_fr = np.zeros(f.shape[1])
