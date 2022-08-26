@@ -110,7 +110,7 @@ def nonlinear_mag(x,fr,Qr,amp,phi,a,b0,b1,flin):
     z = (b0 +b1*xlin)*np.abs(1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*y) + amp/2.*(np.exp(1.0j*phi) -1.0))**2
     return z
 
-@jit(nopython=True)
+jit(nopython=True)
 def linear_mag(x,fr,Qr,amp,phi,b0):
     '''
     # simplier version for quicker fitting when applicable
@@ -134,7 +134,7 @@ def linear_mag(x,fr,Qr,amp,phi,b0):
     # no y just xg
     # with no nonlinear kinetic inductance
     '''
-    if not np.isscalar(fr): #vectorize 
+    if not np.isscalar(fr): #vectorize breaks numba though
         x = np.reshape(x,(x.shape[0],1,1,1,1,1))
     xg = (x-fr)/fr
     z = (b0)*np.abs(1.0 - amp*np.exp(1.0j*phi)/ (1.0 +2.0*1.0j*xg*Qr) + amp/2.*(np.exp(1.0j*phi) -1.0))**2
@@ -424,6 +424,7 @@ def fit_nonlinear_iq(x,z,verbose = True,**keywords):
                     'fr':fr,'Qr':Qr,'amp':amp,'phi':phi,'a':a,'i0':i0,'q0':q0,'tau':tau,'Qi':Qi,'Qc':Qc}
     return fit_dict
 
+
 def fit_nonlinear_iq_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
     '''
     # same as above funciton but takes fine and gain scans seperatly
@@ -596,6 +597,50 @@ def fit_nonlinear_mag(x,z,verbose = True,**keywords):
     #make a dictionary to return
     fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,
                     'fr':fr,'Qr':Qr,'amp':amp,'phi':phi,'a':a,'b0':b0,'b1':b1,'Qi':Qi,'Qc':Qc}
+    return fit_dict
+
+def fit_linear_mag(x,z,verbose = True,**keywords):
+    '''
+    # keywards are
+    # bounds ---- which is a 2d tuple of low the high values to bound the problem by
+    # x0    --- intial guess for the fit this can be very important becuase because least square space over all the parameter is comple
+    # amp_norm --- do a normalization for variable amplitude. usefull when tranfer function of the cryostat is not flat  
+    '''
+    if ('bounds' in keywords):
+        bounds = keywords['bounds']
+    else:
+        #define default bounds
+        print("default bounds used")
+        bounds = ([np.min(x),100,.01,-np.pi,-np.inf],[np.max(x),200000,1,np.pi,np.inf])
+    if ('x0' in keywords):
+        x0 = keywords['x0']
+    else:
+        #define default intial guess
+        print("default initial guess used")
+        fr_guess = x[np.argmin(np.abs(z))]
+        #x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
+        x0 = guess_x0_mag_nonlinear(x,z,verbose = verbose)
+        x0 = np.delete(x0,[4,6,7])
+
+    fit = optimization.curve_fit(linear_mag, x, np.abs(z)**2 ,x0,bounds = bounds)
+    fit_result = np.sqrt(linear_mag(x,fit[0][0],fit[0][1],fit[0][2],fit[0][3],fit[0][4]))
+    x0_result = np.sqrt(linear_mag(x,x0[0],x0[1],x0[2],x0[3],x0[4]))
+
+    if verbose:
+        print_fit_string_linear_mag(fit[0],print_header = False,label = "Fit  ")
+
+    # human readable results
+    fr = fit[0][0]
+    Qr = fit[0][1]
+    amp = fit[0][2]
+    phi = fit[0][3]
+    b0 = fit[0][4]
+    Qc = Qr / amp
+    Qi = 1.0 / ((1.0 / Qr) - (1.0 / Qc))
+
+    #make a dictionary to return
+    fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0':x0, 'z':z,
+                    'fr':fr,'Qr':Qr,'amp':amp,'phi':phi,'b0':b0,'Qi':Qi,'Qc':Qc}
     return fit_dict
 
 def fit_nonlinear_mag_sep(fine_x,fine_z,gain_x,gain_z,**keywords):
@@ -1143,6 +1188,84 @@ def fit_nonlinear_iq_multi(f,z,tau = None):
 
     return all_fits_dict
 
+def fit_linear_mag_multi(f,z):
+    '''
+    wrapper for handling n resonator fits at once
+    f and z should have shape n_iq_points x n_res points 
+    return same thing as fitter but in arrays for all resonators
+    '''
+
+    center_freqs = f[f.shape[0]//2,:]
+
+    all_fits = np.zeros((f.shape[1],5))
+    all_fit_results = np.zeros((f.shape[1],f.shape[0]))
+    all_x0_results = np.zeros((f.shape[1],f.shape[0]))
+    all_masks = np.zeros((f.shape[1],f.shape[0]))
+    all_x0 = np.zeros((f.shape[1],5))
+    all_fr = np.zeros(f.shape[1])
+    all_Qr = np.zeros(f.shape[1])
+    all_amp = np.zeros(f.shape[1])
+    all_phi = np.zeros(f.shape[1])
+    all_b0 = np.zeros(f.shape[1])
+    all_Qi = np.zeros(f.shape[1])
+    all_Qc = np.zeros(f.shape[1])
+        
+    for i in range(0,f.shape[1]):
+        f_single = f[:,i]
+        z_single = z[:,i]
+        #flag data that is too close to other resonators              
+        distance = center_freqs-center_freqs[i]
+        if center_freqs[i] != np.min(center_freqs): #don't do if lowest frequency resonator
+            closest_lower_dist = -np.min(np.abs(distance[np.where(distance<0)]))
+            closest_lower_index = np.where(distance ==closest_lower_dist)[0][0]
+            halfway_low = (center_freqs[i] + center_freqs[closest_lower_index])/2.
+        else:
+            halfway_low = 0
+
+        if center_freqs[i] != np.max(center_freqs): #don't do if highest frequenct
+            closest_higher_dist = np.min(np.abs(distance[np.where(distance>0)]))
+            closest_higher_index = np.where(distance ==closest_higher_dist)[0][0]
+            halfway_high = (center_freqs[i] + center_freqs[closest_higher_index])/2.
+        else:
+            halfway_high = np.inf
+           
+        use_index = np.where(((f_single>halfway_low) & (f_single<halfway_high)))
+        mask = np.zeros(len(f_single))
+        mask[use_index] = 1
+        f_single = f_single[use_index]
+        z_single= z_single[use_index]
+        
+
+        try:
+            fit_dict_iq = fit_linear_mag(f_single,z_single)
+            #ranges = np.asarray(([300*10**6,10,0,-3.14,8000],[500*10**6,20,1,3.14,10000]))
+            #fit_dict_iq = brute_force_linear_mag_fit(f_single,z_single,ranges = ranges,n_grid_points = 10)
+                
+            all_fits[i,:] = fit_dict_iq['fit'][0]
+            all_fit_results[i,:]  = np.sqrt(linear_mag(f[:,i],all_fits[i,0],all_fits[i,1],all_fits[i,2],
+                                                           all_fits[i,3],all_fits[i,4]))
+            all_x0_results[i,:] = np.sqrt(linear_mag(f[:,i],fit_dict_iq['x0'][0],fit_dict_iq['x0'][1],
+                                                         fit_dict_iq['x0'][2],fit_dict_iq['x0'][3],fit_dict_iq['x0'][4]))
+            all_masks[i,:] = mask
+            all_x0[i,:] = fit_dict_iq['x0']
+            all_fr[i] = fit_dict_iq['fr']
+            all_Qr[i] = fit_dict_iq['Qr']
+            all_amp[i] = fit_dict_iq['amp']
+            all_phi[i] = fit_dict_iq['phi']
+            all_b0[i] = fit_dict_iq['b0']
+            all_Qc[i] = all_Qr[i]/all_amp[i]
+            all_Qi[i] = 1.0 / ((1.0 / all_Qr[i]) - (1.0 / all_Qc[i]))
+            
+        except Exception as e:
+            print("problem")
+            print(e)
+            print("failed to fit")
+
+    all_fits_dict = {'fits': all_fits, 'fit_results': all_fit_results, 'x0_results': all_x0_results, 'masks':all_masks,'x0':all_x0,
+                    'fr':all_fr,'Qr':all_Qr,'amp':all_amp,'phi':all_phi,'b0':all_b0,'Qi':all_Qi,'Qc':all_Qc}
+
+    return all_fits_dict
+
 def print_fit_string_nonlinear_iq(vals,print_header = True,label = "Guess"):
     Qc_guess = vals[1] / vals[2]
     Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
@@ -1204,6 +1327,39 @@ def print_fit_string_nonlinear_mag(vals,print_header = True,label = "Guess"):
     guess_str += f'| {"%0.2f" % (vals[4])}'
     guess_str += f'| {"% .2E" % (vals[5])}'
     guess_str += f'| {"% .2E" % (vals[6])}'
+    guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
+    guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
+    
+    if print_header:
+        print(guess_header_str)
+    print(guess_str)
+
+def print_fit_string_linear_mag(vals,print_header = True,label = "Guess"):
+    Qc_guess = vals[1] / vals[2]
+    Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
+    if print_header:
+        print("Resonator at %.2f MHz" %(vals[0]/10**6))
+        print(f'     |                       Variables fit                       '+
+                  '\033[1;30;42m|Derived variables|\033[0;0m')
+    guess_header_str  =  '     |'
+    guess_header_str += ' fr (MHz)|' 
+    guess_header_str += '   Qr   |'
+    guess_header_str += ' amp |'
+    guess_header_str += ' phi  |'
+    guess_header_str += ' a   |'
+    guess_header_str += '   b0     |'
+    guess_header_str += '   b1     \033[1;30;42m|'
+    guess_header_str += '   Qi   |'
+    guess_header_str += '   Qc   |\033[0;0m'
+
+    guess_str  =  label
+    guess_str += f'| {"%3.4f" % (vals[0]/10**6)}' 
+    guess_str += f'| {"%7.0f" % (vals[1])}'
+    guess_str += f'| {"%0.2f" % (vals[2])}'
+    guess_str += f'| {"% 1.2f" % (vals[3])}'
+    guess_str += f'| --- '
+    guess_str += f'| {"% .2E" % (vals[4])}'
+    guess_str += f'| -------- '
     guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
     guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
     

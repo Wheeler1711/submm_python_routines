@@ -8,6 +8,8 @@ from submm.KIDs import find_resonances_interactive as find_kids
 from submm.sample_data.abs_paths import abs_path_sample_data
 from submm.KIDs import res_sweep_tools as res_sweep_tools
 
+linear = False # if resonators are well below bifurcation fitting can be much faster
+
 
 #load the sample data
 data_path = os.path.join(abs_path_sample_data,
@@ -32,22 +34,30 @@ res_freq_array,res_array = find_kids.slice_vna(freq_hz,s21_complex,ip.kid_idx,q_
 
 # fit the resonators
 t1 = time.time()
-fits = res_fit.fit_nonlinear_iq_multi(res_freq_array.T,res_array.T,tau = 97*10**-9)
+if not linear:
+    fits = res_fit.fit_nonlinear_iq_multi(res_freq_array.T,res_array.T,tau = 97*10**-9)
+else:
+    fits = res_fit.fit_linear_mag_multi(res_freq_array.T,res_array.T)
 t2 = time.time()
 print("time to fit {:.2f} s".format(t2-t1))
 
 # stack fit data with Qi and Qc skip second f0
-fit_data = np.vstack((fits['fits'][:,:-1].T,fits['Qi'],fits['Qc'])).T
-fit_data[:,0] = fit_data[:,0]/10**6
-fit_data[:,7] = fit_data[:,7]*10**9
+if not linear:
+    fit_data = np.vstack((fits['fits'][:,:-1].T,fits['Qi'],fits['Qc'])).T
+    fit_data[:,0] = fit_data[:,0]/10**6
+    fit_data[:,7] = fit_data[:,7]*10**9
+    data_names = ["Resonator Frequencies (MHz)","Qr","amp","phi","a","i0","q0","tau (ns)","Qi","Qc"]
+else:
+    fit_data = np.vstack((fits['fits'][:,:].T,fits['Qi'],fits['Qc'])).T
+    fit_data[:,0] = fit_data[:,0]/10**6
+    data_names = ["Resonator Frequencies (MHz)","Qr","amp","phi","b0","Qi","Qc"]
 
 # stack the data with fit data
 multi_sweep_freqs = np.dstack((np.expand_dims(res_freq_array.T,axis = 2),np.expand_dims(res_freq_array.T,axis = 2)))
 multi_sweep_z = np.dstack((np.expand_dims(res_array.T,axis = 2),np.expand_dims(fits['fit_results'].T,axis = 2)))
 
 ip2 = res_sweep_tools.interactive_plot(multi_sweep_freqs,multi_sweep_z,retune = False,combined_data = fit_data,
-                                           combined_data_names = ["Resonator Frequencies (MHz)","Qr","amp",
-                                                                      "phi","a","i0","q0","tau (ns)","Qi","Qc"],
+                                           combined_data_names = data_names,
                                            sweep_labels = ['Data','Fit'])
 
 #below is example of retuning resontors
