@@ -71,7 +71,10 @@ class interactive_plot(object):
                                        (self.targ_size//2-look_around)
         else:
             self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
-        if combined_data is not None:
+        if retune:
+            self.combined_data = self.min_index
+            self.combined_data_names = ['min index']
+        if self.combined_data is not None:
             self.fig = plt.figure(1, figsize=(13, 10))
             self.ax = self.fig.add_subplot(221)
             self.ax.set_ylabel("Power (dB)")
@@ -231,11 +234,13 @@ class interactive_plot(object):
             if self.look_around != self.chan_freqs.shape[0]//2:
                 self.look_around = self.look_around + 1
                 if self.find_min:
-                    self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around]**2 +
-                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around]**2,
+                    self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2 +
+                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2,
                                                axis=0)+(self.targ_size//2-self.look_around)
                 else:
-                    self.min_index = find_max_didq(self.z, self.look_around)
+                    self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
+                if self.retune:
+                    self.combined_data = np.expand_dims(self.min_index,1)
             if self.combined_data is not None:
                 if self.combined_data_index != self.combined_data.shape[1]-1:
                     self.combined_data_index = self.combined_data_index + 1
@@ -245,11 +250,13 @@ class interactive_plot(object):
             if self.look_around != 1:
                 self.look_around = self.look_around - 1
                 if self.find_min:
-                    self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around]**2 +
-                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around]**2,
+                    self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2 +
+                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2,
                                                axis=0)+(self.targ_size//2-self.look_around)
                 else:
-                    self.min_index = find_max_didq(self.z, self.look_around)
+                    self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
+                if self.retune:
+                    self.combined_data = np.expand_dims(self.min_index,1)
             if self.combined_data is not None:
                 if self.combined_data_index != 0:
                     self.combined_data_index = self.combined_data_index + -1
@@ -316,8 +323,11 @@ def tune_kids(f, z, find_min=True, interactive=True, **kwargs):
         look_around = f.shape[0]//2
     if find_min:  # fine the minimum
         print("centering on minimum")
+        print(f.shape)
         if interactive:
             ip = interactive_plot(f, z, look_around)
+            print(ip.min_index.shape)
+            print(ip.res_index_overide.shape)
             for i in range(0, len(ip.res_index_overide)):
                 ip.min_index[ip.res_index_overide[i]
                              ] = ip.overide_freq_index[i]
