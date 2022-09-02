@@ -65,15 +65,10 @@ class interactive_plot(object):
         self.res_index_overide = np.asarray((), dtype=np.int16)
         self.overide_freq_index = np.asarray((), dtype=np.int16)
         self.shift_is_held = False
-        if self.find_min:
-            self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2+self.
-                                       Qs[self.targ_size//2-self.look_around:self.targ_size//2+look_around,:,0]**2, axis=0) +\
-                                       (self.targ_size//2-look_around)
-        else:
-            self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
+        self.update_min_index()
         if retune:
-            self.combined_data = self.min_index
             self.combined_data_names = ['min index']
+        
         if self.combined_data is not None:
             self.fig = plt.figure(1, figsize=(13, 10))
             self.ax = self.fig.add_subplot(221)
