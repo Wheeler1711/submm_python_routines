@@ -168,20 +168,26 @@ class interactive_plot(object):
             self.ax3_legend = self.ax3.legend()
         plt.show(block=True)
 
+    def update_min_index(self):
+        if self.find_min:
+            self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2 +
+                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2,
+                                               axis=0)+(self.targ_size//2-self.look_around)
+        else:
+            self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
+        #handel overidden points
+        for i,overide_index in enumerate(self.res_index_overide):
+            self.min_index[overide_index] = self.overide_freq_index[i]
+            
+        if self.retune:
+            self.combined_data = np.expand_dims(self.min_index,1)
+
     def refresh_plot(self):
         for i, mag_line in enumerate(self._mag_lines):
             mag_line[0].set_data(self.chan_freqs[:, self.plot_index,i]/10**6, 10*np.log10(
                 self.Is[:, self.plot_index,i]**2+self.Qs[:, self.plot_index,i]**2))
         if self.retune:
-            if (self.res_index_overide == self.plot_index).any():
-                index = np.argwhere(self.res_index_overide ==
-                                    self.plot_index)[0][0]
-                #print("index is",index)
-                self.p1.set_data(self.chan_freqs[self.overide_freq_index[index], self.plot_index,0]/10**6,
-                                 10*np.log10(self.Is[self.overide_freq_index[index], self.plot_index,0]**2 +
-                                             self.Qs[self.overide_freq_index[index], self.plot_index,0]**2))
-            else:
-                self.p1.set_data(self.chan_freqs[self.min_index[self.plot_index], self.plot_index,0]/10**6,
+            self.p1.set_data(self.chan_freqs[self.min_index[self.plot_index], self.plot_index,0]/10**6,
                                  10*np.log10(self.Is[self.min_index[self.plot_index], self.plot_index,0]**2 +
                                              self.Qs[self.min_index[self.plot_index], self.plot_index,0]**2))
                     
@@ -194,11 +200,7 @@ class interactive_plot(object):
             iq_line[0].set_data((self.Is[:, self.plot_index,i],
                           self.Qs[:, self.plot_index,i]))
         if self.retune:
-            if (self.res_index_overide == self.plot_index).any():
-                self.p2.set_data(self.Is[self.overide_freq_index[index], self.plot_index,0],
-                                 self.Qs[self.overide_freq_index[index], self.plot_index,0])
-            else:
-                self.p2.set_data(self.Is[self.min_index[self.plot_index], self.plot_index,0],
+            self.p2.set_data(self.Is[self.min_index[self.plot_index], self.plot_index,0],
                                  self.Qs[self.min_index[self.plot_index], self.plot_index,0])
 
         if self.stream_data is not None:
@@ -233,12 +235,7 @@ class interactive_plot(object):
         if event.key == 'up':
             if self.look_around != self.chan_freqs.shape[0]//2:
                 self.look_around = self.look_around + 1
-                if self.find_min:
-                    self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2 +
-                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2,
-                                               axis=0)+(self.targ_size//2-self.look_around)
-                else:
-                    self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
+                self.update_min_index()
                 if self.retune:
                     self.combined_data = np.expand_dims(self.min_index,1)
             if self.combined_data is not None:
@@ -249,12 +246,7 @@ class interactive_plot(object):
         if event.key == 'down':
             if self.look_around != 1:
                 self.look_around = self.look_around - 1
-                if self.find_min:
-                    self.min_index = np.argmin(self.Is[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2 +
-                                               self.Qs[self.targ_size//2-self.look_around:self.targ_size//2+self.look_around,:,0]**2,
-                                               axis=0)+(self.targ_size//2-self.look_around)
-                else:
-                    self.min_index = find_max_didq(self.z[:,:,0], self.look_around)
+                self.update_min_index()
                 if self.retune:
                     self.combined_data = np.expand_dims(self.min_index,1)
             if self.combined_data is not None:
@@ -308,7 +300,7 @@ class interactive_plot(object):
                     self.overide_freq_index = np.append(
                         self.overide_freq_index, np.int(np.asarray(new_freq)))
                     # print(self.overide_freq_index)
-
+                self.update_min_index()
                 self.refresh_plot()
 
 
