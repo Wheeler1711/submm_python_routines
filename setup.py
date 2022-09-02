@@ -26,7 +26,7 @@ sample_data_files = get_file_paths(local_dir=local_samples_dir, desired_file_typ
 
 # Demo files
 desired_demo_file_types = {'ipynb'}
-local_demos_dir = os.path.join('submm', 'demos')
+local_demos_dir = os.path.join('submm', 'demo')
 demo_files = get_file_paths(local_dir=local_demos_dir, desired_file_types=desired_demo_file_types)
 
 
