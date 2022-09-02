@@ -33,7 +33,7 @@ def presentation_plot():
 # adds in the ability to grab cursur info from screen
 # adds in the ability to find mins and maximums 
 def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.1,show_pts = True):   
-    class interactive_plot(object): #must pass fig to this command
+    class InteractivePlot(object): #must pass fig to this command
     
         def __init__(self,fig,ax,zoom_factor,lim_shift_factor,show_pts):
             #matplotlib.use("TkAgg")
@@ -205,7 +205,7 @@ def activate_interactive_plotting(fig,ax,zoom_factor = 0.1,lim_shift_factor = 0.
     
             
 
-    ip = interactive_plot(fig,ax,zoom_factor = zoom_factor,lim_shift_factor = lim_shift_factor,show_pts = show_pts)
+    ip = InteractivePlot(fig,ax,zoom_factor = zoom_factor,lim_shift_factor = lim_shift_factor,show_pts = show_pts)
     return ip
 
 
