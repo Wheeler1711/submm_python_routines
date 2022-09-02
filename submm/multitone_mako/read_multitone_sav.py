@@ -11,7 +11,7 @@ from scipy.io.idl import readsav as readsav
 
 # To Do
 # Would it be nicer to have these spit out a dictionary? or have another code that spits out everything as a python dictionary
-# that would probably be better so that we don't have a backwards combatibiltiy problem whenever we add new output.
+# that would probably be better so that we don't have a backwards compatibility problem whenever we add new output.
 
 # Change log
 # 2017-06-02-jdw added catch for if there are no blind tone sin read_raw
