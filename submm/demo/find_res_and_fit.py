@@ -54,7 +54,7 @@ else:
 
 # stack the data with fit data
 multi_sweep_freqs = np.dstack((np.expand_dims(res_freq_array.T,axis = 2),np.expand_dims(res_freq_array.T,axis = 2)))
-multi_sweep_z = np.dstack((np.expand_dims(res_array.T,axis = 2),np.expand_dims(fits['fit_results'].T,axis = 2)))
+multi_sweep_z = np.dstack((np.expand_dims(res_array.T,axis = 2),np.expand_dims(fits['fit_results'],axis = 2)))
 
 ip2 = res_sweep_tools.interactive_plot(multi_sweep_freqs,multi_sweep_z,retune = False,combined_data = fit_data,
                                            combined_data_names = data_names,

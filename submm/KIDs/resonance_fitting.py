@@ -1111,9 +1111,9 @@ def fit_nonlinear_iq_multi(f,z,tau = None):
     center_freqs = f[f.shape[0]//2,:]
 
     all_fits = np.zeros((f.shape[1],9))
-    all_fit_results = np.zeros((f.shape[1],f.shape[0]),dtype=np.complex_)
-    all_x0_results = np.zeros((f.shape[1],f.shape[0]),dtype=np.complex_)
-    all_masks = np.zeros((f.shape[1],f.shape[0]))
+    all_fit_results = np.zeros((f.shape[0],f.shape[1]),dtype=np.complex_)
+    all_x0_results = np.zeros((f.shape[0],f.shape[1]),dtype=np.complex_)
+    all_masks = np.zeros((f.shape[0],f.shape[1]))
     all_x0 = np.zeros((f.shape[1],9))
     all_fr = np.zeros(f.shape[1])
     all_Qr = np.zeros(f.shape[1])
@@ -1161,12 +1161,12 @@ def fit_nonlinear_iq_multi(f,z,tau = None):
             all_fits[i,:] = fit_dict_iq['fit'][0]
             #all_fit_results[i,:] = fit_dict_iq['fit_result']
             #all_x0_results[i,:] = fit_dict_iq['x0_result']
-            all_fit_results[i,:]  = nonlinear_iq(f[:,i],all_fits[i,0],all_fits[i,1],all_fits[i,2],all_fits[i,3],all_fits[i,4],
+            all_fit_results[:,i]  = nonlinear_iq(f[:,i],all_fits[i,0],all_fits[i,1],all_fits[i,2],all_fits[i,3],all_fits[i,4],
                                                      all_fits[i,5],all_fits[i,6],all_fits[i,7],all_fits[i,8])
-            all_x0_results[i,:] = nonlinear_iq(f[:,i],fit_dict_iq['x0'][0],fit_dict_iq['x0'][1],fit_dict_iq['x0'][2],
+            all_x0_results[:,i] = nonlinear_iq(f[:,i],fit_dict_iq['x0'][0],fit_dict_iq['x0'][1],fit_dict_iq['x0'][2],
                                                    fit_dict_iq['x0'][3],fit_dict_iq['x0'][4],fit_dict_iq['x0'][5],
                                                    fit_dict_iq['x0'][6],fit_dict_iq['x0'][7],fit_dict_iq['x0'][8])
-            all_masks[i,:] = mask
+            all_masks[:,i] = mask
             all_x0[i,:] = fit_dict_iq['x0']
             all_fr[i] = fit_dict_iq['fr']
             all_Qr[i] = fit_dict_iq['Qr']
@@ -1198,9 +1198,9 @@ def fit_linear_mag_multi(f,z):
     center_freqs = f[f.shape[0]//2,:]
 
     all_fits = np.zeros((f.shape[1],5))
-    all_fit_results = np.zeros((f.shape[1],f.shape[0]))
-    all_x0_results = np.zeros((f.shape[1],f.shape[0]))
-    all_masks = np.zeros((f.shape[1],f.shape[0]))
+    all_fit_results = np.zeros((f.shape[0],f.shape[1]))
+    all_x0_results = np.zeros((f.shape[0],f.shape[1]))
+    all_masks = np.zeros((f.shape[0],f.shape[1]))
     all_x0 = np.zeros((f.shape[1],5))
     all_fr = np.zeros(f.shape[1])
     all_Qr = np.zeros(f.shape[1])
@@ -1242,11 +1242,11 @@ def fit_linear_mag_multi(f,z):
             #fit_dict_iq = brute_force_linear_mag_fit(f_single,z_single,ranges = ranges,n_grid_points = 10)
                 
             all_fits[i,:] = fit_dict_iq['fit'][0]
-            all_fit_results[i,:]  = np.sqrt(linear_mag(f[:,i],all_fits[i,0],all_fits[i,1],all_fits[i,2],
+            all_fit_results[:,i]  = np.sqrt(linear_mag(f[:,i],all_fits[i,0],all_fits[i,1],all_fits[i,2],
                                                            all_fits[i,3],all_fits[i,4]))
-            all_x0_results[i,:] = np.sqrt(linear_mag(f[:,i],fit_dict_iq['x0'][0],fit_dict_iq['x0'][1],
+            all_x0_results[:,i] = np.sqrt(linear_mag(f[:,i],fit_dict_iq['x0'][0],fit_dict_iq['x0'][1],
                                                          fit_dict_iq['x0'][2],fit_dict_iq['x0'][3],fit_dict_iq['x0'][4]))
-            all_masks[i,:] = mask
+            all_masks[:,i] = mask
             all_x0[i,:] = fit_dict_iq['x0']
             all_fr[i] = fit_dict_iq['fr']
             all_Qr[i] = fit_dict_iq['Qr']
