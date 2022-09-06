@@ -1,6 +1,6 @@
 from submm.instruments import NIDAQ as n
 from submm.instruments import anritsu as an
-import resonance_fitting
+from submm.KIDs.res import resonance_fitting
 import time
 import numpy as np
 import matplotlib.pyplot as plt

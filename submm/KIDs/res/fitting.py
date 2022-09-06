@@ -19,19 +19,31 @@ JDW 2018-03-05 added more clever function for guessing x0 for fits
 JDW 2018-08-23 added more clever guessing for resonators with large phi into guess separate functions
 CHW 2022-09-02 PEP-8 formatting, spelling corrections, and minor code cleanup
 """
+from typing import NamedTuple, Optional
 
 import numpy as np
 from numba import jit
 import scipy.optimize as optimization
 import matplotlib.pyplot as plt
 
-from submm.KIDs.res_utils import cardan, print_fit_string_nonlinear_iq, print_fit_string_nonlinear_mag, \
+from submm.KIDs.res.res_utils import cardan, print_fit_string_nonlinear_iq, print_fit_string_nonlinear_mag, \
     print_fit_string_linear_mag, amplitude_normalization, guess_x0_iq_nonlinear, guess_x0_mag_nonlinear, \
     guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep
 
 
+# at import time, create a dictionary of all the fitting functions in this module
+fitting_functions = {}
+
+
+def fit_func(func):
+    name_type = func.__name__
+    fitting_functions[name_type] = func
+    return func
+
+
+@fit_func
 @jit(nopython=True)
-def nonlinear_mag(x, fr, Qr, amp, phi, a, b0, b1, flin):
+def nonlinear_mag(f_hz, fr, Qr, amp, phi, a, b0, b1, flin):
     """
     function to describe the magnitude S21 of a non-linear resonator
 
@@ -51,8 +63,8 @@ def nonlinear_mag(x, fr, Qr, amp, phi, a, b0, b1, flin):
 
     Parameters
     ----------
-    x : numpy.array
-        The frequencies in your iq sweep covers
+    f_hz : numpy.array
+        The frequencies in your iq sweep covers in Hertz
     fr : float
         The center frequency of the resonator
     Qr : float
@@ -70,13 +82,16 @@ def nonlinear_mag(x, fr, Qr, amp, phi, a, b0, b1, flin):
     flin : float
         This is probably the frequency of the resonator when a = 0
 
+    Returns
+    -------
+    ResFit
     """
-    xlin = (x - flin) / flin
-    xg = (x - fr) / fr
+    xlin = (f_hz - flin) / flin
+    xg = (f_hz - fr) / fr
     yg = Qr * xg
-    y = np.zeros(x.shape[0])
+    y = np.zeros(f_hz.shape[0])
     # find the roots of the y equation above
-    for i in range(0, x.shape[0]):
+    for i in range(0, f_hz.shape[0]):
         """
         4y^3+ -4yg*y^2+ y -(yg+a)
         roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
@@ -96,8 +111,9 @@ def nonlinear_mag(x, fr, Qr, amp, phi, a, b0, b1, flin):
     return z
 
 
+@fit_func
 @jit(nopython=True)
-def linear_mag(x, fr, Qr, amp, phi, b0):
+def linear_mag(f_hz, fr, Qr, amp, phi, b0):
     """
     This is based of fitting code from MUSIC
     The idea is we are producing a model that is described by the equation below
@@ -113,7 +129,7 @@ def linear_mag(x, fr, Qr, amp, phi, b0):
 
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         The frequencies in your iq sweep covers
     fr : float
         The center frequency of the resonator
@@ -128,15 +144,16 @@ def linear_mag(x, fr, Qr, amp, phi, b0):
 
     """
     if not np.isscalar(fr):  # vectorize breaks numba though
-        x = np.reshape(x, (x.shape[0], 1, 1, 1, 1, 1))
-    xg = (x - fr) / fr
+        f_hz = np.reshape(f_hz, (f_hz.shape[0], 1, 1, 1, 1, 1))
+    xg = (f_hz - fr) / fr
     z = (b0) * np.abs(
         1.0 - amp * np.exp(1.0j * phi) / (1.0 + 2.0 * 1.0j * xg * Qr) + amp / 2. * (np.exp(1.0j * phi) - 1.0)) ** 2
     return z
 
 
+@fit_func
 @jit(nopython=True)
-def nonlinear_iq(x, fr, Qr, amp, phi, a, i0, q0, tau, f0):
+def nonlinear_iq(f_hz, fr, Qr, amp, phi, a, i0, q0, tau, f0):
     """
     To describe the I-Q loop of a nonlinear resonator
 
@@ -157,7 +174,7 @@ def nonlinear_iq(x, fr, Qr, amp, phi, a, i0, q0, tau, f0):
 
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         The frequencies in your iq sweep covers
     fr : float
         The center frequency of the resonator
@@ -175,17 +192,14 @@ def nonlinear_iq(x, fr, Qr, amp, phi, a, i0, q0, tau, f0):
     tau : float
         The cable delay
     f0 : float
-        The center frequency, not sure why we include this as a secondary paramter should be the same as fr
-
-    f0 is all the center frequency, not sure why we include this as a secondary paramter should be the same as fr
-
+        The center frequency, not sure why we include this as a secondary parameter should be the same as fr
     """
-    deltaf = (x - f0)
-    xg = (x - fr) / fr
+    deltaf = (f_hz - f0)
+    xg = (f_hz - fr) / fr
     yg = Qr * xg
-    y = np.zeros(x.shape[0])
+    y = np.zeros(f_hz.shape[0])
     # find the roots of the y equation above
-    for i in range(0, x.shape[0]):
+    for i in range(0, f_hz.shape[0]):
         """
         4y^3+ -4yg*y^2+ y -(yg+a)
         roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
@@ -201,19 +215,20 @@ def nonlinear_iq(x, fr, Qr, amp, phi, a, i0, q0, tau, f0):
     return z
 
 
+@fit_func
 @jit(nopython=True)
-def nonlinear_iq_for_fitter(x, fr, Qr, amp, phi, a, i0, q0, tau, f0):
+def nonlinear_iq_for_fitter(f_hz, fr, Qr, amp, phi, a, i0, q0, tau, f0):
     """
     when using a fitter that can't handel complex number 
     one needs to return both the real and imaginary components seperatly
     """
 
-    deltaf = (x - f0)
-    xg = (x - fr) / fr
+    deltaf = (f_hz - f0)
+    xg = (f_hz - fr) / fr
     yg = Qr * xg
-    y = np.zeros(x.shape[0])
+    y = np.zeros(f_hz.shape[0])
 
-    for i in range(0, x.shape[0]):
+    for i in range(0, f_hz.shape[0]):
         """
         roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
         where_real = np.where(np.imag(roots) == 0)
@@ -227,11 +242,12 @@ def nonlinear_iq_for_fitter(x, fr, Qr, amp, phi, a, i0, q0, tau, f0):
     return np.hstack((real_z, imag_z))
 
 
-def brute_force_linear_mag_fit(x, z, ranges, n_grid_points, error=None, plot=False):
+@fit_func
+def brute_force_linear_mag_fit(f_hz, z, ranges, n_grid_points, error=None, plot=False):
     """
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         frequencies Hz
     z : numpy.array
         complex or abs of s21
@@ -248,7 +264,7 @@ def brute_force_linear_mag_fit(x, z, ranges, n_grid_points, error=None, plot=Fal
         If true, will plot the fit and the data
     """
     if error is None:
-        error = np.ones(len(x))
+        error = np.ones(len(f_hz))
 
     fs = np.linspace(ranges[0][0], ranges[1][0], n_grid_points)
     Qrs = np.linspace(ranges[0][1], ranges[1][1], n_grid_points)
@@ -259,7 +275,7 @@ def brute_force_linear_mag_fit(x, z, ranges, n_grid_points, error=None, plot=Fal
 
     a, b, c, d, e = np.meshgrid(fs, Qrs, amps, phis, b0s, indexing="ij")  # always index ij
 
-    evaluated = linear_mag(x, a, b, c, d, e)
+    evaluated = linear_mag(f_hz, a, b, c, d, e)
     data_values = np.reshape(np.abs(z) ** 2, (abs(z).shape[0], 1, 1, 1, 1, 1))
     error = np.reshape(error, (abs(z).shape[0], 1, 1, 1, 1, 1))
     sum_dev = np.sum(((np.sqrt(evaluated) - np.sqrt(data_values)) ** 2 / error ** 2),
@@ -273,7 +289,7 @@ def brute_force_linear_mag_fit(x, z, ranges, n_grid_points, error=None, plot=Fal
     index5 = min_index[4][0]
     fit_values = np.asarray((fs[index1], Qrs[index2], amps[index3], phis[index4], b0s[index5]))
     fit_values_names = ('f0', 'Qr', 'amp', 'phi', 'b0')
-    fit_result = linear_mag(x, fs[index1], Qrs[index2], amps[index3], phis[index4], b0s[index5])
+    fit_result = linear_mag(f_hz, fs[index1], Qrs[index2], amps[index3], phis[index4], b0s[index5])
 
     marginalized_1d = np.zeros((5, n_grid_points))
     marginalized_1d[0, :] = np.min(np.min(np.min(np.min(sum_dev, axis=4), axis=3), axis=2), axis=1)
@@ -354,14 +370,15 @@ def brute_force_linear_mag_fit(x, z, ranges, n_grid_points, error=None, plot=Fal
     return fit_dict
 
 
-def fit_nonlinear_iq(x, z, bounds=None, x0=None, fr_guess=None, tau=None, tau_guess=None,
+@fit_func
+def fit_nonlinear_iq(f_hz, z, bounds=None, x0=None, fr_guess=None, tau=None, tau_guess=None,
                      amp_norm: bool = False, verbose: bool = True):
     """
     Fit a nonlinear IQ with from an S21 sweep.
 
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         frequencies Hz
     z : numpy.array
         complex s21
@@ -392,19 +409,20 @@ def fit_nonlinear_iq(x, z, bounds=None, x0=None, fr_guess=None, tau=None, tau_gu
     verbose : bool, optional (default True)
         Uses the print function to display fit results when true, no prints to the console when false.
     """
+
     if bounds is None:
         # define default bounds
         if verbose:
             print("default bounds used")
-        bounds = ([np.min(x), 50, .01, -np.pi, 0, -np.inf, -np.inf, 0, np.min(x)],
-                  [np.max(x), 200000, 1, np.pi, 5, np.inf, np.inf, 1 * 10 ** -6, np.max(x)])
+        bounds = ([np.min(f_hz), 50, .01, -np.pi, 0, -np.inf, -np.inf, 0, np.min(f_hz)],
+                  [np.max(f_hz), 200000, 1, np.pi, 5, np.inf, np.inf, 1 * 10 ** -6, np.max(f_hz)])
     if x0 is None:
         # define default initial guess
         if verbose:
             print("default initial guess used")
         # fr_guess = x[np.argmin(np.abs(z))]
         # x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
-        x0 = guess_x0_iq_nonlinear(x, z, verbose=verbose)
+        x0 = guess_x0_iq_nonlinear(f_hz, z, verbose=verbose)
         # print(x0)
     if fr_guess is not None:
         x0[0] = fr_guess
@@ -415,15 +433,15 @@ def fit_nonlinear_iq(x, z, bounds=None, x0=None, fr_guess=None, tau=None, tau_gu
     if tau_guess is not None:
         x0[7] = tau_guess
     if amp_norm:
-        z = amplitude_normalization(x, z)
+        z = amplitude_normalization(f_hz, z)
     z_stacked = np.hstack((np.real(z), np.imag(z)))
 
     if use_given_tau:
         del bounds[0][7]
         del bounds[1][7]
         del x0[7]
-        fit = optimization.curve_fit(
-            lambda x_lamb, a, b, c, d, e, f, g, h: nonlinear_iq_for_fitter(x_lamb, a, b, c, d, e, f, g, tau, h), x,
+        popt, pcov =  = optimization.curve_fit(
+            lambda x_lamb, a, b, c, d, e, f, g, h: nonlinear_iq_for_fitter(x_lamb, a, b, c, d, e, f, g, tau, h), f_hz,
             z_stacked, x0, bounds=bounds)
 
         fit = list(fit)
@@ -442,23 +460,23 @@ def fit_nonlinear_iq(x, z, bounds=None, x0=None, fr_guess=None, tau=None, tau_gu
         x0 = np.insert(x0, 7, tau)
 
     else:
-        fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked, x0, bounds=bounds)
+        popt, pcov = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
 
     # human-readable results
-    fr = fit[0][0]
-    Qr = fit[0][1]
-    amp = fit[0][2]
-    phi = fit[0][3]
-    a = fit[0][4]
-    i0 = fit[0][5]
-    q0 = fit[0][6]
-    tau = fit[0][7]
+    fr = popt[0]
+    Qr = popt[1]
+    amp = popt[2]
+    phi = popt[3]
+    a = popt[4]
+    i0 = popt[5]
+    q0 = popt[6]
+    tau = popt[7]
     Qc = Qr / amp
     Qi = 1.0 / ((1.0 / Qr) - (1.0 / Qc))
 
-    fit_result = nonlinear_iq(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
-                              fit[0][8])
-    x0_result = nonlinear_iq(x, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
+    fit_result = nonlinear_iq(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], 
+                              fit[0][7], fit[0][8])
+    x0_result = nonlinear_iq(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
 
     if verbose:
         print_fit_string_nonlinear_iq(fit[0], print_header=False, label="Fit  ")
@@ -469,18 +487,19 @@ def fit_nonlinear_iq(x, z, bounds=None, x0=None, fr_guess=None, tau=None, tau_gu
     return fit_dict
 
 
-def fit_nonlinear_iq_sep(fine_x, fine_z, gain_x, gain_z,
+@fit_func
+def fit_nonlinear_iq_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
                          fine_z_err=None, gain_z_err=None, bounds=None, x0=None, amp_norm: bool = False):
     """
     same as above function but takes fine and gain scans seporately
 
     Parameters
     ----------
-    fine_x : numpy.array
+    fine_f_hz : numpy.array
         frequencies Hz
     fine_z : numpy.array
         complex s21
-    gain_x : numpy.array
+    gain_f_hz : numpy.array
         frequencies Hz
     gain_z : numpy.array
         complex s21
@@ -514,36 +533,36 @@ def fit_nonlinear_iq_sep(fine_x, fine_z, gain_x, gain_z,
     if bounds is None:
         # define default bounds
         print("default bounds used")
-        bounds = ([np.min(fine_x), 500., .01, -np.pi, 0, -np.inf, -np.inf, 1 * 10 ** -9, np.min(fine_x)],
-                  [np.max(fine_x), 1000000, 1, np.pi, 5, np.inf, np.inf, 1 * 10 ** -6, np.max(fine_x)])
+        bounds = ([np.min(fine_f_hz), 500., .01, -np.pi, 0, -np.inf, -np.inf, 1 * 10 ** -9, np.min(fine_f_hz)],
+                  [np.max(fine_f_hz), 1000000, 1, np.pi, 5, np.inf, np.inf, 1 * 10 ** -6, np.max(fine_f_hz)])
     if x0 is None:
         # define default initial guess
         print("default initial guess used")
         # fr_guess = x[np.argmin(np.abs(z))]
         # x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
-        x0 = guess_x0_iq_nonlinear_sep(fine_x, fine_z, gain_x, gain_z)
+        x0 = guess_x0_iq_nonlinear_sep(fine_f_hz, fine_z, gain_f_hz, gain_z)
         # print(x0)
     # User the error?
     use_err = fine_z_err is not None and gain_z_err is not None
 
-    x = np.hstack((fine_x, gain_x))
+    f_hz = np.hstack((fine_f_hz, gain_f_hz))
     z = np.hstack((fine_z, gain_z))
     if use_err:
         z_err = np.hstack((fine_z_err, gain_z_err))
 
     if amp_norm:
-        z = amplitude_normalization(x, z)
+        z = amplitude_normalization(f_hz, z)
 
     z_stacked = np.hstack((np.real(z), np.imag(z)))
     if use_err:
         z_err_stacked = np.hstack((np.real(z_err), np.imag(z_err)))
-        fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked, x0, sigma=z_err_stacked, bounds=bounds)
+        fit = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, sigma=z_err_stacked, bounds=bounds)
     else:
-        fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked, x0, bounds=bounds)
+        fit = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
 
-    fit_result = nonlinear_iq(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
+    fit_result = nonlinear_iq(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
                               fit[0][8])
-    x0_result = nonlinear_iq(x, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
+    x0_result = nonlinear_iq(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
 
     if use_err:
         # only do it for fine data
@@ -553,20 +572,21 @@ def fit_nonlinear_iq_sep(fine_x, fine_z, gain_x, gain_z,
             (np.real(fit_result[0:len(fine_z)]), np.imag(fit_result[0:len(fine_z)])))) ** 2 / np.hstack(
             (np.real(fine_z_err), np.imag(fine_z_err))) ** 2) / (len(fine_z) * 2. - 8.)
         # make a dictionary to return
-        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': x,
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': f_hz,
                     'red_chi_sqr': red_chi_sqr}
     else:
         # make a dictionary to return
-        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': x}
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': f_hz}
     return fit_dict
 
 
 # same function but double fits so that it can get error and a proper covariance matrix out
-def fit_nonlinear_iq_with_err(x, z, bounds=None, x0=None, amp_norm: bool = False):
+@fit_func
+def fit_nonlinear_iq_with_err(f_hz, z, bounds=None, x0=None, amp_norm: bool = False):
     """
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         frequencies Hz
     z : numpy.array
         complex s21
@@ -597,24 +617,24 @@ def fit_nonlinear_iq_with_err(x, z, bounds=None, x0=None, amp_norm: bool = False
     if x0 is None:
         # define default initial guess
         print("default initial guess used")
-        x0 = guess_x0_iq_nonlinear(x, z)
+        x0 = guess_x0_iq_nonlinear(f_hz, z)
     if amp_norm:
-        z = amplitude_normalization(x, z)
+        z = amplitude_normalization(f_hz, z)
     z_stacked = np.hstack((np.real(z), np.imag(z)))
-    fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked, x0, bounds=bounds)
-    fit_result = nonlinear_iq(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
+    fit = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
+    fit_result = nonlinear_iq(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
                               fit[0][8])
-    fit_result_stacked = nonlinear_iq_for_fitter(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5],
+    fit_result_stacked = nonlinear_iq_for_fitter(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5],
                                                  fit[0][6], fit[0][7], fit[0][8])
-    x0_result = nonlinear_iq(x, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
+    x0_result = nonlinear_iq(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
     # get error
     var = np.sum((z_stacked - fit_result_stacked) ** 2) / (z_stacked.shape[0] - 1)
     err = np.ones(z_stacked.shape[0]) * np.sqrt(var)
     # refit
-    fit = optimization.curve_fit(nonlinear_iq_for_fitter, x, z_stacked, x0, err, bounds=bounds)
-    fit_result = nonlinear_iq(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
+    fit = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, err, bounds=bounds)
+    fit_result = nonlinear_iq(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7],
                               fit[0][8])
-    x0_result = nonlinear_iq(x, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
+    x0_result = nonlinear_iq(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
 
     # make a dictionary to return
     fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z}
@@ -622,11 +642,12 @@ def fit_nonlinear_iq_with_err(x, z, bounds=None, x0=None, amp_norm: bool = False
 
 
 # function for fitting an iq sweep with the above equation
-def fit_nonlinear_mag(x, z, bounds=None, x0=None, verbose=True):
+@fit_func
+def fit_nonlinear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     """
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         frequencies Hz
     z : numpy.array
         complex s21
@@ -654,12 +675,12 @@ def fit_nonlinear_mag(x, z, bounds=None, x0=None, verbose=True):
         # define default initial guess
         print("default initial guess used")
         # x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
-        x0 = guess_x0_mag_nonlinear(x, z, verbose=verbose)
+        x0 = guess_x0_mag_nonlinear(f_hz, z, verbose=verbose)
 
-    fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z) ** 2, x0, bounds=bounds)
+    fit = optimization.curve_fit(nonlinear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
     fit_result = np.sqrt(
-        nonlinear_mag(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7]))
-    x0_result = np.sqrt(nonlinear_mag(x, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7]))
+        nonlinear_mag(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6], fit[0][7]))
+    x0_result = np.sqrt(nonlinear_mag(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7]))
 
     if verbose:
         print_fit_string_nonlinear_mag(fit[0], print_header=False, label="Fit  ")
@@ -680,12 +701,12 @@ def fit_nonlinear_mag(x, z, bounds=None, x0=None, verbose=True):
                 'fr': fr, 'Qr': Qr, 'amp': amp, 'phi': phi, 'a': a, 'b0': b0, 'b1': b1, 'Qi': Qi, 'Qc': Qc}
     return fit_dict
 
-
-def fit_linear_mag(x, z, bounds=None, x0=None, verbose=True):
+@fit_func
+def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     """
     Parameters
     ----------
-    x : numpy.array
+    f_hz : numpy.array
         frequencies Hz
     z : numpy.array
         complex s21
@@ -711,12 +732,12 @@ def fit_linear_mag(x, z, bounds=None, x0=None, verbose=True):
         # define default initial guess
         print("default initial guess used")
         # x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
-        x0 = guess_x0_mag_nonlinear(x, z, verbose=verbose)
+        x0 = guess_x0_mag_nonlinear(f_hz, z, verbose=verbose)
         x0 = np.delete(x0, [4, 6, 7])
 
-    fit = optimization.curve_fit(linear_mag, x, np.abs(z) ** 2, x0, bounds=bounds)
-    fit_result = np.sqrt(linear_mag(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4]))
-    x0_result = np.sqrt(linear_mag(x, x0[0], x0[1], x0[2], x0[3], x0[4]))
+    fit = optimization.curve_fit(linear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
+    fit_result = np.sqrt(linear_mag(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4]))
+    x0_result = np.sqrt(linear_mag(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4]))
 
     if verbose:
         print_fit_string_linear_mag(fit[0], print_header=False, label="Fit  ")
@@ -735,17 +756,17 @@ def fit_linear_mag(x, z, bounds=None, x0=None, verbose=True):
                 'fr': fr, 'Qr': Qr, 'amp': amp, 'phi': phi, 'b0': b0, 'Qi': Qi, 'Qc': Qc}
     return fit_dict
 
-
-def fit_nonlinear_mag_sep(fine_x, fine_z, gain_x, gain_z, fine_z_err=None, gain_z_err=None, bounds=None, x0=None,
+@fit_func
+def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z, fine_z_err=None, gain_z_err=None, bounds=None, x0=None,
                           verbose=True):
     """
     Parameters
     ----------
-    fine_x : numpy.array
+    fine_f_hz : numpy.array
         frequencies Hz
     fine_z : numpy.array
         complex s21
-    gain_x : numpy.array
+    gain_f_hz : numpy.array
         frequencies Hz
     gain_z : numpy.array
         complex s21
@@ -781,27 +802,27 @@ def fit_nonlinear_mag_sep(fine_x, fine_z, gain_x, gain_z, fine_z_err=None, gain_
     if bounds is None:
         # define default bounds
         print("default bounds used")
-        bounds = ([np.min(fine_x), 100, .01, -np.pi, 0, -np.inf, -np.inf, np.min(fine_x)],
-                  [np.max(fine_x), 1000000, 100, np.pi, 5, np.inf, np.inf, np.max(fine_x)])
+        bounds = ([np.min(fine_f_hz), 100, .01, -np.pi, 0, -np.inf, -np.inf, np.min(fine_f_hz)],
+                  [np.max(fine_f_hz), 1000000, 100, np.pi, 5, np.inf, np.inf, np.max(fine_f_hz)])
     if x0 is None:
         # define default intial guess
         print("default initial guess used")
-        x0 = guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z)
+        x0 = guess_x0_mag_nonlinear_sep(fine_f_hz, fine_z, gain_f_hz, gain_z)
     # use error when fitting the data?
     use_err = fine_z_err is not None and gain_z_err is not None
     # stack the scans for curvefit
-    x = np.hstack((fine_x, gain_x))
+    f_hz = np.hstack((fine_f_hz, gain_f_hz))
     z = np.hstack((fine_z, gain_z))
     if use_err:
         z_err = np.hstack((fine_z_err, gain_z_err))
-        z_err = np.sqrt(4 * np.real(z_err) ** 2 * np.real(z) ** 2 + 4 * np.imag(z_err) ** 2 * np.imag(
-            z) ** 2)  # propogation of errors left out cross term  
-        fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z) ** 2, x0, sigma=z_err, bounds=bounds)
+        # propagation of errors left out cross term
+        z_err = np.sqrt(4 * np.real(z_err) ** 2 * np.real(z) ** 2 + 4 * np.imag(z_err) ** 2 * np.imag(z) ** 2)
+        fit = optimization.curve_fit(nonlinear_mag, f_hz, np.abs(z) ** 2, x0, sigma=z_err, bounds=bounds)
     else:
-        fit = optimization.curve_fit(nonlinear_mag, x, np.abs(z) ** 2, x0, bounds=bounds)
-    fit_result = nonlinear_mag(x, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6],
+        fit = optimization.curve_fit(nonlinear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
+    fit_result = nonlinear_mag(f_hz, fit[0][0], fit[0][1], fit[0][2], fit[0][3], fit[0][4], fit[0][5], fit[0][6],
                                fit[0][7])
-    x0_result = nonlinear_mag(x, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7])
+    x0_result = nonlinear_mag(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7])
 
     # compute reduced chi squared
     if verbose:
@@ -812,41 +833,40 @@ def fit_nonlinear_mag_sep(fine_x, fine_z, gain_x, gain_z, fine_z_err=None, gain_
         red_chi_sqr = np.sum((np.abs(fine_z) ** 2 - fit_result[0:len(fine_z)]) ** 2 / z_err[0:len(fine_z)] ** 2) / (
                 len(fine_z) - 7.)
         # make a dictionary to return
-        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': x,
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': f_hz,
                     'red_chi_sqr': red_chi_sqr}
     else:
         # make a dictionary to return
-        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': x}
+        fit_dict = {'fit': fit, 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z, 'fit_freqs': f_hz}
     return fit_dict
 
-
-def fit_nonlinear_iq_multi(f, z, tau=None):
+@fit_func
+def fit_nonlinear_iq_multi(f_hz, z, tau=None):
     """
     wrapper for handling n resonator fits at once
-    f and z should have shape n_iq_points x n_res points 
+    f_hz and z should have shape n_iq_points x n_res points
     return same thing as fitter but in arrays for all resonators
     """
 
-    center_freqs = f[f.shape[0] // 2, :]
+    center_freqs = f_hz[f_hz.shape[0] // 2, :]
 
-    all_fits = np.zeros((f.shape[1], 9))
-    all_fit_results = np.zeros((f.shape[0], f.shape[1]), dtype=np.complex_)
-    all_x0_results = np.zeros((f.shape[0], f.shape[1]), dtype=np.complex_)
-    all_masks = np.zeros((f.shape[0], f.shape[1]))
-    all_x0 = np.zeros((f.shape[1], 9))
-    all_fr = np.zeros(f.shape[1])
-    all_Qr = np.zeros(f.shape[1])
-    all_amp = np.zeros(f.shape[1])
-    all_phi = np.zeros(f.shape[1])
-    all_a = np.zeros(f.shape[1])
-    all_i0 = np.zeros(f.shape[1])
-    all_q0 = np.zeros(f.shape[1])
-    all_tau = np.zeros(f.shape[1])
-    all_Qi = np.zeros(f.shape[1])
-    all_Qc = np.zeros(f.shape[1])
-
-    for i in range(0, f.shape[1]):
-        f_single = f[:, i]
+    all_fits = np.zeros((f_hz.shape[1], 9))
+    all_fit_results = np.zeros((f_hz.shape[0], f.shape[1]), dtype=np.complex_)
+    all_x0_results = np.zeros((f_hz.shape[0], f.shape[1]), dtype=np.complex_)
+    all_masks = np.zeros((f_hz.shape[0], f.shape[1]))
+    all_x0 = np.zeros((f_hz.shape[1], 9))
+    all_fr = np.zeros(f_hz.shape[1])
+    all_Qr = np.zeros(f_hz.shape[1])
+    all_amp = np.zeros(f_hz.shape[1])
+    all_phi = np.zeros(f_hz.shape[1])
+    all_a = np.zeros(f_hz.shape[1])
+    all_i0 = np.zeros(f_hz.shape[1])
+    all_q0 = np.zeros(f_hz.shape[1])
+    all_tau = np.zeros(f_hz.shape[1])
+    all_Qi = np.zeros(f_hz.shape[1])
+    all_Qc = np.zeros(f_hz.shape[1])
+    for i in range(0, f_hz.shape[1]):
+        f_single = f_hz[:, i]
         z_single = z[:, i]
         # flag data that is too close to other resonators              
         distance = center_freqs - center_freqs[i]
@@ -879,10 +899,10 @@ def fit_nonlinear_iq_multi(f, z, tau=None):
             all_fits[i, :] = fit_dict_iq['fit'][0]
             # all_fit_results[i,:] = fit_dict_iq['fit_result']
             # all_x0_results[i,:] = fit_dict_iq['x0_result']
-            all_fit_results[:, i] = nonlinear_iq(f[:, i], all_fits[i, 0], all_fits[i, 1], all_fits[i, 2],
+            all_fit_results[:, i] = nonlinear_iq(f_hz[:, i], all_fits[i, 0], all_fits[i, 1], all_fits[i, 2],
                                                  all_fits[i, 3], all_fits[i, 4],
                                                  all_fits[i, 5], all_fits[i, 6], all_fits[i, 7], all_fits[i, 8])
-            all_x0_results[:, i] = nonlinear_iq(f[:, i], fit_dict_iq['x0'][0], fit_dict_iq['x0'][1],
+            all_x0_results[:, i] = nonlinear_iq(f_hz[:, i], fit_dict_iq['x0'][0], fit_dict_iq['x0'][1],
                                                 fit_dict_iq['x0'][2],
                                                 fit_dict_iq['x0'][3], fit_dict_iq['x0'][4], fit_dict_iq['x0'][5],
                                                 fit_dict_iq['x0'][6], fit_dict_iq['x0'][7], fit_dict_iq['x0'][8])
@@ -910,31 +930,31 @@ def fit_nonlinear_iq_multi(f, z, tau=None):
 
     return all_fits_dict
 
-
+@fit_func
 def fit_linear_mag_multi(f, z):
     """
     wrapper for handling n resonator fits at once
-    f and z should have shape n_iq_points x n_res points 
+    f_hz and z should have shape n_iq_points x n_res points
     return same thing as fitter but in arrays for all resonators
     """
 
-    center_freqs = f[f.shape[0] // 2, :]
+    center_freqs = f_hz[f_hz.shape[0] // 2, :]
 
-    all_fits = np.zeros((f.shape[1], 5))
-    all_fit_results = np.zeros((f.shape[0], f.shape[1]))
-    all_x0_results = np.zeros((f.shape[0], f.shape[1]))
-    all_masks = np.zeros((f.shape[0], f.shape[1]))
-    all_x0 = np.zeros((f.shape[1], 5))
-    all_fr = np.zeros(f.shape[1])
-    all_Qr = np.zeros(f.shape[1])
-    all_amp = np.zeros(f.shape[1])
-    all_phi = np.zeros(f.shape[1])
-    all_b0 = np.zeros(f.shape[1])
-    all_Qi = np.zeros(f.shape[1])
-    all_Qc = np.zeros(f.shape[1])
+    all_fits = np.zeros((f_hz.shape[1], 5))
+    all_fit_results = np.zeros((f_hz.shape[0], f_hz.shape[1]))
+    all_x0_results = np.zeros((f_hz.shape[0], f_hz.shape[1]))
+    all_masks = np.zeros((f_hz.shape[0], f_hz.shape[1]))
+    all_x0 = np.zeros((f_hz.shape[1], 5))
+    all_fr = np.zeros(f_hz.shape[1])
+    all_Qr = np.zeros(f_hz.shape[1])
+    all_amp = np.zeros(f_hz.shape[1])
+    all_phi = np.zeros(f_hz.shape[1])
+    all_b0 = np.zeros(f_hz.shape[1])
+    all_Qi = np.zeros(f_hz.shape[1])
+    all_Qc = np.zeros(f_hz.shape[1])
 
-    for i in range(0, f.shape[1]):
-        f_single = f[:, i]
+    for i in range(0, f_hz.shape[1]):
+        f_single = f_hz[:, i]
         z_single = z[:, i]
         # flag data that is too close to other resonators              
         distance = center_freqs - center_freqs[i]
@@ -945,7 +965,7 @@ def fit_linear_mag_multi(f, z):
         else:
             halfway_low = 0
 
-        if center_freqs[i] != np.max(center_freqs):  # don't do if highest frequenct
+        if center_freqs[i] != np.max(center_freqs):  # don't do if highest frequency
             closest_higher_dist = np.min(np.abs(distance[np.where(distance > 0)]))
             closest_higher_index = np.where(distance == closest_higher_dist)[0][0]
             halfway_high = (center_freqs[i] + center_freqs[closest_higher_index]) / 2.
@@ -964,9 +984,9 @@ def fit_linear_mag_multi(f, z):
             # fit_dict_iq = brute_force_linear_mag_fit(f_single,z_single,ranges = ranges,n_grid_points = 10)
 
             all_fits[i, :] = fit_dict_iq['fit'][0]
-            all_fit_results[:, i] = np.sqrt(linear_mag(f[:, i], all_fits[i, 0], all_fits[i, 1], all_fits[i, 2],
+            all_fit_results[:, i] = np.sqrt(linear_mag(f_hz[:, i], all_fits[i, 0], all_fits[i, 1], all_fits[i, 2],
                                                        all_fits[i, 3], all_fits[i, 4]))
-            all_x0_results[:, i] = np.sqrt(linear_mag(f[:, i], fit_dict_iq['x0'][0], fit_dict_iq['x0'][1],
+            all_x0_results[:, i] = np.sqrt(linear_mag(f_hz[:, i], fit_dict_iq['x0'][0], fit_dict_iq['x0'][1],
                                                       fit_dict_iq['x0'][2], fit_dict_iq['x0'][3], fit_dict_iq['x0'][4]))
             all_masks[:, i] = mask
             all_x0[i, :] = fit_dict_iq['x0']
@@ -989,3 +1009,91 @@ def fit_linear_mag_multi(f, z):
                      'Qc': all_Qc}
 
     return all_fits_dict
+
+
+class ResFit(NamedTuple):
+    fit_types: tuple
+    fr: Optional[float] = None
+    Qr: Optional[float] = None
+    amp: Optional[float] = None
+    phi: Optional[float] = None
+    a: Optional[float] = None
+    b0: Optional[float] = None
+    b1: Optional[float] = None
+    i0: Optional[float] = None
+    q0: Optional[float] = None
+    tau: Optional[float] = None
+    Qi: Optional[float] = None
+    Qc: Optional[float] = None
+    popt: Optional[np.ndarray] = None
+    pcov: Optional[np.ndarray] = None
+    f_data: Optional[np.ndarray] = None
+    z_data: Optional[np.ndarray] = None
+
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            return getattr(self, item)
+        elif isinstance(item, int):
+            return self._asdict()[self._fields[item]]
+        elif isinstance(item, slice):
+            return tuple([self._asdict()[field] for field in self._fields[item]])
+        else:
+            raise TypeError(f"ResFit indices must be str, int, or slice, not {type(item)}")
+
+    def header_items(self):
+        for field in self._fields:
+            if 'data' not in field:
+                yield field
+                
+    def input_items(self):
+        for field in self.header_items():
+            if field not in {'fit_types', 'popt', 'pcov'}:
+                yield field
+
+    def __str__(self):
+        return_str = ''
+        for field in self.header_items():
+            return_str += f"{self.__getattribute__(field)},"
+        return return_str[:-1]
+
+
+    def z_fit(self) -> np.ndarray:
+        """Return the complex impedance of the fit."""
+        pass
+
+    def plot(self):
+        pass
+
+    def console(self):
+        pass
+
+
+if __name__ == '__main__':
+    # get demo data
+    import os
+    from scipy.io import loadmat
+    from submm.sample_data.abs_paths import abs_path_sample_data
+    data_path = os.path.join(abs_path_sample_data,
+                             "Survey_Tbb20.000K_Tbath170mK_Pow-60dBm_array_temp_sweep_long.mat")
+    sample_data = loadmat(data_path)
+
+    freq_ghz = sample_data['f'][:, 0]
+    freq_mhz = freq_ghz * 1.0e3
+    freq_hz = freq_ghz * 1.0e9
+    s21_complex = sample_data['z'][:, 0]
+    s21_mag = 20 * np.log10(np.abs(s21_complex))
+
+    freq_hz_res1 = freq_hz[21050: 21250]
+    freq_mhz_res1 = freq_hz[21050: 21250]
+    s21_complex_res1 = s21_complex[21050: 21250]
+    s21_mag_res1 = s21_mag[21050: 21250]
+
+    # Caleb's testing area
+    res_fit = fit_nonlinear_iq(f_hz=freq_hz_res1, z=s21_complex_res1)
+    print(f'Res fit fr from key = {res_fit["fr"]}')
+    print(f'from index = {res_fit[0]}')
+    print(f'from slice = {res_fit[0:2]}')
+    print(f'from attribute = {res_fit.fr}')
+
+    # test hash ability
+    test_set = {res_fit}

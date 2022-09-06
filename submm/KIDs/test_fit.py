@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from submm.multitone_mako import read_multitone
-from submm.KIDs import resonance_fitting
+from submm.KIDs.res import resonance_fitting
 
 #change log
 #JDW 2017-08-17 changed to include amplitude normalization option

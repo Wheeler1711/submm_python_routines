@@ -20,8 +20,9 @@ def cardan(a, b, c, d):
     q = (b / 27 * (2 * b2 / a2 - 9 * c / a) + d) / a
     D = -4 * p * p * p - 27 * q * q
     r = np.sqrt(-D / 27 + 0j)
-    u = ((-q - r) / 2) ** (1 / 3.)  # 0.33333333333333333333333
-    v = ((-q + r) / 2) ** (1 / 3.)  # 0.33333333333333333333333
+    one_third = 1 / 3.0
+    u = ((-q - r) / 2) ** one_third  # 0.33333333333333333333333
+    v = ((-q + r) / 2) ** one_third  # 0.33333333333333333333333
     w = u * v
     w0 = np.abs(w + p / 3)
     w1 = np.abs(w * J + p / 3)
@@ -235,19 +236,19 @@ def guess_x0_iq_nonlinear(x, z, verbose=False):
     phi_guess = 0
 
     # guess non-linearity parameter
-    # might be able to guess this by ratioing the distance between min and max distance between iq points in fine sweep
+    # might be able to guess this by taking the ratio of the distance between min and max distance between iq points in fine sweep
     a_guess = 0
 
     # i0 and iq guess
     if np.max(np.abs(fine_z)) == np.max(np.abs(z)):
-        # if the resonator has an impedance mismatch rotation that makes the fine greater that the cabel delay
+        # if the resonator has an impedance mismatch rotation that makes the fine greater that the cable delay
         i0_guess = np.real(fine_z[np.argmax(np.abs(fine_z))])
         q0_guess = np.imag(fine_z[np.argmax(np.abs(fine_z))])
     else:
         i0_guess = (np.real(fine_z[0]) + np.real(fine_z[-1])) / 2.
         q0_guess = (np.imag(fine_z[0]) + np.imag(fine_z[-1])) / 2.
 
-    # cabel delay guess tau
+    # cable delay guess tau
     # y = mx +b
     # m = (y2 - y1)/(x2-x1)
     # b = y-mx
@@ -419,20 +420,20 @@ def guess_x0_iq_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
         amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
 
     # guess non-linearity parameter
-    # might be able to guess this by ratioing the distance between min and max distance between iq points in fine sweep
+    # might be able to guess this by taking the ratio of the distance between min and max distance between iq points
+    # in fine sweep
     a_guess = 0
 
     # i0 and iq guess
-    if np.max(np.abs(fine_z)) > np.max(
-            np.abs(
-                gain_z)):  # if the resonator has an impedance mismatch rotation that makes the fine greater that the cabel delay
+    if np.max(np.abs(fine_z)) > np.max(np.abs(gain_z)):
+        # if the resonator has an impedance mismatch rotation that makes the fine greater that the cable delay
         i0_guess = np.real(fine_z[np.argmax(np.abs(fine_z))])
         q0_guess = np.imag(fine_z[np.argmax(np.abs(fine_z))])
     else:
         i0_guess = (np.real(fine_z[0]) + np.real(fine_z[-1])) / 2.
         q0_guess = (np.imag(fine_z[0]) + np.imag(fine_z[-1])) / 2.
 
-    # cabel delay guess tau
+    # cable delay guess tau
     # y = mx +b
     # m = (y2 - y1)/(x2-x1)
     # b = y-mx
@@ -531,7 +532,8 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
         amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
 
     # guess non-linearity parameter
-    # might be able to guess this by ratioing the distance between min and max distance between iq points in fine sweep
+    # might be able to guess this by taking the ratio of the distance between min and max distance between
+    # iq points in fine sweep
     a_guess = 0
 
     # b0 and b1 guess
@@ -539,7 +541,7 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
     b1_guess = (np.abs(gain_z)[-1] ** 2 - np.abs(gain_z)[0] ** 2) / (xlin[-1] - xlin[0])
     b0_guess = np.max((np.max(np.abs(fine_z) ** 2), np.max(np.abs(gain_z) ** 2)))
 
-    # cabel delay guess tau
+    # cable delay guess tau
     # y = mx +b
     # m = (y2 - y1)/(x2-x1)
     # b = y-mx

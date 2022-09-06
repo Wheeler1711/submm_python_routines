@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from submm.KIDs import calibrate, resonance_fitting
+from submm.KIDs import calibrate
+from submm.KIDs.res import resonance_fitting
 from scipy import interpolate
 import pickle
 from scipy.stats import binned_statistic

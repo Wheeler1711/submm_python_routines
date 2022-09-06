@@ -6,7 +6,7 @@ import platform
 try:
     from submm_python_routines.KIDs import resonance_fitting as rf
 except ModuleNotFoundError:
-    from submm.KIDs import resonance_fitting as rf
+    from submm.KIDs.res import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
 from typing import NamedTuple
 try:

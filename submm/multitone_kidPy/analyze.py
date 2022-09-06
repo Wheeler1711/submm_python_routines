@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import binned_statistic
 from scipy import interpolate
-from submm.KIDs import calibrate, resonance_fitting, PCA_implementation as PCA
+from submm.KIDs import calibrate, PCA_implementation as PCA
+from submm.KIDs.res import resonance_fitting
 import pickle
 
 

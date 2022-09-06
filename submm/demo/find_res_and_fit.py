@@ -3,12 +3,10 @@ import time
 
 import numpy as np
 from scipy.io import loadmat
-import matplotlib.pyplot as plt
 
-from submm.KIDs import resonance_fitting as res_fit
 from submm.KIDs import find_resonances_interactive as find_kids
 from submm.sample_data.abs_paths import abs_path_sample_data
-from submm.KIDs import res_sweep_tools as res_sweep_tools
+from submm.KIDs.res import res_sweep_tools as res_sweep_tools, resonance_fitting as res_fit
 
 linear = False  # if resonators are well below bifurcation fitting can be much faster
 
