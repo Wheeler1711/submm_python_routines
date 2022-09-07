@@ -436,7 +436,7 @@ class interactive_power_tuning_plot(object):
         self.ax.legend()
         if self.z_fit_iq is not None:
             self.l2_fit, = self.ax2.plot(self.Is_fit_iq[:,self.plot_index,self.power_index],
-                                     Qs_fit_iq[:,self.plot_index,self.power_index],label = "Fit")
+                                     self.Qs_fit_iq[:,self.plot_index,self.power_index],label = "Fit")
         self.l2, = self.ax2.plot(self.Is[:,self.plot_index,self.power_index],self.Qs[:,self.plot_index,self.power_index],
                                  'o',mec = "k",label = "Data")
         self.ax2.legend()
@@ -523,11 +523,15 @@ class interactive_power_tuning_plot(object):
                 self.shift_is_held = True
                 #print("shift pressed") #for debugging
 
-        if event.key == 'enter':
-                if self.shift_is_held:
-                    self.bif_levels[self.plot_index] = -self.attn_levels[self.power_index]
-                    self.refresh_plot()
-                    
+        if event.key == 'enter': # is this still needed on any os?
+            #print("enter pressed")
+            if self.shift_is_held:
+                self.bif_levels[self.plot_index] = -self.attn_levels[self.power_index]
+                self.refresh_plot()
+
+        if event.key == 'shift+enter':
+            self.bif_levels[self.plot_index] = -self.attn_levels[self.power_index]
+            self.refresh_plot()
 
     def on_key_release(self,event):
         if event.key == "shift":
