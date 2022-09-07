@@ -1147,14 +1147,23 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
     return x0
 
 
-def fit_nonlinear_iq_multi(f, z, tau=None):
+def fit_nonlinear_iq_multi(f, z, center_freqs = None, tau=None,fit_overlap = 0.5,verbose = True):
     """
     wrapper for handling n resonator fits at once
+    mostly just a for loop for fitting but also trys to fit in a way that
+    better handles collisions by not fitting to close to other resonators
     f and z should have shape n_iq_points x n_res points 
+    center_freqs can be specified if you are fitting n resonators but you
+    know there are actually more the n resonators at the frequency locations
+    in center_freqs. This is useful if you didn't collect data for all of the 
+    resonators but don't want collisions to screw up your fitting.
+    fit_overlap: default 0.5 will only use data to halfway between the resonator
+    you are trying to fit and the nearest neighbor resonators if it is close by.
     return same thing as fitter but in arrays for all resonators
     """
 
-    center_freqs = f[f.shape[0] // 2, :]
+    if center_freqs is None:
+        center_freqs = f[f.shape[0] // 2, :]
 
     all_fits = np.zeros((f.shape[1], 9))
     all_fit_results = np.zeros((f.shape[0], f.shape[1]), dtype=np.complex_)
@@ -1175,19 +1184,25 @@ def fit_nonlinear_iq_multi(f, z, tau=None):
     for i in range(0, f.shape[1]):
         f_single = f[:, i]
         z_single = z[:, i]
-        # flag data that is too close to other resonators              
-        distance = center_freqs - center_freqs[i]
-        if center_freqs[i] != np.min(center_freqs):  # don't do if lowest frequency resonator
+        # flag data that is too close to other resonators
+        if center_freqs is not None:
+            center_index = np.argmin(np.abs(center_freqs-f_single[len(f_single)//2]))
+        else:
+            center_index = i
+        distance = center_freqs - center_freqs[center_index]
+        if center_freqs[center_index] != np.min(center_freqs):  # don't do if lowest frequency resonator
             closest_lower_dist = -np.min(np.abs(distance[np.where(distance < 0)]))
             closest_lower_index = np.where(distance == closest_lower_dist)[0][0]
-            halfway_low = (center_freqs[i] + center_freqs[closest_lower_index]) / 2.
+            halfway_low = center_freqs[center_index] - \
+                (center_freqs[center_index] - center_freqs[closest_lower_index])*fit_overlap
         else:
             halfway_low = 0
 
-        if center_freqs[i] != np.max(center_freqs):  # don't do if highest frequenct
+        if center_freqs[center_index] != np.max(center_freqs):  # don't do if highest frequenct
             closest_higher_dist = np.min(np.abs(distance[np.where(distance > 0)]))
             closest_higher_index = np.where(distance == closest_higher_dist)[0][0]
-            halfway_high = (center_freqs[i] + center_freqs[closest_higher_index]) / 2.
+            halfway_high = center_freqs[center_index] + \
+                (center_freqs[closest_higher_index]-center_freqs[center_index]) * fit_overlap
         else:
             halfway_high = np.inf
 
@@ -1199,9 +1214,9 @@ def fit_nonlinear_iq_multi(f, z, tau=None):
 
         try:
             if tau is not None:
-                fit_dict_iq = fit_nonlinear_iq(f_single, z_single, tau=tau)
+                fit_dict_iq = fit_nonlinear_iq(f_single, z_single, tau = tau, verbose = verbose)
             else:
-                fit_dict_iq = fit_nonlinear_iq(f_single, z_single)
+                fit_dict_iq = fit_nonlinear_iq(f_single, z_single, verbose = verbose)
 
             all_fits[i, :] = fit_dict_iq['fit'][0]
             # all_fit_results[i,:] = fit_dict_iq['fit_result']
