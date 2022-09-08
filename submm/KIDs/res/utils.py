@@ -55,17 +55,18 @@ def print_fit_string_nonlinear_iq(vals, print_header=True, label="Guess"):
         print("Resonator at %.2f MHz" % (vals[0] / 10 ** 6))
         print(f'     |                             Variables fit                           ' +
               '\033[1;30;42m|Derived variables|\033[0;0m')
-    guess_header_str = '     |'
-    guess_header_str += ' fr (MHz)|'
-    guess_header_str += '   Qr   |'
-    guess_header_str += ' amp |'
-    guess_header_str += ' phi  |'
-    guess_header_str += ' a   |'
-    guess_header_str += '   i0     |'
-    guess_header_str += '   q0     |'
-    guess_header_str += ' tau (ns)\033[1;30;42m|'
-    guess_header_str += '   Qi   |'
-    guess_header_str += '   Qc   |\033[0;0m'
+        guess_header_str = '     |'
+        guess_header_str += ' fr (MHz)|'
+        guess_header_str += '   Qr   |'
+        guess_header_str += ' amp |'
+        guess_header_str += ' phi  |'
+        guess_header_str += ' a   |'
+        guess_header_str += '   i0     |'
+        guess_header_str += '   q0     |'
+        guess_header_str += ' tau (ns)\033[1;30;42m|'
+        guess_header_str += '   Qi   |'
+        guess_header_str += '   Qc   |\033[0;0m'
+        print(guess_header_str)
 
     guess_str = label
     guess_str += f'| {"%3.4f" % (vals[0] / 10 ** 6)}'
@@ -79,8 +80,6 @@ def print_fit_string_nonlinear_iq(vals, print_header=True, label="Guess"):
     guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
     guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
 
-    if print_header:
-        print(guess_header_str)
     print(guess_str)
 
 
@@ -561,3 +560,34 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
 
     x0 = [fr_guess, Q_guess, amp_guess, phi_guess, a_guess, b0_guess, b1_guess, fr_guess]
     return x0
+
+
+def calc_qc_qi(qr: float, amp: float):
+    qc = qr / amp
+    qi = 1.0 / ((1.0 / qr) - (1.0 / qc))
+    return qc, qi
+
+
+# https://stackabuse.com/how-to-print-colored-text-in-python/
+style_to_number = {'normal': 0, 'bold': 1, 'dark': 2, 'light': 3, 'underline': 4, 'blink': 5}
+text_color_to_number = {'black': 30, 'red': 31, 'green': 32, 'yellow': 33, 'blue': 34, 'purple': 35,
+                        'cyan': 36, 'white': 37}
+background_color_to_number = {'black': 40, 'red': 41, 'green': 42, 'yellow': 43, 'blue': 44, 'purple': 45,
+                              'cyan': 46, 'white': 47}
+
+
+def colorize_text(text: str, style_text: str = 'normal', color_text: str = 'white', color_background: str = 'black'):
+    if style_text not in style_to_number.keys():
+        raise ValueError(f"Style '{style_text}' not found, options are {style_to_number.keys()}")
+    if color_text not in text_color_to_number.keys():
+        raise ValueError(f"Color '{color_text}' not found, options are {text_color_to_number.keys()}")
+    if color_background not in background_color_to_number.keys():
+        raise ValueError(f"Color '{color_background}' not found, options are {background_color_to_number.keys()}")
+    style_number = style_to_number[style_text]
+    text_color_number = text_color_to_number[color_text]
+    background_color_number = background_color_to_number[color_background]
+    return f"\033[{style_number};{text_color_number};{background_color_number}m{text}\033[0;0m"
+
+
+def derived_text(text):
+    return colorize_text(text, style_text='bold', color_text='black', color_background='green')

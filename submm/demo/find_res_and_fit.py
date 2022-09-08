@@ -6,7 +6,7 @@ from scipy.io import loadmat
 
 from submm.KIDs import find_resonances_interactive as find_kids
 from submm.sample_data.abs_paths import abs_path_sample_data
-from submm.KIDs.res import res_sweep_tools as res_sweep_tools, resonance_fitting as res_fit
+from submm.KIDs.res import sweep_tools as res_sweep_tools, fitting as res_fit
 
 linear = False  # if resonators are well below bifurcation fitting can be much faster
 
