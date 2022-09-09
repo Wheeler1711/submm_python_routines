@@ -2,11 +2,10 @@ import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 from scipy import fftpack
+from scipy import interpolate
 
 # this script is for calibrating a kinetic inductance detector to convert
 # changes in i and q to the shift of the resonator
-
-
 
 def calc_R(x,y, xc, yc):
     """ calculate the distance of each 2D points from the center (xc, yc) """
@@ -78,5 +77,16 @@ def fft_noise(z_stream,df_over_f,sample_rate):
     fft_freqs = fftpack.fftfreq(npts_fft,1./sample_rate)
     return fft_freqs,Sxx,S_per,S_par
 
-
-
+def interp_phase_to_df_over_f(phase_fine,phase_stream,iq_sweep_freqs,extrap = "min_max"):
+    #interp phase to frequency
+    if extrap == "min_max":
+        fill_value = (iq_sweep_freqs[-1],iq_sweep_freqs[0])
+    else:
+        fill_value = "extrapolate"
+        
+    f_interp = interpolate.interp1d(phase_fine, iq_sweep_freqs,kind = 'quadratic',
+                                    bounds_error = False,fill_value = fill_value)
+    freqs_stream = f_interp(phase_stream)
+    mean_freq = np.mean(freqs_stream)
+    stream_df_over_f = freqs_stream/mean_freq-1.
+    return stream_df_over_f,f_interp
