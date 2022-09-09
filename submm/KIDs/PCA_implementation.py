@@ -4,9 +4,12 @@ from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 from numpy import fft
 import matplotlib.pyplot as plt
+from scipy.stats import binned_statistic
+from scipy import signal
 
 
-def PCA_SVD(orig_array, n_comp_remove, plot=False,sample_rate =488.28125,outfile_dir = "./" ):
+def PCA_SVD(orig_array, n_comp_remove, plot=False,sample_rate =488.28125,
+            outfile_dir = "./",plot_decimate = 1 ):
     """This is a Principal Component Analysis cleaning of common modes from the 
     data. This is the implementation using Single Value Decomposition which is
     usually held as a better implementation, but may be undesireable for long
@@ -57,7 +60,8 @@ def PCA_SVD(orig_array, n_comp_remove, plot=False,sample_rate =488.28125,outfile
     cleaned_array += mean_array
     delta = orig_array - cleaned_array
     if plot:
-        plot_PCA(U, S, Vh, var_array, mean_array,sample_rate = sample_rate,outfile_dir = outfile_dir)
+        plot_PCA(U, S, Vh, var_array, mean_array,sample_rate = sample_rate,
+                 outfile_dir = outfile_dir,decimate = plot_decimate)
 
     #return both the cleaned array and the components removed
     
@@ -96,7 +100,7 @@ def PCA_covariance(array, n_comp_remove):
     component_streams = np.dot(array, eigen_vec)
 
 
-def plot_PCA(U, S, Vh, variance, mean,sample_rate = 488.28125,outfile_dir = "./"):
+def plot_PCA(U, S, Vh, variance, mean,sample_rate = 488.28125,outfile_dir = "./",decimate = 1):
     """For diagnostics and understanding what the PCA is removing, this 
     plots the timestream and psd of every principal component, along with the 
     mixing matrix (how the components map onto the original timestreams
@@ -106,7 +110,7 @@ def plot_PCA(U, S, Vh, variance, mean,sample_rate = 488.28125,outfile_dir = "./"
 
     fig = plt.figure()
     plt.suptitle('Mixing Matrix')
-    mat_plot = plt.imshow(mapping_matrix)
+    mat_plot = plt.imshow(np.real(mapping_matrix))
     fig.colorbar(mat_plot)
     pdf_pages.savefig(fig)
     plt.close(fig)
@@ -120,15 +124,25 @@ def plot_PCA(U, S, Vh, variance, mean,sample_rate = 488.28125,outfile_dir = "./"
         fig = plt.figure(i + 1000,figsize = (16,6))
         plt.subplot(211)
         plt.title("Timestream of Principal component {0}".format(i))
-        plt.plot(t_vals ,Vh[i,:],
-                linewidth = 2)
+        factors_of_10 = int(np.floor(np.log10(decimate)))
+        Vh_decimated = Vh[i,:]
+        for k in range(0,factors_of_10): # not suppose to decimate all at once
+            Vh_decimated = signal.decimate(Vh_decimated,10,axis = 0)
+            
+        Vh_decimated = signal.decimate(Vh_decimated,decimate//(10**factors_of_10),axis =0)
+        #Vh_decimated = signal.decimate(Vh[i,:],decimate)
+        t_vals_decimated = np.arange(0,Vh_decimated.shape[0])*1/sample_rate*decimate
+        plt.plot(t_vals_decimated ,np.real(Vh_decimated),linewidth = 2)
         plt.ylabel("response (A. U.)")
         plt.xlabel("Time (s)")
         plt.subplot(212)
-        plt.loglog(fft_freqs ,component_psd,
-                linewidth = 2)
-        WNL = np.mean(component_psd[fft_freqs > 20.])
-        plt.ylim([0.05 * WNL, max(component_psd)])
+        plot_bins = np.logspace(np.log10(np.min(np.abs(fft_freqs[1:]))),np.log10(np.max(fft_freqs)),1000)
+        binned_freq =  binned_statistic(fft_freqs, fft_freqs, bins=plot_bins)[0] #bin the frequecy against itself 
+        binned_psd = binned_statistic(fft_freqs, np.abs(component_psd), bins=plot_bins)[0]
+        nan_index = np.isnan(binned_freq)
+        plt.loglog(binned_freq[~nan_index] ,binned_psd[~nan_index], linewidth = 2)
+        WNL = np.mean(np.abs(component_psd[fft_freqs > 20.]))
+        plt.ylim([0.005 * WNL, max(binned_psd[~nan_index])])
         plt.ylabel("response (A. U. / Hz)")
         plt.xlabel("Frequency (Hz)")
 
