@@ -1,10 +1,13 @@
-from typing import NamedTuple, Union, Optional, Callable
+import os
+from operator import attrgetter
+from typing import NamedTuple, Union, Optional, Callable, Sequence
 
 import numpy as np
 from numba import jit
 import matplotlib.pyplot as plt
 
-from submm.KIDs.res.utils import cardan, derived_text, calc_qc_qi
+from submm.sample_data.abs_paths import abs_path_output_dir_default
+from submm.KIDs.res.utils import cardan, derived_text, filename_text, write_text, calc_qc_qi, line_format
 
 
 # at import time, create a dictionary of all the fitting functions in this module
@@ -241,6 +244,7 @@ def nonlinear_iq_for_fitter(f_hz, fr, Qr, amp, phi, a, i0, q0, tau, f0):
     z_data: Optional[np.ndarray] = None
 """
 
+
 derived_params = {'qi', 'qc'}
 field_to_first_format_int = {'fr': 5, 'qr': 7, 'amp': 1, 'phi': 2, 'a': 1, 'b0': 2, 'b1': 2, 'i0': 1, 'q0': 1, 'tau': 6,
                              'f0': 5, 'qi': 7, 'qc': 7}
@@ -321,6 +325,12 @@ class Res(NamedTuple):
         for field in self._fields:
             yield field
 
+    def header(self):
+        header_str = ''
+        for field in self.header_items():
+            header_str += f'{field},'
+        return header_str[:-1]
+
     def input_items(self):
         for field in self.header_items():
             if field.lower() not in derived_params:
@@ -357,7 +367,7 @@ class Res(NamedTuple):
             found_fields = {}
             found_derived = {}
             for field in fields:
-                if field in derived_params:
+                if field.lower() in derived_params:
                     found_derived[field.lower()] = self.__getattribute__(field)
                 else:
                     found_fields[field.lower()] = self.__getattribute__(field)
@@ -380,7 +390,7 @@ class Res(NamedTuple):
                 fr_mhz = '(Frequency not found)'
             else:
                 fr_mhz = f'{self.fr / 1e6:.2f} MHz'
-            print(f'Resonator at {fr_mhz} MHz" % (vals[0] * 1.0e-6)')
+            print(f'Resonator at {fr_mhz} MHz')
             super_header = f'{label_spaces}|{var_fit_left_space}{var_fit_label}{var_fit_right_space}'
             sub_header = f'{label_spaces}|'
             first_field = True
@@ -443,6 +453,32 @@ class Fit(NamedTuple):
     z_data: Optional[np.ndarray] = None
     red_chi_sqr: Optional[float] = None
 
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            # this could be a field of the result
+            if item in self._fields:
+                return getattr(self, item)
+            elif item in self.result._fields:
+                return getattr(self.result, item)
+            elif item.lower() == 'fit':
+                return self.result, self.pcov
+            elif item.lower() == 'fit_result':
+                return self.z_fit
+            elif item.lower() == 'x0_result':
+                return self.z_guess()
+            elif item.lower() == 'x0':
+                return self.guess
+            elif item.lower() == 'z':
+                return self.z_data
+            else:
+                raise KeyError(f'Unknown string key: {item}')
+        elif isinstance(item, int):
+            return self._asdict()[self._fields[item]]
+        elif isinstance(item, slice):
+            return tuple([self._asdict()[field] for field in self._fields[item]])
+        else:
+            raise TypeError(f"ResFit indices must be str, int, or slice, not {type(item)}")
+
     """ Base class for a resonator fit results """
     def z_fit(self) -> np.ndarray:
         """Return the complex impedance of the fit."""
@@ -477,7 +513,104 @@ class Fit(NamedTuple):
             self.result.console(label='Fit', print_header=False, fields=fields)
 
 
+class ResSet:
+    def __init__(self, path: str = None, res_results: Sequence[Res] = None, res_fits: Sequence[Fit] = None,
+                 verbose: bool = True):
+        self.verbose = verbose
+        if path is None:
+            # use the default output directory, make it if it doesn't exist
+            if not os.path.exists(abs_path_output_dir_default):
+                os.mkdir(abs_path_output_dir_default)
+            res_set_dir = os.path.join(abs_path_output_dir_default, 'res_set')
+            if not os.path.exists(res_set_dir):
+                os.mkdir(res_set_dir)
+            # use a default file name buy do not overwrite an existing file
+            count = 0
+            path_test = os.path.join(res_set_dir, f'results{count:02}.csv')
+            # loop until we find a file name that doesn't exist
+            while os.path.exists(path_test):
+                count += 1
+                path_test = os.path.join(res_set_dir, f'results{count:02}.csv')
+            self.res_set_dir = res_set_dir
+            self.path = path_test
+        else:
+            # use the user specified path
+            self.path = path
+            self.res_set_dir = os.path.dirname(path)
+            # make a new directory if it doesn't exist
+            if not os.path.exists(self.res_set_dir):
+                os.mkdir(self.res_set_dir)
 
+        # set in self.read(), self.add_results(), self.add_res_fits methods
+        self.results = set()
+        # set only in the self.add_res_fits method
+        self.fit_results = {}
+
+        if res_results is None and res_fits is None:
+            if self.verbose:
+                print(f'No fits on initialization, triggering a read in of the the results.')
+            self.read()
+        else:
+            if res_results is not None:
+                self.add_results(res_results)
+            if res_fits is not None:
+                self.add_res_fits(res_fits)
+
+    def __iter__(self):
+        # iterate over the results in order of resonator frequency
+        for result in sorted(self.results, key=attrgetter('fr')):
+            yield result
+
+    def read(self, res_tuple=NonlinearIQRes):
+        if self.verbose:
+            print(f'Reading results from file at: {filename_text(self.path)}')
+        header_keys = []
+        with open(self.path, 'r') as f:
+            for line in f.readlines():
+                if not header_keys:
+                    # read the header, see what can be mapped into the NamedTuple specified with res_tuple
+                    header_keys_raw = line.strip().split(',')
+                    one_key_found = False
+                    for header_key in header_keys_raw:
+                        if header_key in res_tuple._fields:
+                            header_keys.append(header_key)
+                            one_key_found = True
+                        else:
+                            header_keys.append(None)
+                    if not one_key_found:
+                        raise ValueError(f'No valid header keys found in {self.path} ' +
+                                         f'for the header keys {header_keys_raw} and tuple fields: {res_tuple._fields}')
+                else:
+                    # read the data after a successful header read
+                    row_dict = {header_key: value_formatted for header_key, value_formatted
+                                in zip(header_keys, line_format(line)) if header_key is not None}
+                    self.results.add(res_tuple(**row_dict))
+
+    def write(self):
+        with open(self.path, 'w') as f:
+            first_row = True
+            for result in self:
+                # write the header
+                if first_row:
+                    f.write(result.header() + '\n')
+                    first_row = False
+                # write the results
+                f.write(str(result) + '\n')
+        if self.verbose:
+            print(f'{write_text("Results Written")} to file at: {filename_text(self.path)}')
+
+    def add_results(self, res_results: Sequence[Res]):
+        self.results.update(res_results)
+        if self.verbose:
+            print(f'Added {len(res_results)} results.')
+
+    def add_res_fits(self, res_fits: Sequence[Fit]):
+        for res_fit in res_fits:
+            result = res_fit.result
+            self.results.add(result)
+            self.fit_results[result] = res_fit
+        if self.verbose:
+            print(f'Added {len(res_fits)} results and fit_results.')
 
 
 

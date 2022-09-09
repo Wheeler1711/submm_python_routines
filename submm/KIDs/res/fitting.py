@@ -26,10 +26,10 @@ import scipy.optimize as optimization
 import matplotlib.pyplot as plt
 
 from submm.KIDs.res.fit_funcs import linear_mag, nonlinear_mag, nonlinear_iq, nonlinear_iq_for_fitter, \
-    NonlinearIQRes, Fit
+    NonlinearIQRes, Fit, ResSet
 from submm.KIDs.res.utils import print_fit_string_nonlinear_iq, print_fit_string_nonlinear_mag, \
     print_fit_string_linear_mag, amplitude_normalization, guess_x0_iq_nonlinear, guess_x0_mag_nonlinear, \
-    guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep
+    guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep, calc_qc_qi
 
 
 def brute_force_linear_mag_fit(f_hz, z, ranges, n_grid_points, error=None, plot=False):
@@ -211,7 +211,7 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
             print("default initial guess used")
         # fr_guess = x[np.argmin(np.abs(z))]
         # x0 = [fr_guess,10000.,0.5,0,0,np.mean(np.real(z)),np.mean(np.imag(z)),3*10**-7,fr_guess]
-        x0 = guess_x0_iq_nonlinear(f_hz, z, verbose=verbose)
+        x0 = guess_x0_iq_nonlinear(f_hz, z)
         # print(x0)
     if fr_guess is not None:
         x0[0] = fr_guess
@@ -224,7 +224,10 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
     if amp_norm:
         z = amplitude_normalization(f_hz, z)
     z_stacked = np.hstack((np.real(z), np.imag(z)))
-
+    # map the initial guess to the standard data record
+    guess = NonlinearIQRes(*x0)
+    if verbose:
+        guess.console(label='Guess', print_header=True)
     if use_given_tau:
         del bounds[0][7]
         del bounds[1][7]
@@ -240,30 +243,15 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
         cov[8, 0:7] = pcov[7, 0:7]
         cov[0:7, 8] = pcov[0:7, 7]
         pcov = cov
-        # print(fit[1])
-        x0 = np.insert(x0, 7, tau)
-
     else:
         popt, pcov = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
-
-    # mapp the initial guess to the standard data record
-    guess = NonlinearIQRes(*x0)
-
     # human-readable results
     fr, Qr, amp, phi, a, i0, q0, tau, f0 = popt
-    Qc = Qr / amp
-    Qi = 1.0 / ((1.0 / Qr) - (1.0 / Qc))
+    Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
     result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0, Qc=Qc, Qi=Qi)
-
-    # fit_result = nonlinear_iq(f_hz=f_hz, Qr=Qr, fr=fr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0)
-    # x0_result = nonlinear_iq(f_hz, x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6], x0[7], x0[8])
-
     if verbose:
-        print_fit_string_nonlinear_iq(popt, print_header=False, label="Fit  ")
-
-    # make a dictionary to return
-    # fit_dict = {'fit': (popt, pcov), 'fit_result': fit_result, 'x0_result': x0_result, 'x0': x0, 'z': z,
-    #             'fr': fr, 'Qr': Qr, 'amp': amp, 'phi': phi, 'a': a, 'i0': i0, 'q0': q0, 'tau': tau, 'Qi': Qi, 'Qc': Qc}
+        guess.console(label='Fit', print_header=False)
+    # make a packaged result (NamedTuple) to return
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
               guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
@@ -810,17 +798,30 @@ if __name__ == '__main__':
     s21_complex_res1 = s21_complex[21050: 21250]
     s21_mag_res1 = s21_mag[21050: 21250]
 
-    # Caleb's testing area
+    # # Caleb's testing area
+    # Test the Res() instance for the fit result directly
     res_fit = fit_nonlinear_iq(f_hz=freq_hz_res1, z=s21_complex_res1)
-    print(f'Res fit fr from key = {res_fit.result["fr"]}')
-    print(f'from index = {res_fit.result[0]}')
-    print(f'from slice = {res_fit.result[0:2]}')
-    print(f'from attribute = {res_fit.result.fr}')
+    print(f'Res fit res_fit.result["fr"] from key = {res_fit.result["fr"]}')
+    print(f'res_fit.result[0], from index = {res_fit.result[0]}')
+    print(f'res_fit.result[0:2], from slice = {res_fit.result[0:2]}')
+    print(f'res_fit.result.fr, from attribute = {res_fit.result.fr}\n')
+
+    # test the Fit() instance for to get Res parameters
+    print(f'Res fit fr (res_fit["fr"]) from key = {res_fit.result["fr"]}')
+    print(f'Res fit Qc (res_fit["Qc"]) from key = {res_fit.result["Qc"]}\n')
+
+    # test the console (print data to screen) output
     res_fit.console()
 
-    # test hash ability
+    # test hash ability of the result
     test_set = {res_fit.result}
 
     # test the plot
     # res_fit.plot()
 
+    # test write, read, and iteration class
+    res_set = ResSet(res_fits=[res_fit])
+    res_set.write()
+    res_set_read = ResSet(path=res_set.path)
+    for result in res_set_read:
+        result.console(label='Read', fields=['fr', 'tau', 'Qc'])

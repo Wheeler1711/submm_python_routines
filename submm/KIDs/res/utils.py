@@ -568,6 +568,73 @@ def calc_qc_qi(qr: float, amp: float):
     return qc, qi
 
 
+default_null_strings = {'', 'None', 'none', 'null', 'NaN', 'nan'}
+default_true_strings = {'Y', 'y', 'True', 'true'}
+default_false_strings = {'N', 'n', 'False', 'false'}
+
+
+def make_int(test_num_str):
+    """
+    Parameters
+    ----------
+    test_num_str:
+        str, required. A string to test to see it can be cast into and integer.
+    Returns int, if the string can be cast into and integer, otherwise it returns the original string.
+    -------
+    """
+    try:
+        return int(test_num_str)
+    except ValueError:
+        return test_num_str
+
+
+def make_num(test_datum):
+
+    # tests to se if this string is an int
+    test_datum_maybe_int = make_int(test_num_str=test_datum)
+    if isinstance(test_datum_maybe_int, int):
+        return test_datum_maybe_int
+    else:
+        # either a float or a sting.
+        try:
+            return float(test_datum_maybe_int)
+        except ValueError:
+            return test_datum_maybe_int
+
+
+def format_datum(test_datum, null_strs=None, true_strs=None, false_strs=None):
+    # strip off spaces and newline charters
+    test_datum_stripped = test_datum.strip()
+    # Null handling
+    if null_strs is None:
+        null_strs = default_null_strings
+    if not isinstance(null_strs, set):
+        null_strs = set(null_strs)
+    # True handling
+    if true_strs is None:
+        true_strs = default_true_strings
+    if not isinstance(true_strs, set):
+        true_strs = set(true_strs)
+    # False handling
+    if false_strs is None:
+        false_strs = default_false_strings
+    if not isinstance(false_strs, set):
+        false_strs = set(false_strs)
+    # see if this an expected null, true, or false value, else move on to number testing
+    if test_datum_stripped in null_strs:
+        return None
+    elif test_datum_stripped in true_strs:
+        return True
+    elif test_datum_stripped in false_strs:
+        return False
+    else:
+        return make_num(test_datum=test_datum_stripped)
+
+
+def line_format(raw_line, delimiter=','):
+    return [format_datum(datum_raw) for datum_raw in raw_line.split(delimiter)]
+
+
 # https://stackabuse.com/how-to-print-colored-text-in-python/
 style_to_number = {'normal': 0, 'bold': 1, 'dark': 2, 'light': 3, 'underline': 4, 'blink': 5}
 text_color_to_number = {'black': 30, 'red': 31, 'green': 32, 'yellow': 33, 'blue': 34, 'purple': 35,
@@ -591,3 +658,11 @@ def colorize_text(text: str, style_text: str = 'normal', color_text: str = 'whit
 
 def derived_text(text):
     return colorize_text(text, style_text='bold', color_text='black', color_background='green')
+
+
+def filename_text(text):
+    return colorize_text(text, style_text='bold', color_text='white', color_background='black')
+
+
+def write_text(text):
+    return colorize_text(text, style_text='bold', color_text='black', color_background='purple')
