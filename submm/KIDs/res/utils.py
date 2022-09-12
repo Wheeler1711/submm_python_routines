@@ -48,109 +48,6 @@ def cardan(a, b, c, d):
     # return np.asarray((u+v-z0, u*J+v*Jc-z0,u*Jc+v*J-z0))
 
 
-def print_fit_string_nonlinear_iq(vals, print_header=True, label="Guess"):
-    Qc_guess = vals[1] / vals[2]
-    Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
-    if print_header:
-        print("Resonator at %.2f MHz" % (vals[0] / 10 ** 6))
-        print(f'     |                             Variables fit                           ' +
-              '\033[1;30;42m|Derived variables|\033[0;0m')
-        guess_header_str = '     |'
-        guess_header_str += ' fr (MHz)|'
-        guess_header_str += '   Qr   |'
-        guess_header_str += ' amp |'
-        guess_header_str += ' phi  |'
-        guess_header_str += ' a   |'
-        guess_header_str += '   i0     |'
-        guess_header_str += '   q0     |'
-        guess_header_str += ' tau (ns)\033[1;30;42m|'
-        guess_header_str += '   Qi   |'
-        guess_header_str += '   Qc   |\033[0;0m'
-        print(guess_header_str)
-
-    guess_str = label
-    guess_str += f'| {"%3.4f" % (vals[0] / 10 ** 6)}'
-    guess_str += f'| {"%7.0f" % (vals[1])}'
-    guess_str += f'| {"%0.2f" % (vals[2])}'
-    guess_str += f'| {"% 1.2f" % (vals[3])}'
-    guess_str += f'| {"%0.2f" % (vals[4])}'
-    guess_str += f'| {"% .2E" % (vals[5])}'
-    guess_str += f'| {"% .2E" % (vals[6])}'
-    guess_str += f'| {"%6.2f" % (vals[7] * 10 ** 9)}  '
-    guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
-    guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
-
-    print(guess_str)
-
-
-def print_fit_string_nonlinear_mag(vals, print_header=True, label="Guess"):
-    Qc_guess = vals[1] / vals[2]
-    Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
-    if print_header:
-        print("Resonator at %.2f MHz" % (vals[0] / 10 ** 6))
-        print(f'     |                       Variables fit                       ' +
-              '\033[1;30;42m|Derived variables|\033[0;0m')
-    guess_header_str = '     |'
-    guess_header_str += ' fr (MHz)|'
-    guess_header_str += '   Qr   |'
-    guess_header_str += ' amp |'
-    guess_header_str += ' phi  |'
-    guess_header_str += ' a   |'
-    guess_header_str += '   b0     |'
-    guess_header_str += '   b1     \033[1;30;42m|'
-    guess_header_str += '   Qi   |'
-    guess_header_str += '   Qc   |\033[0;0m'
-
-    guess_str = label
-    guess_str += f'| {"%3.4f" % (vals[0] / 10 ** 6)}'
-    guess_str += f'| {"%7.0f" % (vals[1])}'
-    guess_str += f'| {"%0.2f" % (vals[2])}'
-    guess_str += f'| {"% 1.2f" % (vals[3])}'
-    guess_str += f'| {"%0.2f" % (vals[4])}'
-    guess_str += f'| {"% .2E" % (vals[5])}'
-    guess_str += f'| {"% .2E" % (vals[6])}'
-    guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
-    guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
-
-    if print_header:
-        print(guess_header_str)
-    print(guess_str)
-
-
-def print_fit_string_linear_mag(vals, print_header=True, label="Guess"):
-    Qc_guess = vals[1] / vals[2]
-    Qi_guess = 1.0 / ((1.0 / vals[1]) - (1.0 / Qc_guess))
-    if print_header:
-        print("Resonator at %.2f MHz" % (vals[0] / 10 ** 6))
-        print(f'     |                       Variables fit                       ' +
-              '\033[1;30;42m|Derived variables|\033[0;0m')
-    guess_header_str = '     |'
-    guess_header_str += ' fr (MHz)|'
-    guess_header_str += '   Qr   |'
-    guess_header_str += ' amp |'
-    guess_header_str += ' phi  |'
-    guess_header_str += ' a   |'
-    guess_header_str += '   b0     |'
-    guess_header_str += '   b1     \033[1;30;42m|'
-    guess_header_str += '   Qi   |'
-    guess_header_str += '   Qc   |\033[0;0m'
-
-    guess_str = label
-    guess_str += f'| {"%3.4f" % (vals[0] / 10 ** 6)}'
-    guess_str += f'| {"%7.0f" % (vals[1])}'
-    guess_str += f'| {"%0.2f" % (vals[2])}'
-    guess_str += f'| {"% 1.2f" % (vals[3])}'
-    guess_str += f'| --- '
-    guess_str += f'| {"% .2E" % (vals[4])}'
-    guess_str += f'| -------- '
-    guess_str += f'\033[1;30;42m| {"%7.0f" % (Qi_guess)}'
-    guess_str += f'| {"%7.0f" % (Qc_guess)}|\033[0;0m'
-
-    if print_header:
-        print(guess_header_str)
-    print(guess_str)
-
-
 def amplitude_normalization(x, z):
     """
     # normalize the amplitude varation requires a gain scan
@@ -489,8 +386,9 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
 
     # guess amp
     d = np.max(20 * np.log10(np.abs(gain_z))) - np.min(20 * np.log10(np.abs(fine_z)))
-    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
-    # polynomial fit to amp verus depth calculated emperically
+    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + \
+                0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
+    # polynomial fit to amp versus depth calculated empirically
 
     # guess impedance rotation phi
     # fit a circle to the iq loop

@@ -1,20 +1,13 @@
+import os
+import platform
+from typing import NamedTuple
+
 import numpy as np
 import matplotlib.pyplot as plt
-import os
 from scipy import signal, fftpack
-import platform
-try:
-    from submm_python_routines.KIDs import resonance_fitting as rf
-except ModuleNotFoundError:
-    from submm.KIDs.res import resonance_fitting as rf
 from matplotlib.backends.backend_pdf import PdfPages
-from typing import NamedTuple
-try:
-    from PyQt5.QtCore import pyqtRemoveInputHook
-    pyqtRemoveInputHook() #input() breaks during interactive plot on linux without this if using Qt backend
-except:
-    pass
 
+from submm.KIDs.res.fitting import fit_nonlinear_iq, fit_nonlinear_mag
 
 """
 Standalone version of kidPy's find_KIDs_interactive
@@ -33,7 +26,7 @@ get the frequencies out from f[ip.kid_idx]
 """
 
 
-def open_stored_sweep(savepath,load_std = False):
+def open_stored_sweep(savepath, load_std=False):
     """Opens sweep data
        inputs:
            char savepath: The absolute path where sweep data is saved
@@ -53,9 +46,9 @@ def open_stored_sweep(savepath,load_std = False):
             stdQ_list.append(os.path.join(savepath, filename))
     Is = np.array([np.load(filename) for filename in I_list])
     Qs = np.array([np.load(filename) for filename in Q_list])
-    if len(stdI_list) >0:
-            std_Is = np.array([np.load(filename) for filename in stdI_list])
-            std_Qs = np.array([np.load(filename) for filename in stdQ_list])
+    if len(stdI_list) > 0:
+        std_Is = np.array([np.load(filename) for filename in stdI_list])
+        std_Qs = np.array([np.load(filename) for filename in stdQ_list])
     if load_std:
         return Is, Qs, std_Is, std_Qs
     else:
@@ -80,12 +73,12 @@ class InteractivePlot(object):
     frequencies should be supplied in Hz
     """
 
-    def __init__(self, chan_freqs, data, kid_idx, flags = None, f_old=None, data_old=None, kid_idx_old=None):
+    def __init__(self, chan_freqs, data, kid_idx, flags=None, f_old=None, data_old=None, kid_idx_old=None):
         plt.rcParams['keymap.forward'] = ['v']
         plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
-        plt.rcParams['keymap.quit'] = ['k'] #remove q for quit make it k for kill
-        plt.rcParams['keymap.home'] = ['h'] #remove r for home only make it h
-        plt.rcParams['keymap.fullscreen'] = ['shift+='] #remove ('f', 'ctrl+f'), make +
+        plt.rcParams['keymap.quit'] = ['k']  # remove q for quit make it k for kill
+        plt.rcParams['keymap.home'] = ['h']  # remove r for home only make it h
+        plt.rcParams['keymap.fullscreen'] = ['shift+=']  # remove ('f', 'ctrl+f'), make +
         self.chan_freqs = chan_freqs
         self.data = data
         self.f_old = f_old
@@ -104,21 +97,24 @@ class InteractivePlot(object):
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
-        self.l1, = self.ax.plot(self.chan_freqs/10**9, self.data)
+        self.l1, = self.ax.plot(self.chan_freqs / 10 ** 9, self.data)
         self.flagged_indexes = self.get_flagged_indexes()
-        self.fp1, = self.ax.plot(self.chan_freqs[self.flagged_indexes]/10**9, self.data[self.flagged_indexes], "yo", markersize=9)
-        self.p1, = self.ax.plot(self.chan_freqs[self.kid_idx]/10**9, self.data[self.kid_idx], "r*", markersize=8)
+        self.fp1, = self.ax.plot(self.chan_freqs[self.flagged_indexes] / 10 ** 9, self.data[self.flagged_indexes], "yo",
+                                 markersize=9)
+        self.p1, = self.ax.plot(self.chan_freqs[self.kid_idx] / 10 ** 9, self.data[self.kid_idx], "r*", markersize=8)
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
-            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i]/10**9, self.data[self.kid_idx][i], str(i))
+            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
 
         if isinstance(self.f_old, np.ndarray):
-            self.l2, = self.ax.plot(self.f_old/10**9, self.data_old, color="C0", alpha=0.25)
-            self.p2, = self.ax.plot(self.f_old[self.kid_idx_old]/10**9, self.data_old[self.kid_idx_old], "r*", markersize=8,
+            self.l2, = self.ax.plot(self.f_old / 10 ** 9, self.data_old, color="C0", alpha=0.25)
+            self.p2, = self.ax.plot(self.f_old[self.kid_idx_old] / 10 ** 9, self.data_old[self.kid_idx_old], "r*",
+                                    markersize=8,
                                     alpha=0.1)
             self.text_dict_old = {}
             for i in range(0, len(self.kid_idx_old)):
-                self.text_dict_old[i] = plt.text(self.f_old[self.kid_idx_old][i]/10**9, self.data_old[self.kid_idx_old][i],
+                self.text_dict_old[i] = plt.text(self.f_old[self.kid_idx_old][i] / 10 ** 9,
+                                                 self.data_old[self.kid_idx_old][i],
                                                  str(i), color='Grey')
 
         self.shift_is_held = False
@@ -161,7 +157,7 @@ class InteractivePlot(object):
 
         if event.key == 'f':
             self.f_is_held = True
-                
+
         if event.key == 'right':  # pan right
             xlim_left, xlim_right = self.ax.get_xlim()
             xlim_size = xlim_right - xlim_left
@@ -252,24 +248,24 @@ class InteractivePlot(object):
         if event.button == 3:
             if self.shift_is_held:  # add point
                 print("adding point", event.xdata)
-                self.kid_idx.append(np.argmin(np.abs(self.chan_freqs - event.xdata*10**9)))
+                self.kid_idx.append(np.argmin(np.abs(self.chan_freqs - event.xdata * 10 ** 9)))
                 self.flags.append([])
-                zipped_lists = zip(self.kid_idx,self.flags)
+                zipped_lists = zip(self.kid_idx, self.flags)
                 sorted_pairs = sorted(zipped_lists)
                 tuples = zip(*sorted_pairs)
                 self.kid_idx, self.flags = [list(tuple) for tuple in tuples]
-                #self.kid_idx.sort()
+                # self.kid_idx.sort()
                 self.refresh_plot()
             elif self.control_is_held:  # delete point
                 print("removing point", event.xdata)
-                delete_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata*10**9))
+                delete_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata * 10 ** 9))
                 self.kid_idx.pop(delete_index)
                 self.flags.pop(delete_index)
                 self.refresh_plot()
-            elif self.f_is_held: #flag resonator
+            elif self.f_is_held:  # flag resonator
                 print("flagging point", event.xdata)
-                flag_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata*10**9))
-                print("current flags: ",self.flags[flag_index])
+                flag_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata * 10 ** 9))
+                print("current flags: ", self.flags[flag_index])
                 flag = input("Enter flag string: ").lower()
                 if flag == "c":
                     flag = "collision"
@@ -278,20 +274,20 @@ class InteractivePlot(object):
                 else:
                     pass
                 self.flags[flag_index].append(flag)
-                print("Flags are now: ",self.flags[flag_index])
+                print("Flags are now: ", self.flags[flag_index])
                 self.refresh_plot()
             else:
                 print("please hold either the shift or control key while right clicking to add or remove points")
 
     def refresh_plot(self):
         self.flagged_indexes = self.get_flagged_indexes()
-        self.fp1.set_data(self.chan_freqs[self.flagged_indexes]/10**9, self.data[self.flagged_indexes])
-        self.p1.set_data(self.chan_freqs[self.kid_idx]/10**9, self.data[self.kid_idx])
+        self.fp1.set_data(self.chan_freqs[self.flagged_indexes] / 10 ** 9, self.data[self.flagged_indexes])
+        self.p1.set_data(self.chan_freqs[self.kid_idx] / 10 ** 9, self.data[self.kid_idx])
         for i in range(0, self.kid_idx_len):
             self.text_dict[i].set_text("")  # clear all of the texts
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
-            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i]/10**9, self.data[self.kid_idx][i], str(i))
+            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
         self.kid_idx_len = len(self.kid_idx)
         plt.draw()
 
@@ -303,8 +299,8 @@ class InteractivePlot(object):
             else:
                 flags_empty = False
         if not flags_empty:
-            zipped = zip(self.kid_idx,self.flags)
-            pairs_with_flags = [pair for pair in zipped if len(pair[1])>0]
+            zipped = zip(self.kid_idx, self.flags)
+            pairs_with_flags = [pair for pair in zipped if len(pair[1]) > 0]
             tuples = zip(*pairs_with_flags)
             flagged_indexes, just_flags = [list(tuple) for tuple in tuples]
             return flagged_indexes
@@ -319,12 +315,11 @@ class InteractiveThresholdPlot(object):
         plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
         self.peak_threshold_dB = peak_threshold_dB
         self.spacing_threshold_Hz = spacing_threshold_Hz
-        
 
         self.window_pad_factor = window_pad_factor
         self.fitter_pad_factor = fitter_pad_factor
         self.f_Hz = f_Hz
-        self.spacing_threshold_Q = np.mean(self.f_Hz)/self.spacing_threshold_Hz
+        self.spacing_threshold_Q = np.mean(self.f_Hz) / self.spacing_threshold_Hz
         self.f_GHz = f_Hz * 1.0e-9
         self.s21_mag = s21_mag
 
@@ -345,14 +340,16 @@ class InteractiveThresholdPlot(object):
             print("Press up or down to change the threshold by 0.1 dB or press t to enter a custom threshold value.")
             print("Press left or right to change the spacing threshold or y to enter a custom threshold value.")
             print("Close all plots when finished")
-            self.ax.set_xlabel(F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
+            self.ax.set_xlabel(
+                F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
             plt.ylabel('Power (dB)')
-            self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
+            self.ax.set_title(
+                F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
             plt.show(block=True)
 
     def on_key_press(self, event):
         # print event.key
-        # has to be shift and ctrl because remote viewers only forward
+        # has to be shifted and ctrl because remote viewers only forward
         # certain key combinations
         # print event.key == 'd'
         if event.key == 'up':
@@ -362,12 +359,12 @@ class InteractiveThresholdPlot(object):
             self.peak_threshold_dB = self.peak_threshold_dB - 0.1
             self.refresh_plot()
         if event.key == 'left':
-            self.spacing_threshold_Hz = self.spacing_threshold_Hz/1.4
-            self.spacing_threshold_Q = np.mean(self.f_Hz)/self.spacing_threshold_Hz
+            self.spacing_threshold_Hz = self.spacing_threshold_Hz / 1.4
+            self.spacing_threshold_Q = np.mean(self.f_Hz) / self.spacing_threshold_Hz
             self.refresh_plot()
         if event.key == 'right':
-            self.spacing_threshold_Hz = self.spacing_threshold_Hz*1.4
-            self.spacing_threshold_Q = np.mean(self.f_Hz)/self.spacing_threshold_Hz
+            self.spacing_threshold_Hz = self.spacing_threshold_Hz * 1.4
+            self.spacing_threshold_Q = np.mean(self.f_Hz) / self.spacing_threshold_Hz
             self.refresh_plot()
         if event.key == 't':
             self.peak_threshold_dB = np.float(input("What threshold would you like in dB? "))
@@ -380,8 +377,10 @@ class InteractiveThresholdPlot(object):
         self.calc_regions()
         self.p1.set_data(self.f_GHz[self.ilo], self.s21_mag[self.ilo])
         self.p2.set_data(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima])
-        self.ax.set_title(F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
-        self.ax.set_xlabel(F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
+        self.ax.set_title(
+            F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
+        self.ax.set_xlabel(
+            F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
         plt.draw()
 
     def calc_regions(self):
@@ -607,9 +606,8 @@ def filtered_differential(data, df, filtertype=None, do_deriv=True):
     return out
 
 
-
 class InteractiveFilterPlot(object):
-    def __init__(self, f_Hz, s21_mag,smoothing_scale_Hz=5.0e6):
+    def __init__(self, f_Hz, s21_mag, smoothing_scale_Hz=5.0e6):
         self.smoothing_scale_Hz = smoothing_scale_Hz
         self.f_Hz = f_Hz
         self.f_GHz = f_Hz * 1.0e-9
@@ -621,24 +619,24 @@ class InteractiveFilterPlot(object):
 
         # first plot data and filter function before removing filter function
         self.filtermags = lowpass_cosine(y=self.s21_mag,
-                                    tau=self.f_Hz[1] - self.f_Hz[0],
-                                    f_3db=1. / self.smoothing_scale_Hz,
-                                    width=0.1 * (1.0 / self.smoothing_scale_Hz),
-                                    padd_data=True)
+                                         tau=self.f_Hz[1] - self.f_Hz[0],
+                                         f_3db=1. / self.smoothing_scale_Hz,
+                                         width=0.1 * (1.0 / self.smoothing_scale_Hz),
+                                         padd_data=True)
         # the cosine filter drops the last point is the array has an pdd number of points
         self.len_filtered = len(self.filtermags)
         self.s21_mag = self.s21_mag[:self.len_filtered]
         self.f_Hz = self.f_Hz[:self.len_filtered]
         self.f_GHz = self.f_Hz * 1.0e-9
         # calculations for peak spacing (rejection based on threshold)
-        self.highpass_mags = self.s21_mag - self.filtermags        
+        self.highpass_mags = self.s21_mag - self.filtermags
         self.l1, = self.ax.plot(self.f_GHz, self.s21_mag, label='#nofilter')
         self.l2, = self.ax.plot(self.f_GHz, self.filtermags, label='#filter')
         self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
-        plt.legend(loc = 1)
+        plt.legend(loc=1)
 
-
-        print("Press left or right to change the smothing scale by 10% or press t to enter a custom smoothing scale value.")
+        print(
+            "Press left or right to change the smothing scale by 10% or press t to enter a custom smoothing scale value.")
         print("Close all plots when finished")
         plt.xlabel('Frequency (GHz)')
         plt.ylabel('Power (dB)')
@@ -650,10 +648,10 @@ class InteractiveFilterPlot(object):
         # certain key combinations
         # print event.key == 'd'
         if event.key == 'left':
-            self.smoothing_scale_Hz = self.smoothing_scale_Hz/1.4
+            self.smoothing_scale_Hz = self.smoothing_scale_Hz / 1.4
             self.refresh_plot()
         if event.key == 'right':
-            self.smoothing_scale_Hz = self.smoothing_scale_Hz*1.4
+            self.smoothing_scale_Hz = self.smoothing_scale_Hz * 1.4
             self.refresh_plot()
         if event.key == 't':
             self.smoothing_scale_Hz = np.float(input("What smoothing scale would you like in Hz? "))
@@ -662,10 +660,10 @@ class InteractiveFilterPlot(object):
     def refresh_plot(self):
         # first plot data and filter function before removing filter function
         self.filtermags = lowpass_cosine(y=self.s21_mag,
-                                    tau=self.f_Hz[1] - self.f_Hz[0],
-                                    f_3db=1. / self.smoothing_scale_Hz,
-                                    width=0.1 * (1.0 / self.smoothing_scale_Hz),
-                                    padd_data=True)
+                                         tau=self.f_Hz[1] - self.f_Hz[0],
+                                         f_3db=1. / self.smoothing_scale_Hz,
+                                         width=0.1 * (1.0 / self.smoothing_scale_Hz),
+                                         padd_data=True)
         # the cosine filter drops the last point is the array has an odd number of points
         self.len_filtered = len(self.filtermags)
         self.s21_mag = self.s21_mag[:self.len_filtered]
@@ -676,7 +674,7 @@ class InteractiveFilterPlot(object):
         self.l1.set_data(self.f_GHz, self.s21_mag)
         self.l2.set_data(self.f_GHz, self.filtermags)
         self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
-    
+
         plt.draw()
 
 
@@ -716,7 +714,7 @@ def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     nyquist = 1.0 / (2.0 * tau)
     freq = np.arange(-nyquist, nyquist, delta)
     # turn this into a positive frequency array
-    #print((len(ffty) // 2))
+    # print((len(ffty) // 2))
     pos_freq = freq[(len(ffty) // 2):]
     # make the transfer function for the first half of the data
     i_f_3db = min(np.where(pos_freq >= f_3db)[0])
@@ -747,9 +745,8 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
     spacing threshold (Hz)
     """
     # first plot data and filter function before removing filter function
-    s21_mag = 20*np.log10(np.abs(z))
-    ipf = InteractiveFilterPlot(f_Hz,s21_mag,smoothing_scale_Hz = smoothing_scale_Hz)
-    
+    s21_mag = 20 * np.log10(np.abs(z))
+    ipf = InteractiveFilterPlot(f_Hz, s21_mag, smoothing_scale_Hz=smoothing_scale_Hz)
 
     # identify peaks using the interactive threshold plot
     ipt = InteractiveThresholdPlot(f_Hz=ipf.f_Hz,
@@ -758,7 +755,7 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
                                    spacing_threshold_Hz=spacing_threshold_Hz)
 
     # Zero everything but the resonators
-    #highpass_mags[highpass_mags > -1.0 * ipt.peak_threshold_dB] = 0
+    # highpass_mags[highpass_mags > -1.0 * ipt.peak_threshold_dB] = 0
 
     # the spacing thresholding was move to be inside the interactive threshold class
     kid_idx = ipt.local_minima
@@ -766,14 +763,14 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
     return ip
 
 
-def slice_vna(f, z, kid_index, q_slice=2000,flag_collided = True):
+def slice_vna(f, z, kid_index, q_slice=2000, flag_collided=True):
     # make f in Hz for fitting
     # Q = f/(delta f) for fitting is determined by the lowest frequencies assumed to be at index 0
     # delta f = f/Q
     df = f[1] - f[0]
     n_iq_points = int(f[0] / q_slice // df)
-    if np.mod(n_iq_points,2) == 0:
-        n_iq_points = n_iq_points+1
+    if np.mod(n_iq_points, 2) == 0:
+        n_iq_points = n_iq_points + 1
     print(n_iq_points)
     res_freq_array = np.zeros((len(kid_index), n_iq_points))
     res_array = np.zeros((len(kid_index), n_iq_points)).astype('complex')
@@ -812,8 +809,8 @@ def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
         if do_plots:
             fig = plt.figure(i, figsize=(12, 6))
         try:
-            fit = rf.fit_nonlinear_iq(res_freq_array[i, :][~np.isnan(res_freq_array[i, :])],
-                                      res_array[i, :][~np.isnan(res_array[i, :])])
+            fit = fit_nonlinear_iq(res_freq_array[i, :][~np.isnan(res_freq_array[i, :])],
+                                   res_array[i, :][~np.isnan(res_array[i, :])])
             fits_dict_iq[i] = fit
             if do_plots:
                 plt.subplot(121)
@@ -823,12 +820,12 @@ def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
                 plt.legend()
         except Exception as inst:
             print("could not fit")
-            print(type(inst))    # the exception instance
-            print(inst.args)     # arguments stored in .args
-            #print(inst)          # __str__ allows args to be printed directly,
+            print(type(inst))  # the exception instance
+            print(inst.args)  # arguments stored in .args
+            # print(inst)          # __str__ allows args to be printed directly,
             fits_dict_iq[i] = 'bad fit'
         try:
-            fit2 = rf.fit_nonlinear_mag(res_freq_array[i, :][~np.isnan(res_freq_array[i, :])],
+            fit2 = fit_nonlinear_mag(res_freq_array[i, :][~np.isnan(res_freq_array[i, :])],
                                         res_array[i, :][~np.isnan(res_array[i, :])])
             fits_dict_mag[i] = fit2
             if do_plots:
@@ -841,9 +838,9 @@ def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):
                 plt.legend()
         except Exception as inst:
             print("could not fit")
-            print(type(inst))    # the exception instance
-            print(inst.args)     # arguments stored in .args
-            #print(inst)          # __str__ allows args to be printed directly,
+            print(type(inst))  # the exception instance
+            print(inst.args)  # arguments stored in .args
+            # print(inst)          # __str__ allows args to be printed directly,
             fits_dict_mag[i] = 'bad fit'
         if do_plots:
             pdf_pages.savefig(fig)
@@ -872,6 +869,6 @@ def retune_vna(f, z, kid_index, n_points_look_around=0, look_low_high=[0, 0], f_
             kid_index[i] = new_index
 
     ip = InteractivePlot(f, 20 * np.log10(np.abs(z)), kid_index, f_old=f_old, data_old=20 * np.log10(np.abs(z_old)),
-                          kid_idx_old=kid_index_old)
+                         kid_idx_old=kid_index_old)
 
     return ip
