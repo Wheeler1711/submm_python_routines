@@ -35,9 +35,9 @@ res_freq_array, res_array = find_kids.slice_vna(freq_hz, s21_complex, ip.kid_idx
 # fit the resonators
 t1 = time.time()
 if not linear:
-    fits = fit_nonlinear_iq_multi(res_freq_array.T, res_array.T, tau=97 * 10 ** -9)
+    res_set = fit_nonlinear_iq_multi(res_freq_array.T, res_array.T, tau=97 * 10 ** -9)
 else:
-    fits = fit_linear_mag_multi(res_freq_array.T, res_array.T)
+    res_set = fit_linear_mag_multi(res_freq_array.T, res_array.T)
 t2 = time.time()
 print("time to fit {:.2f} s".format(t2 - t1))
 

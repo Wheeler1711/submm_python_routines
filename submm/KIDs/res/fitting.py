@@ -490,7 +490,7 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     return fit
 
 
-def fit_nonlinear_iq_multi(f_hz, z, tau=None):
+def fit_nonlinear_iq_multi(f_hz, z, tau: float = None, verbose: bool = True):
     """
     wrapper for handling n resonator fits at once
     f_hz and z should have shape n_iq_points x n_res points
@@ -498,22 +498,7 @@ def fit_nonlinear_iq_multi(f_hz, z, tau=None):
     """
 
     center_freqs = f_hz[f_hz.shape[0] // 2, :]
-
-    all_fits = np.zeros((f_hz.shape[1], 9))
-    all_fit_results = np.zeros((f_hz.shape[0], f_hz.shape[1]), dtype=np.complex_)
-    all_x0_results = np.zeros((f_hz.shape[0], f_hz.shape[1]), dtype=np.complex_)
-    all_masks = np.zeros((f_hz.shape[0], f_hz.shape[1]))
-    all_x0 = np.zeros((f_hz.shape[1], 9))
-    all_fr = np.zeros(f_hz.shape[1])
-    all_Qr = np.zeros(f_hz.shape[1])
-    all_amp = np.zeros(f_hz.shape[1])
-    all_phi = np.zeros(f_hz.shape[1])
-    all_a = np.zeros(f_hz.shape[1])
-    all_i0 = np.zeros(f_hz.shape[1])
-    all_q0 = np.zeros(f_hz.shape[1])
-    all_tau = np.zeros(f_hz.shape[1])
-    all_Qi = np.zeros(f_hz.shape[1])
-    all_Qc = np.zeros(f_hz.shape[1])
+    res_fits = []
     for i in range(0, f_hz.shape[1]):
         f_single = f_hz[:, i]
         z_single = z[:, i]
@@ -536,72 +521,35 @@ def fit_nonlinear_iq_multi(f_hz, z, tau=None):
         use_index = np.where(((f_single > halfway_low) & (f_single < halfway_high)))
         mask = np.zeros(len(f_single))
         mask[use_index] = 1
-        f_single = f_single[use_index]
-        z_single = z_single[use_index]
+        f_single_res = f_single[use_index]
+        z_single_res = z_single[use_index]
 
         try:
-            if tau is not None:
-                fit_dict_iq = fit_nonlinear_iq(f_single, z_single, tau=tau)
-            else:
-                fit_dict_iq = fit_nonlinear_iq(f_single, z_single)
-
-            all_fits[i, :] = fit_dict_iq['fit'][0]
-            # all_fit_results[i,:] = fit_dict_iq['fit_result']
-            # all_x0_results[i,:] = fit_dict_iq['x0_result']
-            all_fit_results[:, i] = nonlinear_iq(f_hz[:, i], all_fits[i, 0], all_fits[i, 1], all_fits[i, 2],
-                                                 all_fits[i, 3], all_fits[i, 4],
-                                                 all_fits[i, 5], all_fits[i, 6], all_fits[i, 7], all_fits[i, 8])
-            all_x0_results[:, i] = nonlinear_iq(f_hz[:, i], fit_dict_iq['x0'][0], fit_dict_iq['x0'][1],
-                                                fit_dict_iq['x0'][2],
-                                                fit_dict_iq['x0'][3], fit_dict_iq['x0'][4], fit_dict_iq['x0'][5],
-                                                fit_dict_iq['x0'][6], fit_dict_iq['x0'][7], fit_dict_iq['x0'][8])
-            all_masks[:, i] = mask
-            all_x0[i, :] = fit_dict_iq['x0']
-            all_fr[i] = fit_dict_iq['fr']
-            all_Qr[i] = fit_dict_iq['Qr']
-            all_amp[i] = fit_dict_iq['amp']
-            all_phi[i] = fit_dict_iq['phi']
-            all_a[i] = fit_dict_iq['a']
-            all_i0[i] = fit_dict_iq['i0']
-            all_q0[i] = fit_dict_iq['q0']
-            all_tau[i] = fit_dict_iq['tau']
-            all_Qc[i] = all_Qr[i] / all_amp[i]
-            all_Qi[i] = 1.0 / ((1.0 / all_Qr[i]) - (1.0 / all_Qc[i]))
-
+            fit_single_res = fit_nonlinear_iq(f_single_res, z_single_res, tau=tau, verbose=verbose)
         except Exception as e:
-            print(e)
-            print("failed to fit")
+            if verbose:
+                print(e)
+                print("failed to fit")
+        else:
+            # overwrite fit data with full data set
+            fit_dict = fit_single_res._asdict()
+            fit_dict['f_data'] = f_single
+            fit_dict['z_data'] = z_single
+            fit_dict['mask'] = mask
+            fit = Fit(**fit_dict)
+            res_fits.append(fit)
+    res_set = ResSet(res_fits=res_fits, verbose=verbose)
+    return res_set
 
-    all_fits_dict = {'fits': all_fits, 'fit_results': all_fit_results, 'x0_results': all_x0_results, 'masks': all_masks,
-                     'x0': all_x0,
-                     'fr': all_fr, 'Qr': all_Qr, 'amp': all_amp, 'phi': all_phi, 'a': all_a, 'i0': all_i0, 'q0': all_q0,
-                     'tau': all_tau, 'Qi': all_Qi, 'Qc': all_Qc}
 
-    return all_fits_dict
-
-
-def fit_linear_mag_multi(f_hz, z):
+def fit_linear_mag_multi(f_hz, z, verbose: bool = True):
     """
     wrapper for handling n resonator fits at once
     f_hz and z should have shape n_iq_points x n_res points
     return same thing as fitter but in arrays for all resonators
     """
-
     center_freqs = f_hz[f_hz.shape[0] // 2, :]
-
-    all_fits = np.zeros((f_hz.shape[1], 5))
-    all_fit_results = np.zeros((f_hz.shape[0], f_hz.shape[1]))
-    all_x0_results = np.zeros((f_hz.shape[0], f_hz.shape[1]))
-    all_masks = np.zeros((f_hz.shape[0], f_hz.shape[1]))
-    all_x0 = np.zeros((f_hz.shape[1], 5))
-    all_fr = np.zeros(f_hz.shape[1])
-    all_Qr = np.zeros(f_hz.shape[1])
-    all_amp = np.zeros(f_hz.shape[1])
-    all_phi = np.zeros(f_hz.shape[1])
-    all_b0 = np.zeros(f_hz.shape[1])
-    all_Qi = np.zeros(f_hz.shape[1])
-    all_Qc = np.zeros(f_hz.shape[1])
-
+    res_fits = []
     for i in range(0, f_hz.shape[1]):
         f_single = f_hz[:, i]
         z_single = z[:, i]
@@ -620,44 +568,28 @@ def fit_linear_mag_multi(f_hz, z):
             halfway_high = (center_freqs[i] + center_freqs[closest_higher_index]) / 2.
         else:
             halfway_high = np.inf
-
         use_index = np.where(((f_single > halfway_low) & (f_single < halfway_high)))
         mask = np.zeros(len(f_single))
         mask[use_index] = 1
-        f_single = f_single[use_index]
-        z_single = z_single[use_index]
-
+        f_single_res = f_single[use_index]
+        z_single_res = z_single[use_index]
         try:
-            fit_dict_iq = fit_linear_mag(f_single, z_single)
-            # ranges = np.asarray(([300*10**6,10,0,-3.14,8000],[500*10**6,20,1,3.14,10000]))
-            # fit_dict_iq = brute_force_linear_mag_fit(f_single,z_single,ranges = ranges,n_grid_points = 10)
-
-            all_fits[i, :] = fit_dict_iq['fit'][0]
-            all_fit_results[:, i] = np.sqrt(linear_mag(f_hz[:, i], all_fits[i, 0], all_fits[i, 1], all_fits[i, 2],
-                                                       all_fits[i, 3], all_fits[i, 4]))
-            all_x0_results[:, i] = np.sqrt(linear_mag(f_hz[:, i], fit_dict_iq['x0'][0], fit_dict_iq['x0'][1],
-                                                      fit_dict_iq['x0'][2], fit_dict_iq['x0'][3], fit_dict_iq['x0'][4]))
-            all_masks[:, i] = mask
-            all_x0[i, :] = fit_dict_iq['x0']
-            all_fr[i] = fit_dict_iq['fr']
-            all_Qr[i] = fit_dict_iq['Qr']
-            all_amp[i] = fit_dict_iq['amp']
-            all_phi[i] = fit_dict_iq['phi']
-            all_b0[i] = fit_dict_iq['b0']
-            all_Qc[i] = all_Qr[i] / all_amp[i]
-            all_Qi[i] = 1.0 / ((1.0 / all_Qr[i]) - (1.0 / all_Qc[i]))
-
+            fit_single_res = fit_linear_mag(f_single_res, z_single_res, verbose=verbose)
         except Exception as e:
-            print("problem")
-            print(e)
-            print("failed to fit")
-
-    all_fits_dict = {'fits': all_fits, 'fit_results': all_fit_results, 'x0_results': all_x0_results, 'masks': all_masks,
-                     'x0': all_x0,
-                     'fr': all_fr, 'Qr': all_Qr, 'amp': all_amp, 'phi': all_phi, 'b0': all_b0, 'Qi': all_Qi,
-                     'Qc': all_Qc}
-
-    return all_fits_dict
+            if verbose:
+                print("problem")
+                print(e)
+                print("failed to fit")
+        else:
+            # overwrite fit data with full data set
+            fit_dict = fit_single_res._asdict()
+            fit_dict['f_data'] = f_single
+            fit_dict['z_data'] = z_single
+            fit_dict['mask'] = mask
+            fit = Fit(**fit_dict)
+            res_fits.append(fit)
+    res_set = ResSet(res_fits=res_fits, verbose=verbose)
+    return res_set
 
 
 if __name__ == '__main__':
@@ -702,8 +634,8 @@ if __name__ == '__main__':
     # res_fit.plot()
 
     # test write, read, and iteration class
-    res_set = ResSet(res_fits=[res_fit])
-    res_set.write()
-    res_set_read = ResSet(path=res_set.path)
+    res_set_test = ResSet(res_fits=[res_fit])
+    res_set_test.write()
+    res_set_read = ResSet(path=res_set_test.path)
     for read_result in res_set_read:
         read_result.console(label='Read', fields=['fr', 'tau', 'Qc'])

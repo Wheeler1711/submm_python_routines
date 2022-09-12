@@ -255,6 +255,7 @@ class Fit(NamedTuple):
     pcov: Optional[np.ndarray] = None
     f_data: Optional[np.ndarray] = None
     z_data: Optional[np.ndarray] = None
+    mask: Optional[np.ndarray] = None
 
     def __getitem__(self, item):
         if isinstance(item, str):
