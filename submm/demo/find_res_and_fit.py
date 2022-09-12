@@ -6,7 +6,8 @@ from scipy.io import loadmat
 
 from submm.KIDs import find_resonances_interactive as find_kids
 from submm.sample_data.abs_paths import abs_path_sample_data
-from submm.KIDs.res import sweep_tools as res_sweep_tools, fitting as res_fit
+from submm.KIDs.res.sweep_tools import InteractivePlot
+from submm.KIDs.res.fitting import fit_nonlinear_iq_multi, fit_linear_mag_multi
 
 linear = False  # if resonators are well below bifurcation fitting can be much faster
 
@@ -34,9 +35,9 @@ res_freq_array, res_array = find_kids.slice_vna(freq_hz, s21_complex, ip.kid_idx
 # fit the resonators
 t1 = time.time()
 if not linear:
-    fits = res_fit.fit_nonlinear_iq_multi(res_freq_array.T, res_array.T, tau=97 * 10 ** -9)
+    fits = fit_nonlinear_iq_multi(res_freq_array.T, res_array.T, tau=97 * 10 ** -9)
 else:
-    fits = res_fit.fit_linear_mag_multi(res_freq_array.T, res_array.T)
+    fits = fit_linear_mag_multi(res_freq_array.T, res_array.T)
 t2 = time.time()
 print("time to fit {:.2f} s".format(t2 - t1))
 
@@ -55,9 +56,9 @@ else:
 multi_sweep_freqs = np.dstack((np.expand_dims(res_freq_array.T, axis=2), np.expand_dims(res_freq_array.T, axis=2)))
 multi_sweep_z = np.dstack((np.expand_dims(res_array.T, axis=2), np.expand_dims(fits['fit_results'], axis=2)))
 
-ip2 = res_sweep_tools.InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fit_data,
-                                      combined_data_names=data_names,
-                                      sweep_labels=['Data', 'Fit'])
+ip2 = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fit_data,
+                      combined_data_names=data_names,
+                      sweep_labels=['Data', 'Fit'])
 
 # below is example of retuning resonators
 
