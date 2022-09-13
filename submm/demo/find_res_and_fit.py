@@ -35,31 +35,54 @@ res_freq_array, res_array = find_kids.slice_vna(freq_hz, s21_complex, ip.kid_idx
 # fit the resonators
 t1 = time.time()
 if not linear:
-    res_set = fit_nonlinear_iq_multi(res_freq_array.T, res_array.T, tau=97 * 10 ** -9)
+    res_set = fit_nonlinear_iq_multi(res_freq_array, res_array, tau=97 * 10 ** -9)
 else:
-    res_set = fit_linear_mag_multi(res_freq_array.T, res_array.T)
+    res_set = fit_linear_mag_multi(res_freq_array, res_array)
 t2 = time.time()
 print("time to fit {:.2f} s".format(t2 - t1))
 
-# stack fit data with Qi and Qc skip second f0
-if not linear:
-    fit_data = np.vstack((fits['fits'][:, :-1].T, fits['Qi'], fits['Qc'])).T
-    fit_data[:, 0] = fit_data[:, 0] / 10 ** 6
-    fit_data[:, 7] = fit_data[:, 7] * 10 ** 9
-    data_names = ["Resonator Frequencies (MHz)", "Qr", "amp", "phi", "a", "i0", "q0", "tau (ns)", "Qi", "Qc"]
-else:
-    fit_data = np.vstack((fits['fits'][:, :].T, fits['Qi'], fits['Qc'])).T
-    fit_data[:, 0] = fit_data[:, 0] / 10 ** 6
-    data_names = ["Resonator Frequencies (MHz)", "Qr", "amp", "phi", "b0", "Qi", "Qc"]
+# if you want to inspect just the first fit to understand the data
+result = next(iter(sorted(res_set.results)))
+# and then for fit_result
+fit_result = res_set.fit_results[result]
+# to see what is in the class
+print("fields in a fit_result")
+print(fit_result._fields)
+
+# plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
+# also for fitted paramters it wants a list fitted names for the legend
+# and a array that is n_res x len(fitted paramters)
+
+# Make the frequency and z arrays first
+fitted_frequencies = np.zeros(res_freq_array.shape)
+fitted_z_values = np.zeros(res_array.shape,dtype = 'complex')
+for i,result in enumerate(sorted(res_set.results)): # set needs to be sorted to match input data
+    fit_result = res_set.fit_results[result]
+    fitted_frequencies[:,i] = fit_result.f_data # input frequencies nominally the same as res_freq_array
+    fitted_z_values[:,i] = fit_result.z_fit()
+    
+# now get the fitted values
+# first get names of fitted values
+data_names = []
+result = next(iter(sorted(res_set.results))) # grab first fit for inspection
+for field in result._fields:
+    if getattr(result, field) != None:
+        data_names.append(field)
+
+fitted_parameters = np.zeros((len(res_set.results),len(data_names)))
+for i, result in enumerate(sorted(res_set.results)): # don't forget to sort
+    for j, field in enumerate(data_names): # this gets rid of the the None
+        fitted_parameters[i,j] = getattr(result,field)
+        
 
 # stack the data with fit data
-multi_sweep_freqs = np.dstack((np.expand_dims(res_freq_array.T, axis=2), np.expand_dims(res_freq_array.T, axis=2)))
-multi_sweep_z = np.dstack((np.expand_dims(res_array.T, axis=2), np.expand_dims(fits['fit_results'], axis=2)))
+multi_sweep_freqs = np.dstack((np.expand_dims(res_freq_array, axis=2), np.expand_dims(fitted_frequencies, axis=2)))
+multi_sweep_z = np.dstack((np.expand_dims(res_array, axis=2), np.expand_dims(fitted_z_values, axis=2)))
 
-ip2 = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fit_data,
+ip2 = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
                       combined_data_names=data_names,
                       sweep_labels=['Data', 'Fit'])
 
 # below is example of retuning resonators
 
-# ip2 = res_sweep_tools.InteractivePlot(res_freq_array.T,res_array.T,retune = True,find_min = False)
+#ip2 = InteractivePlot(res_freq_array,res_array,retune = True,find_min = False)

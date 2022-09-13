@@ -772,30 +772,30 @@ def slice_vna(f, z, kid_index, q_slice=2000, flag_collided=True):
     if np.mod(n_iq_points, 2) == 0:
         n_iq_points = n_iq_points + 1
     print(n_iq_points)
-    res_freq_array = np.zeros((len(kid_index), n_iq_points))
-    res_array = np.zeros((len(kid_index), n_iq_points)).astype('complex')
+    res_freq_array = np.zeros((n_iq_points, len(kid_index)))
+    res_array = np.zeros((n_iq_points, len(kid_index))).astype('complex')
     print(res_array.dtype)
     for i in range(0, len(kid_index)):
         a = kid_index[i] - n_iq_points // 2 - 1
         b = kid_index[i] + n_iq_points // 2
 
-        res_freq_array[i, :] = f[a:b]
-        res_array[i, :] = z[a:b]
+        res_freq_array[:, i] = f[a:b]
+        res_array[:, i] = z[a:b]
         if flag_collided:
             if i < len(kid_index) - 1:  # dont check last res
                 # print(i)
                 if kid_index[i + 1] - kid_index[i] < n_iq_points:  # collision at higher frequency
                     high_cutoff = int((kid_index[i + 1] + kid_index[i]) / 2)
                     # print(i,a,high_cutoff,b)
-                    res_freq_array[i, high_cutoff - a:] = np.nan
-                    res_array[i, high_cutoff - a:] = np.nan * (1 + 1j)
+                    res_freq_array[high_cutoff - a:,i] = np.nan
+                    res_array[high_cutoff - a:,i] = np.nan * (1 + 1j)
             if i != 0:  # dont check first res
                 # print(i)
                 if kid_index[i] - kid_index[i - 1] < n_iq_points:
                     low_cutoff = int((kid_index[i] + kid_index[i - 1]) / 2)
                     # print(i,a,low_cutoff,b)
-                    res_freq_array[i, :low_cutoff - a] = np.nan
-                    res_array[i, :low_cutoff - a] = np.nan * (1 + 1j)
+                    res_freq_array[:low_cutoff - a, i] = np.nan
+                    res_array[:low_cutoff - a, i] = np.nan * (1 + 1j)
 
     return res_freq_array, res_array
 
