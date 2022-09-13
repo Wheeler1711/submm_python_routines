@@ -6,3 +6,5 @@ numba
 tqdm
 # only needed for python versions less than 3.9
 importlib-metadata
+# could be elminated by upgrading to python 3.10 where tomllib is parts of the standard library
+toml

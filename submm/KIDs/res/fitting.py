@@ -639,3 +639,5 @@ if __name__ == '__main__':
     res_set_read = ResSet(path=res_set_test.path)
     for read_result in res_set_read:
         read_result.console(label='Read', fields=['fr', 'tau', 'Qc'])
+    # get array of the results for specific fields
+    res_set_test('fr', 'amp', 'z_data')

@@ -6,6 +6,7 @@ import os
 from operator import attrgetter
 from typing import NamedTuple, Optional, Callable, Sequence
 
+import toml
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -46,7 +47,11 @@ def format_field_value(field, value):
     if field in field_to_multiplier.keys():
         value *= field_to_multiplier[field]
     number_str = value.__format__(field_to_format_strs[field])
-    return number_str.center(field_to_text_len[field])
+    return number_str
+
+
+def format_and_center(field, value):
+    return format_field_value(field, value).center(field_to_text_len[field])
 
 
 def calc_left_right_spaces(text, total_space_available):
@@ -94,6 +99,20 @@ class Res(NamedTuple):
         for field in self.header_items():
             return_str += f"{self.__getattribute__(field)},"
         return return_str[:-1]
+
+    def __call__(self, *args):
+        if not args:
+            args = self._fields
+        values_list = []
+        for arg in args:
+            if arg in self._fields:
+                value = self.__getattribute__(arg)
+            else:
+                value = None
+            if value is None:
+                value = float('nan')
+            values_list.append(value)
+        return tuple(values_list)
 
     def console(self, label: str = None, print_header: bool = True, fields=None):
         if label is None:
@@ -176,17 +195,17 @@ class Res(NamedTuple):
         # values output for console
         values_str = label.__format__(f'<{len_label}')
         for field in found_fields.keys():
-            values_str += '|' + format_field_value(field, found_fields[field])
+            values_str += '|' + format_and_center(field, found_fields[field])
         values_str += var_fit_extra_header
         if found_derived:
             first_field = True
             values_str += '|'
             for field in found_derived.keys():
                 if first_field:
-                    values_str += derived_text(format_field_value(field, found_derived[field]))
+                    values_str += derived_text(format_and_center(field, found_derived[field]))
                     first_field = False
                 else:
-                    values_str += derived_text('|' + format_field_value(field, found_derived[field]))
+                    values_str += derived_text('|' + format_and_center(field, found_derived[field]))
             if derived_fit_extra_header != '':
                 values_str += derived_text(derived_fit_extra_header)
         print(values_str)
@@ -284,6 +303,23 @@ class Fit(NamedTuple):
         else:
             raise TypeError(f"ResFit indices must be str, int, or slice, not {type(item)}")
 
+    def __call__(self, *args):
+        if not args:
+            args = self._fields
+        values_list = []
+        for arg in args:
+            if arg in self._fields:
+                value = self.__getattribute__(arg)
+            else:
+                value = None
+            if value is None:
+                value = float('nan')
+            values_list.append(value)
+        return tuple(values_list)
+
+    def __repr__(self):
+        return f"Fit-{str(self.result).replace(',', '-')}"
+
     """ Base class for a resonator fit results """
     def z_fit(self) -> np.ndarray:
         """Return the complex impedance of the fit."""
@@ -331,25 +367,37 @@ class ResSet:
                 os.mkdir(res_set_dir)
             # use a default file name buy do not overwrite an existing file
             count = 0
-            path_test = os.path.join(res_set_dir, f'results{count:02}.csv')
-            # loop until we find a file name that doesn't exist
-            while os.path.exists(path_test):
+            base_path = os.path.join(res_set_dir, f'results{count:02}')
+            path_test_csv = f'{base_path}.csv'
+            path_test_toml = f'{base_path}.toml'
+            # loop until we find a pair of file names that do not exist
+            while os.path.exists(path_test_csv) and os.path.exists(path_test_toml):
                 count += 1
-                path_test = os.path.join(res_set_dir, f'results{count:02}.csv')
+                base_path = os.path.join(res_set_dir, f'results{count:02}')
+                path_test_csv = f'{base_path}.csv'
+                path_test_toml = f'{base_path}.toml'
             self.res_set_dir = res_set_dir
-            self.path = path_test
+            self.path = base_path
         else:
+            self.res_set_dir, basename = os.path.split(path)
+            if '.' in basename:
+                basename, ext = basename.rsplit('.', 1)
+
             # use the user specified path
-            self.path = path
-            self.res_set_dir = os.path.dirname(path)
+            self.path = os.path.join(self.res_set_dir, basename)
             # make a new directory if it doesn't exist
             if not os.path.exists(self.res_set_dir):
                 os.mkdir(self.res_set_dir)
 
         # set in self.read(), self.add_results(), self.add_res_fits methods
-        self.results = set()
+        self._results = set()
         # set only in the self.add_res_fits method
-        self.fit_results = {}
+        self._fit_results = {}
+        # set in self.order_and_validate() method
+        self._fields_results = None
+        self._list_results = None
+        self._list_fit_results = None
+        self._structured_array_results = None
 
         if res_results is None and res_fits is None:
             if self.verbose:
@@ -363,14 +411,93 @@ class ResSet:
 
     def __iter__(self):
         # iterate over the results in order of resonator frequency
-        for result in sorted(self.results, key=attrgetter('fr')):
+        for result in sorted(self._results, key=attrgetter('fr')):
             yield result
 
+    def __len__(self):
+        return len(self._results)
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return self._list_results[item]
+        elif isinstance(item, slice):
+            return self._list_results[item]
+        elif isinstance(item, str):
+            if item in self._fields_results:
+                return self._structured_array_results[item]
+            elif item in Fit._fields:
+                return self._structured_array_fit_results[item]
+            else:
+                raise KeyError(f'Unknown string key: {item}')
+        else:
+            raise TypeError(f"ResSet indices must be str, int, or slice, not {type(item)}")
+
+    def __call__(self, *args) -> dict:
+        if not args:
+            # when no args are specified
+            args = list(self._fields_results) + list(Fit._fields)
+        results_fields = []
+        fits_fields = []
+        for arg in args:
+            if arg in self._fields_results:
+                results_fields.append(arg)
+            elif arg in Fit._fields:
+                fits_fields.append(arg)
+        results_dict = {arg: self._structured_array_results[arg] for arg in results_fields}
+        if fits_fields:
+            fits_dict = {arg: [] for arg in fits_fields}
+            for fit in self._list_fit_results:
+                for arg in fits_fields:
+                    if fit is None:
+                        fits_dict[arg].append(None)
+                    else:
+                        fits_dict[arg].append(fit.__getattribute__(arg))
+            results_dict.update(fits_dict)
+        return results_dict
+
+    def order_and_validate(self):
+        # make list data objects
+        self._list_results = list(self)
+        # get the fields list from the first item
+        self._fields_results = self._list_results[0]._fields
+        # get the fit results list, which can have None values
+        self._list_fit_results = []
+        for result in self._list_results:
+            if result in self._fit_results:
+                self._list_fit_results.append(self._fit_results[result])
+            else:
+                self._list_fit_results.append(None)
+        # make the numpy structured array data object
+        values_results = [result() for result in self._list_results]
+        columns_values_results = [np.array(column_values) for column_values in zip(*values_results)]
+        dtypes_results = [(arg, str(column_array.dtype)) for arg, column_array in zip(self._fields_results,
+                                                                                      columns_values_results)]
+        self._structured_array_results = np.array(values_results, dtype=dtypes_results)
+
     def read(self, res_tuple=NonlinearIQRes):
+        read_file_name_toml = f'{self.path}.toml'
+        read_file_name_csv = f'{self.path}.csv'
+        if os.path.exists(read_file_name_toml):
+            self.read_toml(read_file_name=read_file_name_toml, res_tuple=res_tuple)
+        elif os.path.exists(read_file_name_csv):
+            self.read_csv(read_file_name=read_file_name_csv, res_tuple=res_tuple)
+        else:
+            raise FileNotFoundError(f'No results file found at {self.path} with .toml or .csv extension.')
+
+    def read_toml(self, read_file_name, res_tuple=NonlinearIQRes):
+        raise NotImplementedError('reading a toml method is not yet implemented.')
+        list_fit_results = toml.load(read_file_name)
+        for fit_result in list_fit_results:
+            print('here')
+
+
+
+    def read_csv(self, read_file_name, res_tuple=NonlinearIQRes):
+        """Read in the results from a csv file."""
         if self.verbose:
             print(f'Reading results from file at: {filename_text(self.path)}')
         header_keys = []
-        with open(self.path, 'r') as f:
+        with open(read_file_name, 'r') as f:
             for line in f.readlines():
                 if not header_keys:
                     # read the header, see what can be mapped into the NamedTuple specified with res_tuple
@@ -389,10 +516,19 @@ class ResSet:
                     # read the data after a successful header read
                     row_dict = {header_key: value_formatted for header_key, value_formatted
                                 in zip(header_keys, line_format(line)) if header_key is not None}
-                    self.results.add(res_tuple(**row_dict))
+                    self._results.add(res_tuple(**row_dict))
+        self.order_and_validate()
 
-    def write(self):
-        with open(self.path, 'w') as f:
+    def write(self, csv: bool = True, toml: bool = False):
+        if csv:
+            self.write_csv()
+        if toml:
+            raise NotImplementedError('Writing to toml is not yet implemented.')
+            self.write_toml()
+
+    def write_csv(self):
+        write_file_name = f'{self.path}.csv'
+        with open(write_file_name, 'w') as f:
             first_row = True
             for result in self:
                 # write the header
@@ -404,16 +540,26 @@ class ResSet:
         if self.verbose:
             print(f'{write_text("Results Written")} to file at: {filename_text(self.path)}')
 
+    def write_toml(self):
+        write_file_name = f'{self.path}.toml'
+        dict_of_fits = {repr(self._fit_results[result]): self._fit_results[result] for result in self._fit_results}
+        with open(write_file_name, 'w') as f:
+            toml.dump(dict_of_fits, f)
+        if self.verbose:
+            print(f'{write_text("Results Written")} to file at: {filename_text(self.path)}')
+
     def add_results(self, res_results: Sequence[Res]):
-        self.results.update(res_results)
+        self._results.update(res_results)
+        self.order_and_validate()
         if self.verbose:
             print(f'Added {len(res_results)} results.')
 
     def add_res_fits(self, res_fits: Sequence[Fit]):
         for res_fit in res_fits:
             result = res_fit.result
-            self.results.add(result)
-            self.fit_results[result] = res_fit
+            self._results.add(result)
+            self._fit_results[result] = res_fit
+        self.order_and_validate()
         if self.verbose:
             print(f'Added {len(res_fits)} results and fit_results.')
 

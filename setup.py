@@ -46,5 +46,6 @@ setup(name='submm',
                         'scipy',
                         'numba',
                         'tqdm',
-                        'importlib-metadata']
+                        'importlib-metadata',
+                        'toml']
       )
