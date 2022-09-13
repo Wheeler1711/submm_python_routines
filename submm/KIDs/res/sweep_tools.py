@@ -4,6 +4,8 @@ import os
 import copy
 from scipy import interpolate
 import platform
+from matplotlib.backends.backend_pdf import PdfPages
+import tqdm
 
 '''
 Tools for handling resonator iq sweeps 
@@ -130,6 +132,7 @@ class InteractivePlot(object):
         print("")
         print("Interactive Resonance Plotting Activated")
         print("Use left and right arrows to switch between resonators")
+        print("press w to write a pdf of all resonators to file")
         if retune:
             if platform.system() == 'Darwin':
                 print("Use the up and down arrows to change look around points")
@@ -262,6 +265,16 @@ class InteractivePlot(object):
             if event.key == 'shift':
                 self.shift_is_held = True
 
+        if event.key == 'w':
+            print("saving to pdf")
+            filename = input("enter filename for pdf: ")
+            if filename == '':
+                filename = "res_plots.pdf"
+            elif filename[-4:] != '.pdf':
+                filename = filename + '.pdf'
+
+            self.make_pdf(filename)
+
     def on_key_release(self, event):
         # windows or mac
         if platform.system() == 'Darwin':
@@ -301,6 +314,17 @@ class InteractivePlot(object):
                     # print(self.overide_freq_index)
                 self.update_min_index()
                 self.refresh_plot()
+
+    def make_pdf(self,filename):
+        pdf_pages = PdfPages(filename)
+        for i in tqdm.tqdm(range(0,self.chan_freqs.shape[1]),ascii = True):
+            self.plot_index = i
+            self.refresh_plot()
+            pdf_pages.savefig(self.fig)
+        pdf_pages.close()
+            
+            
+
 
 
 def tune_kids(f, z, find_min=True, interactive=True, **kwargs):
