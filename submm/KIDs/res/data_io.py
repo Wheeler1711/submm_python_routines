@@ -252,6 +252,7 @@ class Fit(NamedTuple):
     func: Callable
     guess: Optional[Res] = None
     result:  Optional[Res] = None
+    popt: Optional[np.ndarray] = None
     pcov: Optional[np.ndarray] = None
     f_data: Optional[np.ndarray] = None
     z_data: Optional[np.ndarray] = None
@@ -265,7 +266,7 @@ class Fit(NamedTuple):
             elif item in self.result._fields:
                 return getattr(self.result, item)
             elif item.lower() == 'fit':
-                return self.result, self.pcov
+                return self.popt, self.pcov
             elif item.lower() == 'fit_result':
                 return self.z_fit()
             elif item.lower() == 'x0_result':

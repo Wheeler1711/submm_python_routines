@@ -129,7 +129,7 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
         guess.console(label='Fit', print_header=False)
     # make a packaged result (NamedTuple) to return
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
-              guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt= popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
@@ -223,7 +223,7 @@ def fit_nonlinear_iq_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     if verbose:
         result.console(label='Fit', print_header=False)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
-              guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
@@ -294,7 +294,7 @@ def fit_nonlinear_iq_with_err(f_hz, z, bounds=None, x0=None, amp_norm: bool = Fa
     if verbose:
         result.console(label='Fit', print_header=False)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
-              guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
@@ -350,7 +350,7 @@ def fit_nonlinear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     if verbose:
         result.console(label='Fit', print_header=False)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_mag_for_plot,
-              guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
@@ -404,7 +404,7 @@ def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     if verbose:
         result.console(label='Fit', print_header=False)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=linear_mag_for_plot,
-              guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
@@ -486,7 +486,7 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     if verbose:
         result.console(label='Fit', print_header=False)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_mag_for_plot,
-              guess=guess, result=result, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
