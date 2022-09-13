@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from submm.sample_data.abs_paths import abs_path_output_dir_default
 from submm.KIDs.res.utils import derived_text, filename_text, write_text, calc_qc_qi, line_format
+from submm.KIDs.res.sweep_tools import InteractivePlot
 
 
 derived_params = {'qi', 'qc', 'red_chi_sqr'}
@@ -21,7 +22,7 @@ field_to_decimal_format_int = {'fr': 4, 'qr': 0, 'amp': 2, 'phi': 2, 'a': 2, 'b0
                                'tau': 2, 'f0': 4, 'qi': 0, 'qc': 0}
 field_to_format_letter = {'fr': 'f', 'qr': 'f', 'amp': 'f', 'phi': 'f', 'a': 'f', 'b0': 'E', 'b1': 'E', 'i0': 'E',
                           'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f'}
-filed_to_field_label = {'fr': 'fr (MHz)', 'qr': 'Qr', 'amp': 'amp', 'phi': 'phi', 'a': 'a', 'b0': 'b0', 'b1': 'b1',
+field_to_field_label = {'fr': 'fr (MHz)', 'qr': 'Qr', 'amp': 'amp', 'phi': 'phi', 'a': 'a', 'b0': 'b0', 'b1': 'b1',
                         'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc'}
 field_to_multiplier = {'fr': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6}
 
@@ -39,7 +40,7 @@ for a_field in field_to_first_format_int.keys():
         text_len += 1
     if format_letter.lower() == 'e':
         text_len += 4
-    field_to_text_len[a_field] = max(text_len, len(filed_to_field_label[a_field]))
+    field_to_text_len[a_field] = max(text_len, len(field_to_field_label[a_field]))
 
 
 def format_field_value(field, value):
@@ -168,7 +169,7 @@ class Res(NamedTuple):
             first_field = True
             for field in found_fields.keys():
                 field_len = field_to_text_len[field]
-                formatted_field = filed_to_field_label[field].center(field_len)
+                formatted_field = field_to_field_label[field].center(field_len)
                 if first_field:
                     sub_header += f'{formatted_field}'
                     first_field = False
@@ -181,7 +182,7 @@ class Res(NamedTuple):
                 first_field = True
                 for field in found_derived.keys():
                     field_len = field_to_text_len[field]
-                    formatted_field = filed_to_field_label[field].center(field_len)
+                    formatted_field = field_to_field_label[field].center(field_len)
                     if first_field:
                         sub_header += derived_text(f'{formatted_field}')
                         first_field = False
@@ -562,4 +563,51 @@ class ResSet:
         self.order_and_validate()
         if self.verbose:
             print(f'Added {len(res_fits)} results and fit_results.')
+
+    def plot(self):
+        # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
+        # also for fitted paramters it wants a list fitted names for the legend
+        # and a array that is n_res x len(fitted paramters)
+
+        # Make the frequency and z arrays firs
+
+        # Make the frequency and z arrays for original data and fitted
+        n_iq_points = len(self._fit_results[next(iter(self))].z_data) # assumes all data is the same size
+        frequencies = np.zeros((n_iq_points,len(self)))
+        fitted_frequencies = np.zeros((n_iq_points,len(self)))
+        z_values = np.zeros((n_iq_points,len(self)),dtype = 'complex')
+        fitted_z_values = np.zeros((n_iq_points,len(self)),dtype = 'complex')
+        for i,result in enumerate(self): 
+            fit_result = self._fit_results[result]
+            frequencies[:,i] = fit_result.f_data # input frequencies nominally the same as res_freq_array
+            fitted_frequencies[:,i] = fit_result.f_data # input frequencies nominally the same as res_freq_array
+            z_values[:,i] = fit_result.z_data
+            fitted_z_values[:,i] = fit_result.z_fit()
+
+        # stack the data with fit data
+        multi_sweep_freqs = np.dstack((np.expand_dims(frequencies, axis=2), np.expand_dims(fitted_frequencies, axis=2)))
+        multi_sweep_z = np.dstack((np.expand_dims(z_values, axis=2), np.expand_dims(fitted_z_values, axis=2)))
+
+        # now get the fitted values
+        # first get names of fitted values
+        data_names = []
+        formats = []
+        result = next(iter(self)) # grab first fit for inspection
+        for field in result._fields:
+            if getattr(result, field) != None:
+                data_names.append(field)
+                formats.append(field_to_field_label[field.lower()] + ': {:' +field_to_format_strs[field.lower()]+'}')
+
+        fitted_parameters = np.zeros((len(self),len(data_names)))
+        for i, result in enumerate(self): # don't forget to sort
+            for j, field in enumerate(data_names): # this gets rid of the the None
+                if field in field_to_multiplier.keys():
+                    fitted_parameters[i,j] = getattr(result,field)*field_to_multiplier[field.lower()]
+                else:
+                    fitted_parameters[i,j] = getattr(result,field)
+
+
+        ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
+                              combined_data_names=data_names,combined_data_format = formats,
+                              sweep_labels=['Data', 'Fit'])
 
