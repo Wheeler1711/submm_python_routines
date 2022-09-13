@@ -125,8 +125,9 @@ class InteractivePlot(object):
                                     '*', markersize=15)
             self.p2, = self.ax2.plot(self.Is[self.min_index[self.plot_index], self.plot_index, 0],
                                      self.Qs[self.min_index[self.plot_index], self.plot_index, 0], '*', markersize=15)
-
-        self.ax.set_title("Resonator Index " + str(self.plot_index))
+            
+        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0]//2, self.plot_index, 0]/10**6
+        self.ax.set_title('Resonator Index ' + str(self.plot_index)+'\n'+f'{"%3.3f" % center_freq_MHz} MHz')
         if self.retune:
             self.ax2.set_title("Look Around Points " + str(self.look_around))
         print("")
@@ -196,7 +197,8 @@ class InteractivePlot(object):
 
         self.ax.relim()
         self.ax.autoscale()
-        self.ax.set_title("Resonator Index " + str(self.plot_index))
+        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0]//2, self.plot_index, 0]/10**6
+        self.ax.set_title('Resonator Index ' + str(self.plot_index)+'\n'+f'{"%3.3f" % center_freq_MHz} MHz')
         if self.retune:
             self.ax2.set_title("Look Around Points " + str(self.look_around))
         for i, iq_line in enumerate(self._iq_lines):
