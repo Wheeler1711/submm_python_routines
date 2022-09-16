@@ -31,7 +31,7 @@ demo_files = get_file_paths(local_dir=local_demos_dir, desired_file_types=desire
 
 
 setup(name='submm',
-      version='0.2.2',
+      version='0.3.0',
       description='Python routines for submm astronomy instrumentation',
       author='Jordan Wheeler',
       author_email='wheeler1711@gmail.com',

@@ -125,7 +125,6 @@ def nonlinear_mag_for_plot(f_hz, fr, Qr, amp, phi, a, b0, b1, flin):
 
 
 @fit_func
-@jit(nopython=True)
 def linear_mag(f_hz, fr, Qr, amp, phi, b0):
     """
     This is based of fitting code from MUSIC

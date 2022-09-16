@@ -17,14 +17,14 @@ from submm.KIDs.res.sweep_tools import InteractivePlot
 
 derived_params = {'qi', 'qc', 'red_chi_sqr'}
 field_to_first_format_int = {'fr': 5, 'qr': 7, 'amp': 1, 'phi': 2, 'a': 1, 'b0': 2, 'b1': 2, 'i0': 1, 'q0': 1, 'tau': 6,
-                             'f0': 5, 'qi': 7, 'qc': 7}
+                             'f0': 5, 'qi': 7, 'qc': 7, 'flin': 5}
 field_to_decimal_format_int = {'fr': 4, 'qr': 0, 'amp': 2, 'phi': 2, 'a': 2, 'b0': 2, 'b1': 2, 'i0': 2, 'q0': 2,
-                               'tau': 2, 'f0': 4, 'qi': 0, 'qc': 0}
+                               'tau': 2, 'f0': 4, 'qi': 0, 'qc': 0, 'flin': 4}
 field_to_format_letter = {'fr': 'f', 'qr': 'f', 'amp': 'f', 'phi': 'f', 'a': 'f', 'b0': 'E', 'b1': 'E', 'i0': 'E',
-                          'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f'}
+                          'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f', 'flin': 'f'}
 field_to_field_label = {'fr': 'fr (MHz)', 'qr': 'Qr', 'amp': 'amp', 'phi': 'phi', 'a': 'a', 'b0': 'b0', 'b1': 'b1',
-                        'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc'}
-field_to_multiplier = {'fr': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6}
+                        'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc','flin': 'flin (MHz)'}
+field_to_multiplier = {'fr': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6, 'flin': 1.0e-6}
 
 field_to_format_strs = {}
 field_to_text_len = {}
@@ -232,7 +232,7 @@ class NonlinearIQRes(NonlinearIQResBase, Res):
     """ The resonator parameters for a NonLinear IQ fit, nonlinear_iq_for_fitter()"""
 
 
-class NonlinearMagResBase(NonlinearIQResBase):
+class NonlinearMagResBase(NamedTuple):
     """ Base resonator parameters for a NonLinear Mag fit, fit_nonlinear_mag()"""
     fr: Optional[float] = None
     Qr: Optional[float] = None
@@ -332,15 +332,23 @@ class Fit(NamedTuple):
 
     def plot(self, show=True):
         plt.figure()
-        plt.axes().set_aspect('equal')
-        plt.plot(np.real(self.z_data), np.imag(self.z_data), 'o', label="Input Data")
         z_guess = self.z_guess()
-        plt.plot(np.real(z_guess), np.imag(z_guess), label="Initial Guess")
         z_fit = self.z_fit()
-        plt.plot(np.real(z_fit), np.imag(z_fit), label="Fit Results")
-        plt.xlabel('Real')
-        plt.ylabel('Imaginary')
-        plt.legend()
+        if "mag" in self.origin:
+            plt.plot(self.f_data/10**6,20*np.log10(np.abs(self.z_data)), 'o', label="Input Data")
+            plt.plot(self.f_data/10**6,20*np.log10(np.abs(z_guess)), '-', label="Initial Guess")
+            plt.plot(self.f_data/10**6,20*np.log10(np.abs(z_fit)), '-', label="Fit Results")
+            plt.xlabel("Frequency (MHz)")
+            plt.ylabel("Power (dB)")
+            plt.legend()
+        else:
+            plt.axes().set_aspect('equal')
+            plt.plot(np.real(self.z_data), np.imag(self.z_data), 'o', label="Input Data")
+            plt.plot(np.real(z_guess), np.imag(z_guess), label="Initial Guess")
+            plt.plot(np.real(z_fit), np.imag(z_fit), label="Fit Results")
+            plt.xlabel('I')
+            plt.ylabel('Q')
+            plt.legend()
         if show:
             plt.show()
 

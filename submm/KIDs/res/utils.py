@@ -158,8 +158,6 @@ def guess_x0_iq_nonlinear(x, z, verbose=False):
 
     x0 = [fr_guess, Q_guess, amp_guess, phi_guess, a_guess, i0_guess, q0_guess, tau_guess, fr_guess]
 
-    if verbose:
-        print_fit_string_nonlinear_iq(x0)
     return x0
 
 
@@ -231,8 +229,6 @@ def guess_x0_mag_nonlinear(x, z, verbose=False):
 
     x0 = [fr_guess, Q_guess, amp_guess, phi_guess, a_guess, b0_guess, b1_guess, fr_guess]
 
-    if verbose:
-        print_fit_string_nonlinear_mag(x0)
 
     return x0
 
