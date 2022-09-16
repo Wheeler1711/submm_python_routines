@@ -240,10 +240,12 @@ res_fit_demo.run()
 Real systems are never ideal. At least not anything I make. So when you have a lot of resonators some will have collided or some will just be weird. We try to make our automated code very good but when all else fails some human intervention will be needed. As such we have made some interactive plotting tools using matplotlib that allow for more sophisticated interaction with your data to better facilitate human interaction. In particular, there are interactive tools for identifying resonators and interactive tools for plotting resonators for examination. Try it out by running the below.
 ```
 cd submm_python_routines
-python submm/demo/find_res_and_fit.py
+python3 submm/demo/find_res_and_fit.py
 ```
 or 
 ```
-python3 submm/demo/find_res_and_fit.py
+python3
+from submm.demo import find_res_and_fit
+find_res_and_fit.main()
 ```
 
