@@ -51,7 +51,7 @@ def main(linear = False):  # if resonators are well below bifurcation fitting ca
     print(fit_result._fields)
 
     # plot the data
-    res_set.plot() # see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plotting
+    ip2 = res_set.plot(flags = ip.flags) # see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plotting
 
     # below is example of retuning resonators
 

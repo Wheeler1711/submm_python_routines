@@ -46,13 +46,15 @@ class InteractivePlot(object):
 
     def __init__(self, chan_freqs, z, look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
-                 combined_data_format=None):
+                 combined_data_format=None,flags = None):
         if len(z.shape) < 3:  # only one sweep
             self.z = z.reshape((z.shape[0], z.shape[1], 1))
             self.chan_freqs = chan_freqs.reshape((chan_freqs.shape[0], chan_freqs.shape[1], 1))
         else:
             self.z = z
             self.chan_freqs = chan_freqs
+
+        plt.rcParams['keymap.fullscreen'] = ['shift+=']  # remove ('f', 'ctrl+f'), make +
 
         self.Is = np.real(self.z)
         self.Qs = np.imag(self.z)
@@ -69,6 +71,11 @@ class InteractivePlot(object):
         self.overide_freq_index = np.asarray((), dtype=np.int16)
         self.shift_is_held = False
         self.update_min_index()
+        if flags is None:
+            self.flags = []
+            for i in range(chan_freqs.shape[1]): self.flags.append([])
+        else:
+            self.flags = flags
         if retune:
             self.combined_data_names = ['min index']
 
@@ -187,6 +194,12 @@ class InteractivePlot(object):
             self.combined_data = np.expand_dims(self.min_index, 1)
 
     def refresh_plot(self):
+        if len(self.flags[self.plot_index])>0:
+            self.ax.set_facecolor('lightyellow')
+            self.ax2.set_facecolor('lightyellow')
+        else:
+            self.ax.set_facecolor("None")
+            self.ax2.set_facecolor("None")
         for i, mag_line in enumerate(self._mag_lines):
             mag_line[0].set_data(self.chan_freqs[:, self.plot_index, i] / 10 ** 6, 10 * np.log10(
                 self.Is[:, self.plot_index, i] ** 2 + self.Qs[:, self.plot_index, i] ** 2))
@@ -228,6 +241,22 @@ class InteractivePlot(object):
 
     def on_key_press(self, event):
         # print event.key
+        if event.key == 'f':
+            print("flagging point", event.xdata)
+            print("current flags: ", self.flags[self.plot_index])
+            flag = input("Enter flag string: ").lower()
+            if flag == "c":
+                flag = "collision"
+            elif flag == "s":
+                flag = "shallow"
+            else:
+                pass
+
+            if flag != '':
+                self.flags[self.plot_index].append(flag)
+                self.refresh_plot()
+            print("Flags are now: ", self.flags[self.plot_index])
+            
         if event.key == 'right':
             if self.plot_index != self.chan_freqs.shape[1] - 1:
                 self.plot_index = self.plot_index + 1

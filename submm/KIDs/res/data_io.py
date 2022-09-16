@@ -572,7 +572,7 @@ class ResSet:
         if self.verbose:
             print(f'Added {len(res_fits)} results and fit_results.')
 
-    def plot(self):
+    def plot(self,flags = None):
         # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
         # also for fitted paramters it wants a list fitted names for the legend
         # and a array that is n_res x len(fitted paramters)
@@ -617,5 +617,9 @@ class ResSet:
 
         ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
                               combined_data_names=data_names,combined_data_format = formats,
-                              sweep_labels=['Data', 'Fit'])
+                              sweep_labels=['Data', 'Fit'],flags = flags)
+
+        return ip
+
+        
 
