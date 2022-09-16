@@ -6,7 +6,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal, fftpack
 from matplotlib.backends.backend_pdf import PdfPages
-
+try:
+    from PyQt5.QtCore import pyqtRemoveInputHook
+    pyqtRemoveInputHook() #input() breaks during interactive plot on linux without this if using Qt backend
+except:
+    pass
 from submm.KIDs.res.fitting import fit_nonlinear_iq, fit_nonlinear_mag
 
 """
