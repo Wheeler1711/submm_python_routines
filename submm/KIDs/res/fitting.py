@@ -126,7 +126,7 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
     result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0, Qc=Qc, Qi=Qi)
     if verbose:
-        guess.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=False)
     # make a packaged result (NamedTuple) to return
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
               guess=guess, result=result, popt= popt, pcov=pcov, f_data=f_hz, z_data=z)
@@ -506,7 +506,7 @@ def fit_nonlinear_iq_multi(f_hz, z,center_freqs = None, tau: float = None,fit_ov
     """
 
     if center_freqs is None:
-        center_freqs = f[f.shape[0] // 2, :]
+        center_freqs = f_hz[f_hz.shape[0] // 2, :]
     res_fits = []
     for i in range(0, f_hz.shape[1]):
         f_single = f_hz[:, i]
