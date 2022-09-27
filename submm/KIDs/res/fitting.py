@@ -31,6 +31,21 @@ from submm.KIDs.res.utils import amplitude_normalization, calc_qc_qi, guess_x0_i
     guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep
 
 
+def bounds_check(x0, bounds):
+    lower_bounds = []
+    upper_bounds = []
+    for x, lb, ub in zip(x0, bounds[0], bounds[1]):
+        if x < lb:
+            lower_bounds.append(x * 0.9)
+        else:
+            lower_bounds.append(lb)
+        if x > ub:
+            upper_bounds.append(x * 1.1)
+        else:
+            upper_bounds.append(ub)
+    return lower_bounds, upper_bounds
+
+
 def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = None, tau=None, tau_guess=None,
                      amp_norm: bool = False, verbose: bool = True):
     """Fit a nonlinear IQ with from an S21 sweep.
@@ -74,7 +89,6 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
     fit : Fit
         A Fit NamedTuple containing the fit results.
     """
-
     if bounds is None:
         # define default bounds
         if verbose:
@@ -104,6 +118,9 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
     guess = NonlinearIQRes(*x0)
     if verbose:
         guess.console(label='Guess', print_header=True)
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fitter choices
     if use_given_tau:
         del bounds[0][7]
         del bounds[1][7]
@@ -129,7 +146,7 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
         result.console(label='Fit', print_header=False)
     # make a packaged result (NamedTuple) to return
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
-              guess=guess, result=result, popt= popt, pcov=pcov, f_data=f_hz, z_data=z)
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 
 
@@ -200,6 +217,9 @@ def fit_nonlinear_iq_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     guess = NonlinearIQRes(*x0)
     if verbose:
         guess.console(label='Guess', print_header=True)
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # error
     if fine_z_err is not None and gain_z_err is not None:
         z_err = np.hstack((fine_z_err, gain_z_err))
         z_err_stacked = np.hstack((np.real(z_err), np.imag(z_err)))
@@ -277,6 +297,9 @@ def fit_nonlinear_iq_with_err(f_hz, z, bounds=None, x0=None, amp_norm: bool = Fa
     if verbose:
         guess.console(label='Guess', print_header=True)
     z_stacked = np.hstack((np.real(z), np.imag(z)))
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fit
     popt_first, pcov_first = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
     fr_first, Qr_first, amp_first, phi_first, a_first, i0_first, q0_first, tau_first, f0_first = popt_first
     
@@ -342,7 +365,9 @@ def fit_nonlinear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     guess = NonlinearMagRes(*x0)
     if verbose:
         guess.console(label='Guess', print_header=True)
-
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fit
     popt, pcov = optimization.curve_fit(nonlinear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
     fr, Qr, amp, phi, a, b0, b1, flin = popt
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
@@ -396,6 +421,9 @@ def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     guess = LinearMagRes(*x0)
     if verbose:
         guess.console(label='Guess', print_header=True)
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fit
     popt, pcov = optimization.curve_fit(linear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
     # human-readable results
     fr, Qr, amp, phi, b0 = popt
@@ -466,6 +494,9 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     # stack the scans for curve_fit
     f_hz = np.hstack((fine_f_hz, gain_f_hz))
     z = np.hstack((fine_z, gain_z))
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fit
     if fine_z_err is not None and gain_z_err is not None:
         z_err = np.hstack((fine_z_err, gain_z_err))
         # propagation of errors left out cross term
