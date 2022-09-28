@@ -46,7 +46,7 @@ class InteractivePlot(object):
 
     def __init__(self, chan_freqs, z, look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
-                 combined_data_format=None,flags = None):
+                 combined_data_format=None, flags=None, plot_title=None, plot_frames=True):
         if len(z.shape) < 3:  # only one sweep
             self.z = z.reshape((z.shape[0], z.shape[1], 1))
             self.chan_freqs = chan_freqs.reshape((chan_freqs.shape[0], chan_freqs.shape[1], 1))
@@ -67,8 +67,8 @@ class InteractivePlot(object):
         self.look_around = look_around
         self.plot_index = 0
         self.combined_data_index = 0
-        self.res_index_overide = np.asarray((), dtype=np.int16)
-        self.overide_freq_index = np.asarray((), dtype=np.int16)
+        self.res_index_override = np.asarray((), dtype=np.int16)
+        self.override_freq_index = np.asarray((), dtype=np.int16)
         self.shift_is_held = False
         self.update_min_index()
         if flags is None:
@@ -78,32 +78,60 @@ class InteractivePlot(object):
             self.flags = flags
         if retune:
             self.combined_data_names = ['min index']
-
-        if self.combined_data is not None:
-            self.fig = plt.figure(1, figsize=(13, 10))
-            self.ax = self.fig.add_subplot(221)
-            self.ax.set_ylabel("Power (dB)")
-            self.ax.set_xlabel("Frequecy (MHz)")
-            self.ax2 = self.fig.add_subplot(222)
-            self.ax2.set_ylabel("Q")
-            self.ax2.set_xlabel("I")
-            self.ax3 = self.fig.add_subplot(212)
-            self.ax3.set_ylabel("")
-            self.ax3.set_xlabel("Resonator index")
-        else:
+        # set up plot
+        top = 0.94
+        bottom = 0.05
+        left = 0.08
+        right = 0.99
+        x_space = 0.075
+        y_space = 0.09
+        x_width_total = right - left - x_space
+        y_height_total = top - bottom - y_space
+        if self.combined_data is None:
             self.fig = plt.figure(1, figsize=(13, 6))
-            self.ax = self.fig.add_subplot(121)
-            self.ax.set_ylabel("Power (dB)")
-            self.ax.set_xlabel("Frequecy (MHz)")
-            self.ax2 = self.fig.add_subplot(122)
-            self.ax2.set_ylabel("Q")
-            self.ax2.set_xlabel("I")
+            # the magnitude plot - upper left quadrant
+            mag_x_width = 0.5
+            mag_y_height = y_height_total
+            mag_figure_coords = [left, top - mag_y_height, mag_x_width, mag_y_height]
+            # the IQ plot - upper right quadrant
+            iq_x_width = x_width_total - mag_x_width
+            iq_y_height = mag_y_height
+            iq_figure_coords = [left + mag_x_width + x_space, top - iq_y_height, iq_x_width, iq_y_height]
+            combined_figure_coords = None
+        else:
+            self.fig = plt.figure(1, figsize=(13, 10))
+            # the magnitude plot - upper left quadrant
+            mag_x_width = 0.5
+            mag_y_height = 0.45
+            mag_figure_coords = [left, top - mag_y_height, mag_x_width, mag_y_height]
+            # the IQ plot - upper right quadrant
+            iq_x_width = x_width_total - mag_x_width
+            iq_y_height = mag_y_height
+            iq_figure_coords = [left + mag_x_width + x_space, top - iq_y_height, iq_x_width, iq_y_height]
+            # the combined data plot - lower plane
+            combined_x_width = right - left
+            combined_y_height = y_height_total - mag_y_height
+            combined_figure_coords = [left, bottom, combined_x_width, combined_y_height]
+        if plot_title is not None:
+            self.fig.suptitle(plot_title, y=0.99)
+        self.ax_mag = self.fig.add_axes(mag_figure_coords, frameon=plot_frames)
+        self.ax_mag.set_ylabel("Power (dB)")
+        self.ax_mag.set_xlabel("Frequency (MHz)")
+        self.ax_iq = self.fig.add_axes(iq_figure_coords, frameon=plot_frames)
+        self.ax_iq.set_ylabel("Q")
+        self.ax_iq.set_xlabel("I")
+        if combined_figure_coords is None:
+            self.ax_combined = None
+        else:
+            self.ax_combined = self.fig.add_axes(combined_figure_coords, frameon=plot_frames)
+            self.ax_combined.set_ylabel("")
+            self.ax_combined.set_xlabel("Resonator index")
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
         if self.stream_data is not None:
-            self.s2, = self.ax2.plot(np.real(self.stream_data[:, self.plot_index]),
-                                     np.imag(self.stream_data[:, self.plot_index]), '.')
+            self.s2, = self.ax_iq.plot(np.real(self.stream_data[:, self.plot_index]),
+                                       np.imag(self.stream_data[:, self.plot_index]), '.')
 
         if not sweep_line_styles:
             sweep_line_styles = ["-o"]
@@ -113,30 +141,31 @@ class InteractivePlot(object):
             sweep_labels = ["Data 1"]
             for i in range(1, self.z.shape[2]):
                 sweep_labels.append("Data " + str(i + 1))
-        self._mag_lines = [self.ax.plot(self.chan_freqs[:, self.plot_index, i] / 10 ** 6, 10 * np.log10(
+        self._mag_lines = [self.ax_mag.plot(self.chan_freqs[:, self.plot_index, i] / 10 ** 6, 10 * np.log10(
             self.Is[:, self.plot_index, i] ** 2 + self.Qs[:, self.plot_index, i] ** 2), sweep_line_styles[i], mec="k",
-                                        label=sweep_labels[i])
+                                            label=sweep_labels[i])
                            for i in range(0, self.z.shape[2])]
 
-        self.ax_leg = self.ax.legend()
+        self.ax_leg = self.ax_mag.legend()
 
-        self._iq_lines = [self.ax2.plot(
+        self._iq_lines = [self.ax_iq.plot(
             self.Is[:, self.plot_index, i], self.Qs[:, self.plot_index, i], sweep_line_styles[i], mec="k",
             label=sweep_labels[i])
             for i in range(0, self.z.shape[2])]
 
         if self.retune:
-            self.p1, = self.ax.plot(self.chan_freqs[self.min_index[self.plot_index], self.plot_index, 0] / 10 ** 6,
-                                    10 * np.log10(self.Is[self.min_index[self.plot_index], self.plot_index, 0] ** 2 + \
-                                                  self.Qs[self.min_index[self.plot_index], self.plot_index, 0] ** 2),
-                                    '*', markersize=15)
-            self.p2, = self.ax2.plot(self.Is[self.min_index[self.plot_index], self.plot_index, 0],
-                                     self.Qs[self.min_index[self.plot_index], self.plot_index, 0], '*', markersize=15)
-            
-        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0]//2, self.plot_index, 0]/10**6
-        self.ax.set_title('Resonator Index ' + str(self.plot_index)+'\n'+f'{"%3.3f" % center_freq_MHz} MHz')
+            self.p1, = self.ax_mag.plot(self.chan_freqs[self.min_index[self.plot_index], self.plot_index, 0] / 10 ** 6,
+                                        10 * np.log10(
+                                            self.Is[self.min_index[self.plot_index], self.plot_index, 0] ** 2 +
+                                            self.Qs[self.min_index[self.plot_index], self.plot_index, 0] ** 2),
+                                        '*', markersize=15, color='darkorchid')
+            self.p2, = self.ax_iq.plot(self.Is[self.min_index[self.plot_index], self.plot_index, 0],
+                                       self.Qs[self.min_index[self.plot_index], self.plot_index, 0], '*', markersize=15)
+
+        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0] // 2, self.plot_index, 0] / 10 ** 6
+        self.ax_mag.set_title('Resonator Index ' + str(self.plot_index) + '\n' + f'{"%3.3f" % center_freq_MHz} MHz')
         if self.retune:
-            self.ax2.set_title("Look Around Points " + str(self.look_around))
+            self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         print("")
         print("Interactive Resonance Plotting Activated")
         print("Use left and right arrows to switch between resonators")
@@ -144,17 +173,17 @@ class InteractivePlot(object):
         if retune:
             if platform.system() == 'Darwin':
                 print("Use the up and down arrows to change look around points")
-                print("Hold letter a key and right click on the magnitude plot to overide tone position")
+                print("Hold letter a key and right click on the magnitude plot to override tone position")
             else:
                 print("Use the up and down arrows to change look around points")
-                print("Hold shift and right click on the magnitude plot to overide tone position")
+                print("Hold shift and right click on the magnitude plot to override tone position")
 
         if self.combined_data is not None:
             print("Use the up and down arrows to change data in bottom plot")
             print("double click on point in bottom plot to jump to that resonator index")
             if retune:
-                print("Warning both look around points and combined data are mapped to " + \
-                      "up and down arrows, consider not returning and ploting combined " + \
+                print("Warning both look around points and combined data are mapped to " +
+                      "up and down arrows, consider not returning and plotting combined " +
                       "data at the same time")
             self.combined_data = np.asarray(self.combined_data)
             if len(self.combined_data.shape) == 1:
@@ -166,16 +195,25 @@ class InteractivePlot(object):
                     self.combined_data_format.append(self.combined_data_names[i] + ': {:g}')
             else:
                 self.combined_data_format = combined_data_format
-            self.ax3.set_title(self.combined_data_names[self.combined_data_index])
-            self.ax3.set_ylabel(self.combined_data_names[self.combined_data_index])
-            self.combined_data_points, = self.ax3.plot(np.arange(0, self.combined_data.shape[0]),
-                                                       self.combined_data[:, self.combined_data_index], 'o', mec="k")
-            self.combined_data_highlight, = self.ax3.plot(self.plot_index,
-                                                          self.combined_data[self.plot_index, self.combined_data_index],
-                                                          'o', mec="k", label=self.combined_data_format[
-                    self.combined_data_index].format(
-                    self.combined_data[self.plot_index, self.combined_data_index]))
-            self.ax3_legend = self.ax3.legend()
+            self.ax_combined.set_title(self.combined_data_names[self.combined_data_index])
+            self.ax_combined.set_ylabel(self.combined_data_names[self.combined_data_index])
+            self.combined_data_points, = self.ax_combined.plot(np.arange(0, self.combined_data.shape[0]),
+                                                               self.combined_data[:, self.combined_data_index],
+                                                               '.', markersize=12, color='darkorchid',
+                                                               markerfacecolor="black")
+            label = self.combined_data_format[self.combined_data_index].format(
+                self.combined_data[self.plot_index, self.combined_data_index])
+            x_pos = self.plot_index
+            y_pos = self.combined_data[self.plot_index, self.combined_data_index]
+            # the highlight symbol
+            self.combined_data_highlight, = self.ax_combined.plot(x_pos, y_pos, 'o', markerfacecolor="None",
+                                                                  markeredgecolor='darkorange', markersize=14,
+                                                                  label=label)
+            # x crosshair
+            self.combined_data_crosshair_x = self.ax_combined.axvline(x=x_pos, color='firebrick', ls='-', linewidth=1)
+            # y crosshair
+            self.combined_data_crosshair_y = self.ax_combined.axhline(y=y_pos, color='firebrick', ls='-', linewidth=1)
+            self.ax3_legend = self.ax_combined.legend()
         plt.show(block=True)
 
     def update_min_index(self):
@@ -186,20 +224,20 @@ class InteractivePlot(object):
                 axis=0) + (self.targ_size // 2 - self.look_around)
         else:
             self.min_index = find_max_didq(self.z[:, :, 0], self.look_around)
-        # handel overidden points
-        for i, overide_index in enumerate(self.res_index_overide):
-            self.min_index[overide_index] = self.overide_freq_index[i]
+        # handel overridden points
+        for i, override_index in enumerate(self.res_index_override):
+            self.min_index[override_index] = self.override_freq_index[i]
 
         if self.retune:
             self.combined_data = np.expand_dims(self.min_index, 1)
 
     def refresh_plot(self):
-        if len(self.flags[self.plot_index])>0:
-            self.ax.set_facecolor('lightyellow')
-            self.ax2.set_facecolor('lightyellow')
+        if len(self.flags[self.plot_index]) > 0:
+            self.ax_mag.set_facecolor('lightyellow')
+            self.ax_iq.set_facecolor('lightyellow')
         else:
-            self.ax.set_facecolor("None")
-            self.ax2.set_facecolor("None")
+            self.ax_mag.set_facecolor("None")
+            self.ax_iq.set_facecolor("None")
         for i, mag_line in enumerate(self._mag_lines):
             mag_line[0].set_data(self.chan_freqs[:, self.plot_index, i] / 10 ** 6, 10 * np.log10(
                 self.Is[:, self.plot_index, i] ** 2 + self.Qs[:, self.plot_index, i] ** 2))
@@ -208,12 +246,12 @@ class InteractivePlot(object):
                              10 * np.log10(self.Is[self.min_index[self.plot_index], self.plot_index, 0] ** 2 +
                                            self.Qs[self.min_index[self.plot_index], self.plot_index, 0] ** 2))
 
-        self.ax.relim()
-        self.ax.autoscale()
-        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0]//2, self.plot_index, 0]/10**6
-        self.ax.set_title('Resonator Index ' + str(self.plot_index)+'\n'+f'{"%3.3f" % center_freq_MHz} MHz')
+        self.ax_mag.relim()
+        self.ax_mag.autoscale()
+        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0] // 2, self.plot_index, 0] / 10 ** 6
+        self.ax_mag.set_title('Resonator Index ' + str(self.plot_index) + '\n' + f'{"%3.3f" % center_freq_MHz} MHz')
         if self.retune:
-            self.ax2.set_title("Look Around Points " + str(self.look_around))
+            self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         for i, iq_line in enumerate(self._iq_lines):
             iq_line[0].set_data((self.Is[:, self.plot_index, i],
                                  self.Qs[:, self.plot_index, i]))
@@ -224,19 +262,23 @@ class InteractivePlot(object):
         if self.stream_data is not None:
             self.s2.set_data(np.real(self.stream_data[:, self.plot_index]),
                              np.imag(self.stream_data[:, self.plot_index]))
-        self.ax2.relim()
-        self.ax2.autoscale()
+        self.ax_iq.relim()
+        self.ax_iq.autoscale()
         if self.combined_data is not None:
-            self.ax3.set_title(self.combined_data_names[self.combined_data_index])
-            self.ax3.set_ylabel(self.combined_data_names[self.combined_data_index])
+            self.ax_combined.set_title(self.combined_data_names[self.combined_data_index])
+            self.ax_combined.set_ylabel(self.combined_data_names[self.combined_data_index])
             self.combined_data_points.set_data(np.arange(0, self.combined_data.shape[0]),
                                                self.combined_data[:, self.combined_data_index])
-            self.combined_data_highlight.set_data(self.plot_index,
-                                                  self.combined_data[self.plot_index, self.combined_data_index])
-            self.ax3_legend.texts[0].set_text(self.combined_data_format[self.combined_data_index].format(
-                self.combined_data[self.plot_index, self.combined_data_index]))
-            self.ax3.relim()
-            self.ax3.autoscale()
+            label = self.combined_data_format[self.combined_data_index].format(
+                self.combined_data[self.plot_index, self.combined_data_index])
+            x_pos = self.plot_index
+            y_pos = self.combined_data[self.plot_index, self.combined_data_index]
+            self.combined_data_highlight.set_data(x_pos, y_pos)
+            self.combined_data_crosshair_x.set_xdata(x_pos)
+            self.combined_data_crosshair_y.set_ydata(y_pos)
+            self.ax3_legend.texts[0].set_text(label)
+            self.ax_combined.relim()
+            self.ax_combined.autoscale()
         plt.draw()
 
     def on_key_press(self, event):
@@ -256,7 +298,7 @@ class InteractivePlot(object):
                 self.flags[self.plot_index].append(flag)
                 self.refresh_plot()
             print("Flags are now: ", self.flags[self.plot_index])
-            
+
         if event.key == 'right':
             if self.plot_index != self.chan_freqs.shape[1] - 1:
                 self.plot_index = self.plot_index + 1
@@ -323,39 +365,36 @@ class InteractivePlot(object):
                 return
         if event.button == 3:
             if self.shift_is_held:
-                print("overiding point selection", event.xdata)
+                print("overriding point selection", event.xdata)
                 # print(self.chan_freqs[:,self.plot_index][50])
-                # print((self.res_index_overide == self.plot_index).any())
-                if (self.res_index_overide == self.plot_index).any():
+                # print((self.res_index_override == self.plot_index).any())
+                if (self.res_index_override == self.plot_index).any():
                     replace_index = np.argwhere(
-                        self.res_index_overide == self.plot_index)[0][0]
+                        self.res_index_override == self.plot_index)[0][0]
                     new_freq = np.argmin(
                         np.abs(event.xdata - self.chan_freqs[:, self.plot_index] / 10 ** 6))
-                    self.overide_freq_index[replace_index] = np.int(new_freq)
+                    self.override_freq_index[replace_index] = np.int(new_freq)
 
                 else:
-                    self.res_index_overide = np.append(
-                        self.res_index_overide, np.int(np.asarray(self.plot_index)))
-                    # print(self.res_index_overide)
+                    self.res_index_override = np.append(
+                        self.res_index_override, np.int(np.asarray(self.plot_index)))
+                    # print(self.res_index_override)
                     new_freq = np.argmin(
                         np.abs(event.xdata - self.chan_freqs[:, self.plot_index] / 10 ** 6))
                     # print("new index is ",new_freq)
-                    self.overide_freq_index = np.append(
-                        self.overide_freq_index, np.int(np.asarray(new_freq)))
-                    # print(self.overide_freq_index)
+                    self.override_freq_index = np.append(
+                        self.override_freq_index, np.int(np.asarray(new_freq)))
+                    # print(self.override_freq_index)
                 self.update_min_index()
                 self.refresh_plot()
 
-    def make_pdf(self,filename):
+    def make_pdf(self, filename):
         pdf_pages = PdfPages(filename)
-        for i in tqdm.tqdm(range(0,self.chan_freqs.shape[1]),ascii = True):
+        for i in tqdm.tqdm(range(0, self.chan_freqs.shape[1]), ascii=True):
             self.plot_index = i
             self.refresh_plot()
             pdf_pages.savefig(self.fig)
         pdf_pages.close()
-            
-            
-
 
 
 def tune_kids(f, z, find_min=True, interactive=True, **kwargs):
@@ -373,10 +412,10 @@ def tune_kids(f, z, find_min=True, interactive=True, **kwargs):
         if interactive:
             ip = InteractivePlot(f, z, look_around)
             print(ip.min_index.shape)
-            print(ip.res_index_overide.shape)
-            for i in range(0, len(ip.res_index_overide)):
-                ip.min_index[ip.res_index_overide[i]
-                ] = ip.overide_freq_index[i]
+            print(ip.res_index_override.shape)
+            for i in range(0, len(ip.res_index_override)):
+                ip.min_index[ip.res_index_override[i]
+                ] = ip.override_freq_index[i]
             new_freqs = f[(ip.min_index, np.arange(0, f.shape[1]))]
         else:
             min_index = np.argmin(np.abs(z) ** 2, axis=0)
@@ -385,9 +424,9 @@ def tune_kids(f, z, find_min=True, interactive=True, **kwargs):
         print("centering on max dIdQ")
         if interactive:
             ip = InteractivePlot(f, z, look_around, find_min=False)
-            for i in range(0, len(ip.res_index_overide)):
-                ip.min_index[ip.res_index_overide[i]
-                ] = ip.overide_freq_index[i]
+            for i in range(0, len(ip.res_index_override)):
+                ip.min_index[ip.res_index_override[i]
+                ] = ip.override_freq_index[i]
             new_freqs = f[(ip.min_index, np.arange(0, f.shape[1]))]
         else:
             min_index = find_max_didq(z, look_around)
@@ -397,13 +436,13 @@ def tune_kids(f, z, find_min=True, interactive=True, **kwargs):
 
 class InteractivePowerTuningPlot(object):
     """
-    special interactive plot for tune the readout power of resonators based on fist to thier non-linearity parameter
+    special interactive plot for tune the readout power of resonators based on fist to their non-linearity parameter
     f (frequencies of iq_sweep shape n_pts_iq_sweep x n_res x (optionally n_powers)
     z complex number where i is real and q is imaginary part shape n_pts_iq_sweep x n_res,  n_powers
     fitted_a_mag from magnitude fits
     fitted_a_iq from iq fits (one of two fitted as must be provided
     attn_levels list or array of power levels
-    desired_a the desired non-linearity paramter to have powers set to
+    desired_a the desired non-linearity parameter to have powers set to
     Optional
     z_fit_mag data to display as the fit
     z_fit_iq data to display as the fit
@@ -433,8 +472,8 @@ class InteractivePowerTuningPlot(object):
         # self.targ_size = self.chan_freqs.shape[0]
         self.plot_index = 0
         self.power_index = 0
-        self.res_index_overide = np.asarray((), dtype=np.int16)
-        self.overide_freq_index = np.asarray((), dtype=np.int16)
+        self.res_index_override = np.asarray((), dtype=np.int16)
+        self.override_freq_index = np.asarray((), dtype=np.int16)
         self.shift_is_held = False
         if fitted_a_mag is not None:
             self.bif_levels_mag = np.zeros(fitted_a_mag.shape[0])
@@ -529,8 +568,8 @@ class InteractivePowerTuningPlot(object):
         print("Interactive Power Tuning Activated")
         print("Use left and right arrows to switch between resonators")
         print("Use the up and down arrows to change between power levels")
-        print("Hold shift and right click on the bottom plot to overide picked power level")
-        print("or hold shift and press enter to overide picked power level to the current plotted power level")
+        print("Hold shift and right click on the bottom plot to override picked power level")
+        print("or hold shift and press enter to override picked power level to the current plotted power level")
         plt.show(block=True)
 
     def refresh_plot(self):

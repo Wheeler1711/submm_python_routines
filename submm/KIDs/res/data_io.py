@@ -14,7 +14,6 @@ from submm.sample_data.abs_paths import abs_path_output_dir_default
 from submm.KIDs.res.utils import derived_text, filename_text, write_text, calc_qc_qi, line_format
 from submm.KIDs.res.sweep_tools import InteractivePlot
 
-
 derived_params = {'qi', 'qc', 'red_chi_sqr'}
 field_to_first_format_int = {'fr': 5, 'qr': 7, 'amp': 1, 'phi': 2, 'a': 1, 'b0': 2, 'b1': 2, 'i0': 1, 'q0': 1, 'tau': 6,
                              'f0': 5, 'qi': 7, 'qc': 7, 'flin': 5}
@@ -23,7 +22,8 @@ field_to_decimal_format_int = {'fr': 4, 'qr': 0, 'amp': 2, 'phi': 2, 'a': 2, 'b0
 field_to_format_letter = {'fr': 'f', 'qr': 'f', 'amp': 'f', 'phi': 'f', 'a': 'f', 'b0': 'E', 'b1': 'E', 'i0': 'E',
                           'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f', 'flin': 'f'}
 field_to_field_label = {'fr': 'fr (MHz)', 'qr': 'Qr', 'amp': 'amp', 'phi': 'phi', 'a': 'a', 'b0': 'b0', 'b1': 'b1',
-                        'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc','flin': 'flin (MHz)'}
+                        'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc',
+                        'flin': 'flin (MHz)'}
 field_to_multiplier = {'fr': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6, 'flin': 1.0e-6}
 
 field_to_format_strs = {}
@@ -271,7 +271,7 @@ class Fit(NamedTuple):
     origin: str
     func: Callable
     guess: Optional[Res] = None
-    result:  Optional[Res] = None
+    result: Optional[Res] = None
     popt: Optional[np.ndarray] = None
     pcov: Optional[np.ndarray] = None
     f_data: Optional[np.ndarray] = None
@@ -285,6 +285,15 @@ class Fit(NamedTuple):
                 return getattr(self, item)
             elif item in self.result._fields:
                 return getattr(self.result, item)
+            elif '_err' in item.lower() and self.pcov is not None:
+                field_name, _ = item.lower().rsplit('_err', 1)
+                for field_index, field_name_check in list(enumerate(self._fields_results)):
+                    if field_name_check.lower() == field_name:
+                        return self.pcov[field_index, field_index]
+                else:
+                    raise KeyError(f'Error Key Field {item} not found in {self._fields_results}')
+
+                return self._structured_array_results[item]
             elif item.lower() == 'fit':
                 return self.popt, self.pcov
             elif item.lower() == 'fit_result':
@@ -322,6 +331,7 @@ class Fit(NamedTuple):
         return f"Fit-{str(self.result).replace(',', '-')}"
 
     """ Base class for a resonator fit results """
+
     def z_fit(self) -> np.ndarray:
         """Return the complex impedance of the fit."""
         return self.func(self.f_data, *self.result[0:-len(derived_params)])
@@ -335,9 +345,9 @@ class Fit(NamedTuple):
         z_guess = self.z_guess()
         z_fit = self.z_fit()
         if "mag" in self.origin:
-            plt.plot(self.f_data/10**6,20*np.log10(np.abs(self.z_data)), 'o', label="Input Data")
-            plt.plot(self.f_data/10**6,20*np.log10(np.abs(z_guess)), '-', label="Initial Guess")
-            plt.plot(self.f_data/10**6,20*np.log10(np.abs(z_fit)), '-', label="Fit Results")
+            plt.plot(self.f_data / 10 ** 6, 20 * np.log10(np.abs(self.z_data)), 'o', label="Input Data")
+            plt.plot(self.f_data / 10 ** 6, 20 * np.log10(np.abs(z_guess)), '-', label="Initial Guess")
+            plt.plot(self.f_data / 10 ** 6, 20 * np.log10(np.abs(z_fit)), '-', label="Fit Results")
             plt.xlabel("Frequency (MHz)")
             plt.ylabel("Power (dB)")
             plt.legend()
@@ -407,11 +417,17 @@ class ResSet:
         self._list_results = None
         self._list_fit_results = None
         self._structured_array_results = None
+        # removed indexes when a None results is encountered, # set in self.add_res_fits() and add_res_fits() methods
+        self.removed_indexes = []
 
         if res_results is None and res_fits is None:
-            if self.verbose:
-                print(f'No fits on initialization, triggering a read in of the the results.')
-            self.read()
+            if os.path.exists(f'{self.path}.csv') or os.path.exists(f'{self.path}.toml'):
+                if self.verbose:
+                    print(f'No fits on initialization, triggering a read in of the the results.')
+                self.read()
+            else:
+                # null state setup
+                pass
         else:
             if res_results is not None:
                 self.add_results(res_results)
@@ -464,6 +480,13 @@ class ResSet:
             results_dict.update(fits_dict)
         return results_dict
 
+    def __add__(self, other):
+        if not isinstance(other, ResSet):
+            raise TypeError(f"unsupported operand type(s) for +: 'ResSet' and '{type(other)}'")
+        return ResSet(res_results=list(self._results) + list(other._results),
+                      res_fits=list(self._fit_results.values()) + list(other._fit_results.values()),
+                      verbose=self.verbose)
+
     def order_and_validate(self):
         # make list data objects
         self._list_results = list(self)
@@ -498,8 +521,6 @@ class ResSet:
         list_fit_results = toml.load(read_file_name)
         for fit_result in list_fit_results:
             print('here')
-
-
 
     def read_csv(self, read_file_name, res_tuple=NonlinearIQRes):
         """Read in the results from a csv file."""
@@ -558,39 +579,46 @@ class ResSet:
             print(f'{write_text("Results Written")} to file at: {filename_text(self.path)}')
 
     def add_results(self, res_results: Sequence[Res]):
-        self._results.update(res_results)
+        for list_index, res_result in list(enumerate(res_results)):
+            if res_result is None:
+                self.removed_indexes.append(list_index)
+            else:
+                self._results.add(res_result)
         self.order_and_validate()
         if self.verbose:
             print(f'Added {len(res_results)} results.')
 
     def add_res_fits(self, res_fits: Sequence[Fit]):
-        for res_fit in res_fits:
-            result = res_fit.result
-            self._results.add(result)
-            self._fit_results[result] = res_fit
+        for list_index, res_fit in list(enumerate(res_fits)):
+            if res_fit is None:
+                self.removed_indexes.append(list_index)
+            else:
+                result = res_fit.result
+                self._results.add(result)
+                self._fit_results[result] = res_fit
         self.order_and_validate()
         if self.verbose:
             print(f'Added {len(res_fits)} results and fit_results.')
 
-    def plot(self,flags = None):
+    def plot(self, flags=None, plot_title=None, plot_frames=True):
         # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
-        # also for fitted paramters it wants a list fitted names for the legend
-        # and a array that is n_res x len(fitted paramters)
+        # also for fitted parameters it wants a list fitted names for the legend
+        # and an array that is n_res x len(fitted parameters)
 
         # Make the frequency and z arrays firs
 
         # Make the frequency and z arrays for original data and fitted
-        n_iq_points = len(self._fit_results[next(iter(self))].z_data) # assumes all data is the same size
-        frequencies = np.zeros((n_iq_points,len(self)))
-        fitted_frequencies = np.zeros((n_iq_points,len(self)))
-        z_values = np.zeros((n_iq_points,len(self)),dtype = 'complex')
-        fitted_z_values = np.zeros((n_iq_points,len(self)),dtype = 'complex')
-        for i,result in enumerate(self): 
+        n_iq_points = len(self._fit_results[next(iter(self))].z_data)  # assumes all data is the same size
+        frequencies = np.zeros((n_iq_points, len(self)))
+        fitted_frequencies = np.zeros((n_iq_points, len(self)))
+        z_values = np.zeros((n_iq_points, len(self)), dtype='complex')
+        fitted_z_values = np.zeros((n_iq_points, len(self)), dtype='complex')
+        for i, result in enumerate(self):
             fit_result = self._fit_results[result]
-            frequencies[:,i] = fit_result.f_data # input frequencies nominally the same as res_freq_array
-            fitted_frequencies[:,i] = fit_result.f_data # input frequencies nominally the same as res_freq_array
-            z_values[:,i] = fit_result.z_data
-            fitted_z_values[:,i] = fit_result.z_fit()
+            frequencies[:, i] = fit_result.f_data  # input frequencies nominally the same as res_freq_array
+            fitted_frequencies[:, i] = fit_result.f_data  # input frequencies nominally the same as res_freq_array
+            z_values[:, i] = fit_result.z_data
+            fitted_z_values[:, i] = fit_result.z_fit()
 
         # stack the data with fit data
         multi_sweep_freqs = np.dstack((np.expand_dims(frequencies, axis=2), np.expand_dims(fitted_frequencies, axis=2)))
@@ -600,26 +628,22 @@ class ResSet:
         # first get names of fitted values
         data_names = []
         formats = []
-        result = next(iter(self)) # grab first fit for inspection
+        result = next(iter(self))  # grab first fit for inspection
         for field in result._fields:
-            if getattr(result, field) != None:
+            if getattr(result, field) is not None:
                 data_names.append(field)
-                formats.append(field_to_field_label[field.lower()] + ': {:' +field_to_format_strs[field.lower()]+'}')
+                formats.append(field_to_field_label[field.lower()] + ': {:' + field_to_format_strs[field.lower()] + '}')
 
-        fitted_parameters = np.zeros((len(self),len(data_names)))
-        for i, result in enumerate(self): # don't forget to sort
-            for j, field in enumerate(data_names): # this gets rid of the the None
+        fitted_parameters = np.zeros((len(self), len(data_names)))
+        for i, result in enumerate(self):
+            for j, field in enumerate(data_names):  # this gets rid of the None
                 if field in field_to_multiplier.keys():
-                    fitted_parameters[i,j] = getattr(result,field)*field_to_multiplier[field.lower()]
+                    fitted_parameters[i, j] = getattr(result, field) * field_to_multiplier[field.lower()]
                 else:
-                    fitted_parameters[i,j] = getattr(result,field)
-
+                    fitted_parameters[i, j] = getattr(result, field)
 
         ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
-                              combined_data_names=data_names,combined_data_format = formats,
-                              sweep_labels=['Data', 'Fit'],flags = flags)
+                             combined_data_names=data_names, combined_data_format=formats,
+                             sweep_labels=['Data', 'Fit'], flags=flags, plot_title=plot_title, plot_frames=plot_frames)
 
         return ip
-
-        
-

@@ -302,8 +302,8 @@ def fit_nonlinear_iq_with_err(f_hz, z, bounds=None, x0=None, amp_norm: bool = Fa
     # fit
     popt_first, pcov_first = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
     fr_first, Qr_first, amp_first, phi_first, a_first, i0_first, q0_first, tau_first, f0_first = popt_first
-    
-    fit_result_stacked = nonlinear_iq_for_fitter(f_hz=f_hz, fr=fr_first, Qr=Qr_first, amp=amp_first, phi=phi_first, 
+
+    fit_result_stacked = nonlinear_iq_for_fitter(f_hz=f_hz, fr=fr_first, Qr=Qr_first, amp=amp_first, phi=phi_first,
                                                  a=a_first, i0=i0_first, q0=q0_first, tau=tau_first, f0=f0_first)
     # get error
     var = np.sum((z_stacked - fit_result_stacked) ** 2) / (z_stacked.shape[0] - 1)
@@ -436,7 +436,7 @@ def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     return fit
 
 
-def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z, 
+def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
                           fine_z_err=None, gain_z_err=None, bounds=None, x0=None, verbose=True):
     """Same as, fit_nonlinear_mag(), above but fine and gain scans are provided separately.
     
@@ -487,7 +487,7 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
         # define default initial guess
         print("default initial guess used")
         x0 = guess_x0_mag_nonlinear_sep(fine_f_hz, fine_z, gain_f_hz, gain_z)
-        
+
     guess = NonlinearMagRes(*x0)
     if verbose:
         guess.console(label='Guess', print_header=True)
@@ -512,7 +512,7 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
         red_chi_sqr = None
     # human-readable results
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
-    result = NonlinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin, 
+    result = NonlinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin,
                              red_chi_sqr=red_chi_sqr, Qc=Qc, Qi=Qi)
     if verbose:
         result.console(label='Fit', print_header=False)
@@ -521,7 +521,7 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     return fit
 
 
-def fit_nonlinear_iq_multi(f_hz, z,center_freqs = None, tau: float = None,fit_overlap = 0.5, verbose: bool = True):
+def fit_nonlinear_iq_multi(f_hz, z, center_freqs=None, tau: float = None, fit_overlap=0.5, verbose: bool = True):
     """
     wrapper for handling n resonator fits at once
     mostly just a for loop for fitting but also trys to fit in a way that
@@ -544,7 +544,7 @@ def fit_nonlinear_iq_multi(f_hz, z,center_freqs = None, tau: float = None,fit_ov
         z_single = z[:, i]
         # flag data that is too close to other resonators
         if center_freqs is not None:
-            center_index = np.argmin(np.abs(center_freqs-f_single[len(f_single)//2]))
+            center_index = np.argmin(np.abs(center_freqs - f_single[len(f_single) // 2]))
         else:
             center_index = i
         distance = center_freqs - center_freqs[center_index]
@@ -552,15 +552,15 @@ def fit_nonlinear_iq_multi(f_hz, z,center_freqs = None, tau: float = None,fit_ov
             closest_lower_dist = -np.min(np.abs(distance[np.where(distance < 0)]))
             closest_lower_index = np.where(distance == closest_lower_dist)[0][0]
             halfway_low = center_freqs[center_index] - \
-                (center_freqs[center_index] - center_freqs[closest_lower_index])*fit_overlap
+                          (center_freqs[center_index] - center_freqs[closest_lower_index]) * fit_overlap
         else:
             halfway_low = 0
 
-        if center_freqs[center_index] != np.max(center_freqs):  # don't do if highest frequenct
+        if center_freqs[center_index] != np.max(center_freqs):  # don't do if highest frequency resonator
             closest_higher_dist = np.min(np.abs(distance[np.where(distance > 0)]))
             closest_higher_index = np.where(distance == closest_higher_dist)[0][0]
             halfway_high = center_freqs[center_index] + \
-                (center_freqs[closest_higher_index]-center_freqs[center_index]) * fit_overlap
+                           (center_freqs[closest_higher_index] - center_freqs[center_index]) * fit_overlap
         else:
             halfway_high = np.inf
 
@@ -643,6 +643,7 @@ if __name__ == '__main__':
     import os
     from scipy.io import loadmat
     from submm.sample_data.abs_paths import abs_path_sample_data
+
     data_path = os.path.join(abs_path_sample_data,
                              "Survey_Tbb20.000K_Tbath170mK_Pow-60dBm_array_temp_sweep_long.mat")
     sample_data = loadmat(data_path)
