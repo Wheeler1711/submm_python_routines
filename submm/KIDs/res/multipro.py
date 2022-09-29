@@ -42,13 +42,13 @@ def fit_nonlinear_iq_wrapper(f_hz, z, tau, verbose):
 def fit_nonlinear_iq_pool(f_hz_list, z_list,
                           tau: float = None, verbose: bool = True,
                           multiprocessing_threads: Union[int, None] = multiprocessing_threads_default) \
-        -> (list, ResSet):
+        -> (list):
     """ For Handling N fits at once using multiprocessing. Elements of f_hz_list and z_list, must be the same length
     per item, but not between items.
 
     """
-    res_fits = []
     if multiprocessing_threads is None:
+        res_fits = []
         for f_hz, z in zip(f_hz_list, z_list):
             try:
                 fit_single_res = fit_nonlinear_iq_wrapper(f_hz, z, tau, verbose)
@@ -63,4 +63,4 @@ def fit_nonlinear_iq_pool(f_hz_list, z_list,
         star_args = zip(f_hz_list, z_list, [tau] * len(f_hz_list), [verbose] * len(f_hz_list))
         with Pool(multiprocessing_threads) as p:
             res_fits = [fit_single_res for fit_single_res in p.starmap(fit_nonlinear_iq_wrapper, star_args)]
-    return res_fits, ResSet(res_fits=res_fits)
+    return res_fits
