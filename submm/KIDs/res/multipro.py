@@ -5,7 +5,6 @@ from multiprocessing import Pool
 
 import numpy as np
 import matplotlib as mpl
-from submm.KIDs.res.data_io import ResSet
 from submm.KIDs.res.fitting import fit_nonlinear_iq
 
 # Debug mode
@@ -31,18 +30,21 @@ else:
 
 def fit_nonlinear_iq_wrapper(f_hz, z, tau, verbose):
     try:
-        return fit_nonlinear_iq(f_hz, z, tau=tau, verbose=verbose)
+        fit_single_res = fit_nonlinear_iq(f_hz, z, tau=tau, verbose=False)
     except Exception as e:
-        if verbose:
-            print(e)
-            print(f"failed to fit freq range: {np.min(f_hz) * 1e-6} - {np.max(f_hz) * 1e-6} MHz\n")
+        print(e)
+        print(f"failed to fit freq range: {np.min(f_hz) * 1e-6} - {np.max(f_hz) * 1e-6} MHz\n")
         return None
+    else:
+        if verbose:
+            fit_single_res.console()
+        return fit_single_res
 
 
 def fit_nonlinear_iq_pool(f_hz_list, z_list,
                           tau: float = None, verbose: bool = True,
                           multiprocessing_threads: Union[int, None] = multiprocessing_threads_default) \
-        -> (list):
+        -> list:
     """ For Handling N fits at once using multiprocessing. Elements of f_hz_list and z_list, must be the same length
     per item, but not between items.
 

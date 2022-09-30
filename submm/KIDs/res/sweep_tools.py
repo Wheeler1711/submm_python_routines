@@ -1,11 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import os
 import copy
-from scipy import interpolate
 import platform
+
+import numpy as np
+from scipy import interpolate
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
+
+from submm.KIDs.res.utils import colorize_text
 
 '''
 Tools for handling resonator iq sweeps 
@@ -98,6 +100,7 @@ class InteractivePlot(object):
             iq_y_height = mag_y_height
             iq_figure_coords = [left + mag_x_width + x_space, top - iq_y_height, iq_x_width, iq_y_height]
             combined_figure_coords = None
+            key_figure_coords = None
         else:
             self.fig = plt.figure(1, figsize=(13, 10))
             # the magnitude plot - upper left quadrant
@@ -108,10 +111,15 @@ class InteractivePlot(object):
             iq_x_width = x_width_total - mag_x_width
             iq_y_height = mag_y_height
             iq_figure_coords = [left + mag_x_width + x_space, top - iq_y_height, iq_x_width, iq_y_height]
+            # the Key Figure area for the interactive plot instructions-key
+            key_x_width = 0.2
+            key_y_height = y_height_total - mag_y_height
+            combined_x_width = right - left - key_x_width
+            key_figure_coords = [left + combined_x_width, bottom, key_x_width, key_y_height]
             # the combined data plot - lower plane
-            combined_x_width = right - left
-            combined_y_height = y_height_total - mag_y_height
+            combined_y_height = key_y_height
             combined_figure_coords = [left, bottom, combined_x_width, combined_y_height]
+
         if plot_title is not None:
             self.fig.suptitle(plot_title, y=0.99)
         self.ax_mag = self.fig.add_axes(mag_figure_coords, frameon=plot_frames)
@@ -126,6 +134,16 @@ class InteractivePlot(object):
             self.ax_combined = self.fig.add_axes(combined_figure_coords, frameon=plot_frames)
             self.ax_combined.set_ylabel("")
             self.ax_combined.set_xlabel("Resonator index")
+            self.ax_key = self.fig.add_axes(key_figure_coords, frameon=False)
+            self.ax_key.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
+            self.ax_key.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+            instructions = self.instructions(retune=retune)
+            y_step = 0.9 / (3.0 * float(len(instructions)))
+            y_now = 0.95
+            for key_press, description, color in self.instructions(retune=retune):
+                self.ax_key.text(0.5, y_now, key_press, color='black', backgroundcolor=color, ha='center', va='center')
+                self.ax_key.text(0.5, y_now - y_step, description, color='black', ha='center', va='center')
+                y_now -= 3.0 * y_step
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
@@ -168,23 +186,11 @@ class InteractivePlot(object):
             self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         print("")
         print("Interactive Resonance Plotting Activated")
-        print("Use left and right arrows to switch between resonators")
-        print("press w to write a pdf of all resonators to file")
-        if retune:
-            if platform.system() == 'Darwin':
-                print("Use the up and down arrows to change look around points")
-                print("Hold letter a key and right click on the magnitude plot to override tone position")
-            else:
-                print("Use the up and down arrows to change look around points")
-                print("Hold shift and right click on the magnitude plot to override tone position")
-
+        for key_press, description, color in self.instructions(retune=retune):
+            color_text = colorize_text(text=key_press.capitalize().center(20), style_text='bold',
+                                       color_text='black', color_background=color)
+            print(f'{color_text} : {description}')
         if self.combined_data is not None:
-            print("Use the up and down arrows to change data in bottom plot")
-            print("double click on point in bottom plot to jump to that resonator index")
-            if retune:
-                print("Warning both look around points and combined data are mapped to " +
-                      "up and down arrows, consider not returning and plotting combined " +
-                      "data at the same time")
             self.combined_data = np.asarray(self.combined_data)
             if len(self.combined_data.shape) == 1:
                 self.combined_data = np.expand_dims(self.combined_data, 1)
@@ -215,6 +221,29 @@ class InteractivePlot(object):
             self.combined_data_crosshair_y = self.ax_combined.axhline(y=y_pos, color='firebrick', ls='-', linewidth=1)
             self.ax3_legend = self.ax_combined.legend()
         plt.show(block=True)
+
+    def instructions(self, retune):
+        instructions = [("left-arrow", "change resonator left", 'red'),
+                        ("right-arrow", "change resonator right", 'cyan')]
+        if retune:
+            instructions.extend([('down-arrow', 'change look around points down', 'yellow'),
+                                 ('up-arrow', 'change look around points up', 'blue')])
+            if platform.system() == 'Darwin':
+                instructions.extend([("Hold any letter a key and right click on the magnitude plot",
+                                      "to override tone position", 'purple')])
+            else:
+                instructions.extend([("Hold 'shift' and right click on the magnitude plot",
+                                      "to override tone position", 'purple')])
+        if self.combined_data is not None:
+            instructions.extend([('down-arrow', 'change y-data type', 'yellow'),
+                                 ('up-arrow', 'change y-data type', 'blue'),
+                                 ('double-click', 'go to the nearest resonator index', 'purple')])
+            if retune:
+                instructions.extend(["Warning both look around points and combined data are mapped to " +
+                                     "up and down arrows, consider not returning and plotting combined " +
+                                     "data at the same time"])
+        instructions.append(("w-key", "write a pdf of all resonators", 'green'))
+        return instructions
 
     def update_min_index(self):
         if self.find_min:
@@ -300,14 +329,18 @@ class InteractivePlot(object):
             print("Flags are now: ", self.flags[self.plot_index])
 
         if event.key == 'right':
-            if self.plot_index != self.chan_freqs.shape[1] - 1:
+            if self.plot_index == self.chan_freqs.shape[1] - 1:
+                self.plot_index = 0
+            else:
                 self.plot_index = self.plot_index + 1
-                self.refresh_plot()
+            self.refresh_plot()
 
         if event.key == 'left':
-            if self.plot_index != 0:
+            if self.plot_index == 0:
+                self.plot_index = self.chan_freqs.shape[1] - 1
+            else:
                 self.plot_index = self.plot_index - 1
-                self.refresh_plot()
+            self.refresh_plot()
 
         if event.key == 'up':
             if self.look_around != self.chan_freqs.shape[0] // 2:
@@ -316,7 +349,9 @@ class InteractivePlot(object):
                 if self.retune:
                     self.combined_data = np.expand_dims(self.min_index, 1)
             if self.combined_data is not None:
-                if self.combined_data_index != self.combined_data.shape[1] - 1:
+                if self.combined_data_index == self.combined_data.shape[1] - 1:
+                    self.combined_data_index = 0
+                else:
                     self.combined_data_index = self.combined_data_index + 1
             self.refresh_plot()
 
@@ -327,8 +362,10 @@ class InteractivePlot(object):
                 if self.retune:
                     self.combined_data = np.expand_dims(self.min_index, 1)
             if self.combined_data is not None:
-                if self.combined_data_index != 0:
-                    self.combined_data_index = self.combined_data_index + -1
+                if self.combined_data_index == 0:
+                    self.combined_data_index = self.combined_data.shape[1] - 1
+                else:
+                    self.combined_data_index = self.combined_data_index - 1
             self.refresh_plot()
 
         if platform.system().lower() == 'darwin':
