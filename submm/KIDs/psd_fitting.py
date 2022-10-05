@@ -119,7 +119,7 @@ def fit_psd_lor(x,y,**keywords):
         #define default bounds
         sigma_increase_factor = 5. 
 
-    # bounds with out these some paramter might converge to non physical values
+    # bounds with out these some parameter might converge to non physical values
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:
@@ -202,7 +202,7 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
 
     To Do add in marginilaztions for error bars like in the brute force fitter in resonance fitting
     also add in the corner plot for marginalized values
-    would be good to add in a nested version of this where it fits again over a smaller paramter space
+    would be good to add in a nested version of this where it fits again over a smaller parameter space
     -Done for slope should think about making it general
     """
 
@@ -444,7 +444,7 @@ def fit_psd(x,y,plot = False,**keywords):
         #define default intial guess # guess for b: b*freqs**-c = value => b = value/freqs**-c
         print("default initial guess used")        
         x0  = np.array([y[index][-1], y[index][0]/x[index][0]**(-1.) ,1]) # default values that work OK for superspec
-    # bounds with out these some paramter might converge to non physical values
+    # bounds with out these some parameter might converge to non physical values
     if ('bounds' in keywords):
         bounds = keywords['bounds']
     else:

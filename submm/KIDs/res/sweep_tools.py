@@ -4,6 +4,8 @@ import platform
 import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
+from matplotlib.path import Path
+from matplotlib.widgets import LassoSelector
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
 
@@ -36,6 +38,61 @@ def find_max_didq(z, look_around):
                           axis=0) + (Is.shape[0] // 2 - look_around)
     return min_index
 
+
+class SelectFromCollection:
+    """
+    Select indices from a matplotlib collection using `LassoSelector`.
+
+    Selected indices are saved in the `ind` attribute. This tool fades out the
+    points that are not part of the selection (i.e., reduces their alpha
+    values). If your collection has alpha < 1, this tool will permanently
+    alter the alpha values.
+
+    Note that this tool selects collection objects based on their *origins*
+    (i.e., `offsets`).
+
+    Parameters
+    ----------
+    ax : `~matplotlib.axes.Axes`
+        Axes to interact with.
+    collection : `matplotlib.collections.Collection` subclass
+        Collection you want to select from.
+    alpha_other : 0 <= float <= 1
+        To highlight a selection, this tool sets all selected points to an
+        alpha value of 1 and non-selected points to *alpha_other*.
+    """
+
+    def __init__(self, ax, collection, alpha_other=0.3):
+        self.canvas = ax.figure.canvas
+        self.collection = collection
+        self.alpha_other = alpha_other
+
+        self.xys = collection.get_offsets()
+        self.Npts = len(self.xys)
+
+        # Ensure that we have separate colors for each object
+        self.fc = collection.get_facecolors()
+        if len(self.fc) == 0:
+            raise ValueError('Collection must have a facecolor')
+        elif len(self.fc) == 1:
+            self.fc = np.tile(self.fc, (self.Npts, 1))
+
+        self.lasso = LassoSelector(ax, onselect=self.onselect)
+        self.ind = []
+
+    def onselect(self, verts):
+        path = Path(verts)
+        self.ind = np.nonzero(path.contains_points(self.xys))[0]
+        self.fc[:, -1] = self.alpha_other
+        self.fc[self.ind, -1] = 1
+        self.collection.set_facecolors(self.fc)
+        self.canvas.draw_idle()
+
+    def disconnect(self):
+        self.lasso.disconnect_events()
+        self.fc[:, -1] = 1
+        self.collection.set_facecolors(self.fc)
+        self.canvas.draw_idle()
 
 class InteractivePlot(object):
     """
@@ -568,7 +625,7 @@ class InteractivePowerTuningPlot(object):
             try:
                 self.bif_levels = copy.deepcopy(self.bif_levels_iq)
             except:
-                print("you must supply fits to the non-linearity paramter one of two fit variables")
+                print("you must supply fits to the non-linearity parameter one of two fit variables")
                 return
         self.power_index = np.argmin(np.abs(self.bif_levels[self.plot_index] + self.attn_levels))
         self.fig = plt.figure(1, figsize=(13, 10))

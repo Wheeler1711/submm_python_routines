@@ -212,7 +212,7 @@ def plot_calibrate(cal_dict, circle_fit,plot_period, outfile_dir='./'):
     ----------
     cal_dict: calibration dictionary produced by calibrate_multitone
     circle_fit: numpy array with shape n_res x 4
-        paramters that descibe a fitted circle
+        parameters that descibe a fitted circle
     plot_period: int
         plot only every nth point where n is plot period
     outfile_dir: str

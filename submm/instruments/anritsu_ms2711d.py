@@ -32,7 +32,7 @@ class spectrum_analyzer(object):
         if struct.unpack('B',rx)[0] == 255: #success
             return True
         elif struct.unpack('B',rx)[0] == 224:
-            print("invaled paramter")
+            print("invaled parameter")
             return False
         elif struct.unpack('B',rx)[0] == 238:
             print("time out error")
