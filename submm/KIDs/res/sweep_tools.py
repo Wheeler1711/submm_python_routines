@@ -12,7 +12,7 @@ from submm.KIDs.res.utils import colorize_text
 '''
 Tools for handling resonator iq sweeps 
 i.e. finding minimum, maximum of iq sweep arrays
-ploting iq sweep arrays
+plotting iq sweep arrays
 retuning resonators
 finding correct readout power level
 modified from https://github.com/sbg2133/kidPy/
@@ -45,6 +45,9 @@ class InteractivePlot(object):
     i.e. chan freqs and z could have dimension n_iq points by n_res by n_sweeps
     combined data should have dimension n_res by n_different_types of data
     """
+
+    log_y_data_types = {'chi_sq'}
+    key_font_size = 9
 
     def __init__(self, chan_freqs, z, look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
@@ -131,7 +134,7 @@ class InteractivePlot(object):
         if combined_figure_coords is None:
             self.ax_combined = None
         else:
-            self.ax_combined = self.fig.add_axes(combined_figure_coords, frameon=plot_frames)
+            self.ax_combined = self.fig.add_axes(combined_figure_coords, frameon=plot_frames, autoscale_on=False)
             self.ax_combined.set_ylabel("")
             self.ax_combined.set_xlabel("Resonator index")
             self.ax_key = self.fig.add_axes(key_figure_coords, frameon=False)
@@ -141,8 +144,10 @@ class InteractivePlot(object):
             y_step = 0.9 / (3.0 * float(len(instructions)))
             y_now = 0.95
             for key_press, description, color in self.instructions(retune=retune):
-                self.ax_key.text(0.5, y_now, key_press, color='black', backgroundcolor=color, ha='center', va='center')
-                self.ax_key.text(0.5, y_now - y_step, description, color='black', ha='center', va='center')
+                self.ax_key.text(0.5, y_now, key_press, color='black', backgroundcolor=color, ha='center', va='center',
+                                 size=self.key_font_size)
+                self.ax_key.text(0.5, y_now - y_step, description, color='black',
+                                 ha='center', va='center', size=self.key_font_size)
                 y_now -= 3.0 * y_step
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
@@ -201,8 +206,13 @@ class InteractivePlot(object):
                     self.combined_data_format.append(self.combined_data_names[i] + ': {:g}')
             else:
                 self.combined_data_format = combined_data_format
+            data_type = self.combined_data_names[self.combined_data_index]
             self.ax_combined.set_title(self.combined_data_names[self.combined_data_index])
-            self.ax_combined.set_ylabel(self.combined_data_names[self.combined_data_index])
+            self.ax_combined.set_ylabel(data_type)
+            if data_type in self.log_y_data_types:
+                self.ax_combinded.set_yscale('log')
+            else:
+                self.ax_combined.set_yscale('linear')
             self.combined_data_points, = self.ax_combined.plot(np.arange(0, self.combined_data.shape[0]),
                                                                self.combined_data[:, self.combined_data_index],
                                                                '.', markersize=12, color='darkorchid',
@@ -215,6 +225,7 @@ class InteractivePlot(object):
             self.combined_data_highlight, = self.ax_combined.plot(x_pos, y_pos, 'o', markerfacecolor="None",
                                                                   markeredgecolor='darkorange', markersize=14,
                                                                   label=label)
+            self.ax_combined.autoscale()
             # x crosshair
             self.combined_data_crosshair_x = self.ax_combined.axvline(x=x_pos, color='firebrick', ls='-', linewidth=1)
             # y crosshair
@@ -260,7 +271,7 @@ class InteractivePlot(object):
         if self.retune:
             self.combined_data = np.expand_dims(self.min_index, 1)
 
-    def refresh_plot(self):
+    def refresh_plot(self, autoscale=True):
         if len(self.flags[self.plot_index]) > 0:
             self.ax_mag.set_facecolor('lightyellow')
             self.ax_iq.set_facecolor('lightyellow')
@@ -294,8 +305,13 @@ class InteractivePlot(object):
         self.ax_iq.relim()
         self.ax_iq.autoscale()
         if self.combined_data is not None:
-            self.ax_combined.set_title(self.combined_data_names[self.combined_data_index])
-            self.ax_combined.set_ylabel(self.combined_data_names[self.combined_data_index])
+            data_type = self.combined_data_names[self.combined_data_index]
+            self.ax_combined.set_title(data_type)
+            self.ax_combined.set_ylabel(data_type)
+            if data_type in self.log_y_data_types:
+                self.ax_combined.set_yscale('log')
+            else:
+                self.ax_combined.set_yscale('linear')
             self.combined_data_points.set_data(np.arange(0, self.combined_data.shape[0]),
                                                self.combined_data[:, self.combined_data_index])
             label = self.combined_data_format[self.combined_data_index].format(
@@ -307,7 +323,8 @@ class InteractivePlot(object):
             self.combined_data_crosshair_y.set_ydata(y_pos)
             self.ax3_legend.texts[0].set_text(label)
             self.ax_combined.relim()
-            self.ax_combined.autoscale()
+            if autoscale:
+                self.ax_combined.autoscale()
         plt.draw()
 
     def on_key_press(self, event):
@@ -398,7 +415,7 @@ class InteractivePlot(object):
         if self.combined_data is not None:
             if event.dblclick:
                 self.plot_index = np.argmin(np.abs(np.arange(0, self.combined_data.shape[0]) - event.xdata))
-                self.refresh_plot()
+                self.refresh_plot(autoscale=False)
                 return
         if event.button == 3:
             if self.shift_is_held:

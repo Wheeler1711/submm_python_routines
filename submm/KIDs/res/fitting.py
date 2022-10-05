@@ -23,6 +23,7 @@ import inspect
 
 import numpy as np
 import scipy.optimize as optimization
+import scipy.stats as stats
 
 from submm.KIDs.res.fit_funcs import linear_mag, nonlinear_mag, nonlinear_iq, nonlinear_iq_for_fitter, \
     nonlinear_mag_for_plot, linear_mag_for_plot
@@ -44,6 +45,16 @@ def bounds_check(x0, bounds):
         else:
             upper_bounds.append(ub)
     return lower_bounds, upper_bounds
+
+
+def chi_squared(z, z_fit):
+    real_fit = np.real(z_fit)
+    imag_fit = np.imag(z_fit)
+    real_meas = np.real(z)
+    imag_meas = np.imag(z)
+    obs_delta = np.sqrt((real_fit - real_meas) ** 2.0 + (imag_fit - imag_meas) ** 2.0)
+    chi_sq, p_value = stats.chisquare(f_obs=obs_delta)
+    return chi_sq, p_value
 
 
 def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = None, tau=None, tau_guess=None,
@@ -141,9 +152,12 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
     # human-readable results
     fr, Qr, amp, phi, a, i0, q0, tau, f0 = popt
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
-    result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0, Qc=Qc, Qi=Qi)
+    z_fit = nonlinear_iq(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0,
+                            chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
     if verbose:
-        result.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=True)
     # make a packaged result (NamedTuple) to return
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
@@ -238,10 +252,12 @@ def fit_nonlinear_iq_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
         red_chi_sqr = None
 
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
+    z_fit = nonlinear_iq(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
     result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0,
-                            red_chi_sqr=red_chi_sqr, Qc=Qc, Qi=Qi)
+                            red_chi_sqr=red_chi_sqr, chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
     if verbose:
-        result.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
@@ -303,7 +319,7 @@ def fit_nonlinear_iq_with_err(f_hz, z, bounds=None, x0=None, amp_norm: bool = Fa
     popt_first, pcov_first = optimization.curve_fit(nonlinear_iq_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
     fr_first, Qr_first, amp_first, phi_first, a_first, i0_first, q0_first, tau_first, f0_first = popt_first
 
-    fit_result_stacked = nonlinear_iq_for_fitter(f_hz=f_hz, fr=fr_first, Qr=Qr_first, amp=amp_first, phi=phi_first,
+    fit_result_stacked = nonlinear_iq_for_fitter(f_hz=z, fr=fr_first, Qr=Qr_first, amp=amp_first, phi=phi_first,
                                                  a=a_first, i0=i0_first, q0=q0_first, tau=tau_first, f0=f0_first)
     # get error
     var = np.sum((z_stacked - fit_result_stacked) ** 2) / (z_stacked.shape[0] - 1)
@@ -313,9 +329,12 @@ def fit_nonlinear_iq_with_err(f_hz, z, bounds=None, x0=None, amp_norm: bool = Fa
     fr, Qr, amp, phi, a, i0, q0, tau, f0 = popt
     # make a dictionary to return
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
-    result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0, Qc=Qc, Qi=Qi)
+    z_fit = nonlinear_iq(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0,
+                            chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
     if verbose:
-        result.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_iq,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
@@ -371,9 +390,12 @@ def fit_nonlinear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     popt, pcov = optimization.curve_fit(nonlinear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
     fr, Qr, amp, phi, a, b0, b1, flin = popt
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
-    result = NonlinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin, Qc=Qc, Qi=Qi)
+    z_fit = nonlinear_mag_for_plot(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = NonlinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin,
+                             chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
     if verbose:
-        result.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_mag_for_plot,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
@@ -428,9 +450,11 @@ def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     # human-readable results
     fr, Qr, amp, phi, b0 = popt
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
-    result = LinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0, Qc=Qc, Qi=Qi)
+    z_fit = linear_mag_for_plot(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = LinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0, chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
     if verbose:
-        result.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=linear_mag_for_plot,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
@@ -510,12 +534,14 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
         popt, pcov = optimization.curve_fit(nonlinear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
         fr, Qr, amp, phi, a, b0, b1, flin = popt
         red_chi_sqr = None
+    z_fit = nonlinear_mag_for_plot(f_hz=fine_f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
     # human-readable results
     Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
     result = NonlinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, b0=b0, b1=b1, flin=flin,
-                             red_chi_sqr=red_chi_sqr, Qc=Qc, Qi=Qi)
+                             chi_sq=chi_sq, p_value=p_value, red_chi_sqr=red_chi_sqr,  Qc=Qc, Qi=Qi)
     if verbose:
-        result.console(label='Fit', print_header=False)
+        result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_mag_for_plot,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit

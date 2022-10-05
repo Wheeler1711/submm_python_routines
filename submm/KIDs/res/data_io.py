@@ -8,22 +8,26 @@ from typing import NamedTuple, Optional, Callable, Sequence
 
 import toml
 import numpy as np
+import scipy.stats as stats
 import matplotlib.pyplot as plt
 
 from submm.sample_data.abs_paths import abs_path_output_dir_default
 from submm.KIDs.res.utils import derived_text, filename_text, write_text, calc_qc_qi, line_format
 from submm.KIDs.res.sweep_tools import InteractivePlot
 
-derived_params = {'qi', 'qc', 'red_chi_sqr'}
+
+derived_params = {'qi', 'qc', 'red_chi_sq', 'chi_sq', 'p_value'}
 field_to_first_format_int = {'fr': 5, 'qr': 7, 'amp': 1, 'phi': 2, 'a': 1, 'b0': 2, 'b1': 2, 'i0': 1, 'q0': 1, 'tau': 6,
-                             'f0': 5, 'qi': 7, 'qc': 7, 'flin': 5}
+                             'f0': 5, 'qi': 7, 'qc': 7, 'flin': 5, 'red_chi_sq': 2, 'chi_sq': 1, 'p_value': 2}
 field_to_decimal_format_int = {'fr': 4, 'qr': 0, 'amp': 2, 'phi': 2, 'a': 2, 'b0': 2, 'b1': 2, 'i0': 2, 'q0': 2,
-                               'tau': 2, 'f0': 4, 'qi': 0, 'qc': 0, 'flin': 4}
+                               'tau': 2, 'f0': 4, 'qi': 0, 'qc': 0, 'flin': 4, 'red_chi_sq': 3, 'chi_sq': 1,
+                               'p_value': 3}
 field_to_format_letter = {'fr': 'f', 'qr': 'f', 'amp': 'f', 'phi': 'f', 'a': 'f', 'b0': 'E', 'b1': 'E', 'i0': 'E',
-                          'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f', 'flin': 'f'}
+                          'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f', 'flin': 'f', 'red_chi_sq': 'f',
+                          'chi_sq': 'E',  'p_value': 'f'}
 field_to_field_label = {'fr': 'fr (MHz)', 'qr': 'Qr', 'amp': 'amp', 'phi': 'phi', 'a': 'a', 'b0': 'b0', 'b1': 'b1',
                         'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc',
-                        'flin': 'flin (MHz)'}
+                        'flin': 'flin (MHz)', 'red_chi_sq': 'reduced chi-sqr', 'chi_sq': 'chi-sq', 'p_value': 'p-value'}
 field_to_multiplier = {'fr': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6, 'flin': 1.0e-6}
 
 field_to_format_strs = {}
@@ -135,7 +139,12 @@ class Res(NamedTuple):
                 found_derived['qi'] = Qi
             if Qc is not None:
                 found_derived['qc'] = Qc
-
+            if self.chi_sq is not None:
+                found_derived['chi_sq'] = self.chi_sq
+            if self.red_chi_sq is not None:
+                found_derived['red_chi_sq'] = self.red_chi_sq
+            if self.p_value is not None:
+                found_derived['p_value'] = self.p_value
         else:
             found_fields = {}
             found_derived = {}
@@ -223,6 +232,8 @@ class NonlinearIQResBase(NamedTuple):
     q0: Optional[float] = None
     tau: Optional[float] = None
     f0: Optional[float] = None
+    chi_sq: Optional[float] = None
+    p_value: Optional[float] = None
     red_chi_sq: Optional[float] = None
     Qi: Optional[float] = None
     Qc: Optional[float] = None
@@ -242,6 +253,8 @@ class NonlinearMagResBase(NamedTuple):
     b0: Optional[float] = None
     b1: Optional[float] = None
     flin: Optional[float] = None
+    chi_sq: Optional[float] = None
+    p_value: Optional[float] = None
     red_chi_sq: Optional[float] = None
     Qi: Optional[float] = None
     Qc: Optional[float] = None
@@ -258,6 +271,8 @@ class LinearMagResBase(NamedTuple):
     amp: Optional[float] = None
     phi: Optional[float] = None
     b0: Optional[float] = None
+    chi_sq: Optional[float] = None
+    p_value: Optional[float] = None
     red_chi_sq: Optional[float] = None
     Qi: Optional[float] = None
     Qc: Optional[float] = None
@@ -340,6 +355,12 @@ class Fit(NamedTuple):
         """Return the complex impedance of the guess."""
         return self.func(self.f_data, *self.guess[0:-len(derived_params)])
 
+    def chi2_p(self) -> np.array:
+        """Return the chi-squared and p-value of the fit."""
+        # Chi-Square Goodness of Fit Test
+        chi_square_test_statistic, p_value = stats.chisquare(f_obs=self.z_data, f_exp=self.z_fit())
+        return chi_square_test_statistic, p_value
+
     def plot(self, show=True):
         plt.figure()
         z_guess = self.z_guess()
@@ -370,7 +391,7 @@ class Fit(NamedTuple):
                 self.result.console(label='Fit', print_header=print_header, fields=fields)
         else:
             self.guess.console(label='Guess', print_header=print_header, fields=fields)
-            self.result.console(label='Fit', print_header=False, fields=fields)
+            self.result.console(label='Fit', print_header=print_header, fields=fields)
 
 
 class ResSet:
