@@ -535,6 +535,8 @@ text_color_to_number = {'black': 30, 'red': 31, 'green': 32, 'yellow': 33, 'blue
                         'cyan': 36, 'white': 37}
 background_color_to_number = {'black': 40, 'red': 41, 'green': 42, 'yellow': 43, 'blue': 44, 'purple': 45,
                               'cyan': 46, 'white': 47}
+text_color_matplotlib = {'black': 'white', 'red': 'black', 'green': 'white', 'yellow': 'black', 'blue': 'white',
+                         'purple': 'white', 'cyan': 'black', 'white': 'black'}
 
 
 def colorize_text(text: str, style_text: str = 'normal', color_text: str = 'white', color_background: str = 'black'):

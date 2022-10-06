@@ -2,6 +2,7 @@ import os
 import time
 import numpy as np
 import matplotlib as mpl
+
 mpl.use('TkAgg')
 from scipy.io import loadmat
 
@@ -10,7 +11,8 @@ from submm.sample_data.abs_paths import abs_path_sample_data
 from submm.KIDs.res.sweep_tools import InteractivePlot
 from submm.KIDs.res.fitting import fit_nonlinear_iq_multi, fit_linear_mag_multi
 
-def main(linear = False):  # if resonators are well below bifurcation fitting can be much faster
+
+def main(linear=False):  # if resonators are well below bifurcation fitting can be much faster
 
     # load the sample data
     data_path = os.path.join(abs_path_sample_data,
@@ -30,7 +32,7 @@ def main(linear = False):  # if resonators are well below bifurcation fitting ca
     # 3rd manual correction
     ip = find_kids.find_vna_sweep(freq_hz, s21_complex)
 
-    # slice up the vna with a span equal to to q_slice where q = f/delta_f
+    # slice up the vna with a span equal to q_slice where q = f/delta_f
     res_freq_array, res_array = find_kids.slice_vna(freq_hz, s21_complex, ip.kid_idx, q_slice=2000, flag_collided=False)
 
     # fit the resonators
@@ -52,12 +54,13 @@ def main(linear = False):  # if resonators are well below bifurcation fitting ca
     print("fields in a fit_result")
     print(fit_result._fields)
 
-    # plot the data
-    ip2 = res_set.plot(flags = ip.flags) # see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plotting
+    # plot the data, see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plottingzz
+    ip2 = res_set.plot(flags=ip.flags)
 
     # below is example of retuning resonators
 
-    #ip2 = InteractivePlot(res_freq_array,res_array,retune = True,find_min = False)
+    # ip2 = InteractivePlot(res_freq_array,res_array,retune = True,find_min = False)
+
 
 if __name__ == "__main__":
     main()

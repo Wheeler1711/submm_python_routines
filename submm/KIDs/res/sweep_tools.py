@@ -1,3 +1,4 @@
+import gc
 import copy
 import platform
 
@@ -9,7 +10,7 @@ from matplotlib.widgets import LassoSelector
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
 
-from submm.KIDs.res.utils import colorize_text
+from submm.KIDs.res.utils import colorize_text, text_color_matplotlib
 
 '''
 Tools for handling resonator iq sweeps 
@@ -94,6 +95,7 @@ class SelectFromCollection:
         self.collection.set_facecolors(self.fc)
         self.canvas.draw_idle()
 
+
 class InteractivePlot(object):
     """
     interactive plot for plot many resonators iq data
@@ -123,6 +125,7 @@ class InteractivePlot(object):
         self.find_min = find_min
         self.retune = retune
         self.combined_data = combined_data
+        self.combined_data_format = combined_data_format
         self.combined_data_names = combined_data_names
         self.stream_data = stream_data
         self.targ_size = chan_freqs.shape[0]
@@ -135,11 +138,17 @@ class InteractivePlot(object):
         self.update_min_index()
         if flags is None:
             self.flags = []
-            for i in range(chan_freqs.shape[1]): self.flags.append([])
+            for i in range(chan_freqs.shape[1]):
+                self.flags.append([])
         else:
             self.flags = flags
         if retune:
             self.combined_data_names = ['min index']
+        # data remove variables for the interactive plot
+        self.remove_mode = False
+        self.res_indexes_removed = set()
+        self.res_indexes_staged = set()
+
         # set up plot
         top = 0.94
         bottom = 0.05
@@ -191,21 +200,13 @@ class InteractivePlot(object):
         if combined_figure_coords is None:
             self.ax_combined = None
         else:
-            self.ax_combined = self.fig.add_axes(combined_figure_coords, frameon=plot_frames, autoscale_on=False)
+            self.ax_combined = self.fig.add_axes(combined_figure_coords, frameon=False, autoscale_on=False)
             self.ax_combined.set_ylabel("")
             self.ax_combined.set_xlabel("Resonator index")
             self.ax_key = self.fig.add_axes(key_figure_coords, frameon=False)
             self.ax_key.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
             self.ax_key.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
-            instructions = self.instructions(retune=retune)
-            y_step = 0.9 / (3.0 * float(len(instructions)))
-            y_now = 0.95
-            for key_press, description, color in self.instructions(retune=retune):
-                self.ax_key.text(0.5, y_now, key_press, color='black', backgroundcolor=color, ha='center', va='center',
-                                 size=self.key_font_size)
-                self.ax_key.text(0.5, y_now - y_step, description, color='black',
-                                 ha='center', va='center', size=self.key_font_size)
-                y_now -= 3.0 * y_step
+            self.plot_instructions()
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
@@ -248,85 +249,102 @@ class InteractivePlot(object):
             self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         print("")
         print("Interactive Resonance Plotting Activated")
-        for key_press, description, color in self.instructions(retune=retune):
-            color_text = colorize_text(text=key_press.capitalize().center(20), style_text='bold',
-                                       color_text='black', color_background=color)
-            print(f'{color_text} : {description}')
-        if self.combined_data is not None:
+        self.print_instructions()
+
+        # combined plot variables used in the first initialization
+        self.combined_data_points = None
+        self.combined_data_highlight = None
+        self.combined_data_crosshair_x = None
+        self.combined_data_crosshair_y = None
+        self.combined_staged_for_removal = None
+        self.combined_data_legend = None
+        self.res_indexes = None
+        self.combined_data_values = None
+        if self.combined_data is None:
+            self.res_indexes_original = np.arange(0, self.chan_freqs.shape[1])
+            self.res_indexes = self.res_indexes_original
+        else:
+            # combined data initial formatting
             self.combined_data = np.asarray(self.combined_data)
             if len(self.combined_data.shape) == 1:
                 self.combined_data = np.expand_dims(self.combined_data, 1)
 
-            if not combined_data_format:
+            if not self.combined_data_format:
                 self.combined_data_format = []
                 for i in range(0, self.combined_data.shape[1]):
                     self.combined_data_format.append(self.combined_data_names[i] + ': {:g}')
             else:
-                self.combined_data_format = combined_data_format
-            data_type = self.combined_data_names[self.combined_data_index]
-            self.ax_combined.set_title(self.combined_data_names[self.combined_data_index])
-            self.ax_combined.set_ylabel(data_type)
-            if data_type in self.log_y_data_types:
-                self.ax_combinded.set_yscale('log')
-            else:
-                self.ax_combined.set_yscale('linear')
-            self.combined_data_points, = self.ax_combined.plot(np.arange(0, self.combined_data.shape[0]),
-                                                               self.combined_data[:, self.combined_data_index],
-                                                               '.', markersize=12, color='darkorchid',
-                                                               markerfacecolor="black")
-            label = self.combined_data_format[self.combined_data_index].format(
-                self.combined_data[self.plot_index, self.combined_data_index])
-            x_pos = self.plot_index
-            y_pos = self.combined_data[self.plot_index, self.combined_data_index]
-            # the highlight symbol
-            self.combined_data_highlight, = self.ax_combined.plot(x_pos, y_pos, 'o', markerfacecolor="None",
-                                                                  markeredgecolor='darkorange', markersize=14,
-                                                                  label=label)
-            self.ax_combined.autoscale()
-            # x crosshair
-            self.combined_data_crosshair_x = self.ax_combined.axvline(x=x_pos, color='firebrick', ls='-', linewidth=1)
-            # y crosshair
-            self.combined_data_crosshair_y = self.ax_combined.axhline(y=y_pos, color='firebrick', ls='-', linewidth=1)
-            self.ax3_legend = self.ax_combined.legend()
+                self.combined_data_format = self.combined_data_format
+            self.res_indexes_original = np.arange(0, self.combined_data.shape[0])
+            # run the initialization script
+            self.combined_plot(ax_combined=self.ax_combined)
+
         plt.show(block=True)
 
-    def instructions(self, retune):
-        instructions = [("left-arrow", "change resonator left", 'red'),
-                        ("right-arrow", "change resonator right", 'cyan')]
-        if retune:
-            instructions.extend([('down-arrow', 'change look around points down', 'yellow'),
-                                 ('up-arrow', 'change look around points up', 'blue')])
-            if platform.system() == 'Darwin':
-                instructions.extend([("Hold any letter a key and right click on the magnitude plot",
-                                      "to override tone position", 'purple')])
-            else:
-                instructions.extend([("Hold 'shift' and right click on the magnitude plot",
-                                      "to override tone position", 'purple')])
-        if self.combined_data is not None:
-            instructions.extend([('down-arrow', 'change y-data type', 'yellow'),
-                                 ('up-arrow', 'change y-data type', 'blue'),
-                                 ('double-click', 'go to the nearest resonator index', 'purple')])
-            if retune:
-                instructions.extend(["Warning both look around points and combined data are mapped to " +
-                                     "up and down arrows, consider not returning and plotting combined " +
-                                     "data at the same time"])
-        instructions.append(("w-key", "write a pdf of all resonators", 'green'))
-        return instructions
-
-    def update_min_index(self):
-        if self.find_min:
-            self.min_index = np.argmin(
-                self.Is[self.targ_size // 2 - self.look_around:self.targ_size // 2 + self.look_around, :, 0] ** 2 +
-                self.Qs[self.targ_size // 2 - self.look_around:self.targ_size // 2 + self.look_around, :, 0] ** 2,
-                axis=0) + (self.targ_size // 2 - self.look_around)
+    def combined_plot(self, ax_combined):
+        if self.combined_data_points is not None:
+            self.combined_data_points.remove()
+            self.combined_data_points = None
+        if self.combined_data_highlight is not None:
+            self.combined_data_highlight.remove()
+            self.combined_data_highlight = None
+        if self.combined_data_crosshair_x is not None:
+            self.combined_data_crosshair_x.remove()
+            self.combined_data_crosshair_x = None
+        if self.combined_data_crosshair_y is not None:
+            self.combined_data_crosshair_y.remove()
+            self.combined_data_crosshair_y = None
+        gc.collect()
+        # initialize or re-initialize the combined data for the plot
+        if self.res_indexes_removed:
+            removed_array = np.array(sorted(self.res_indexes_removed))
+            self.res_indexes = np.delete(arr=self.res_indexes_original, obj=removed_array, axis=0)
+            self.combined_data_values = np.delete(arr=self.combined_data, obj=removed_array, axis=0)
         else:
-            self.min_index = find_max_didq(self.z[:, :, 0], self.look_around)
-        # handel overridden points
-        for i, override_index in enumerate(self.res_index_override):
-            self.min_index[override_index] = self.override_freq_index[i]
+            self.res_indexes = self.res_indexes_original
+            self.combined_data_values = self.combined_data
+        # rest the plot index to the first resonator
+        self.plot_index = self.res_indexes[0]
+        data_name = self.combined_data_names[self.combined_data_index]
+        # start setting the plot
+        ax_combined.set_title(data_name)
+        ax_combined.set_ylabel(data_name)
+        if data_name in self.log_y_data_types:
+            ax_combined.set_yscale('log')
+        else:
+            ax_combined.set_yscale('linear')
+        # plot the points and define the curves handle to update the data later
+        combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
+        self.combined_data_points, = ax_combined.plot(self.res_indexes, combined_values_this_index, '.',
+                                                      markersize=12, color='darkorchid', markerfacecolor="black")
+        # highlighting and cross-hairs for the selected data point
+        highlighted_data_value = self.combined_data[self.plot_index, self.combined_data_index]
+        label = self.combined_data_format[self.combined_data_index].format(highlighted_data_value)
+        x_pos = self.plot_index
+        y_pos = highlighted_data_value
+        # the highlight symbol
+        self.combined_data_highlight, = ax_combined.plot(x_pos, y_pos, 'o', markerfacecolor="None",
+                                                         markeredgecolor='darkorange', markersize=14, label=label)
+        # x crosshair
+        self.combined_data_crosshair_x = ax_combined.axvline(x=x_pos, color='firebrick', ls='-', linewidth=1)
+        # y crosshair
+        self.combined_data_crosshair_y = ax_combined.axhline(y=y_pos, color='firebrick', ls='-', linewidth=1)
+        self.combined_data_legend = ax_combined.legend()
+        # Staged for Removal - In 'Remove Mode' these point have an 'X' to denote that they are staged for removal.
+        self.plot_staged_for_removal(ax_combined=ax_combined)
+        # we only rescale manually (intentionally) for this axis
+        ax_combined.autoscale()
 
-        if self.retune:
-            self.combined_data = np.expand_dims(self.min_index, 1)
+    def plot_staged_for_removal(self, ax_combined):
+        if self.combined_staged_for_removal is not None:
+            self.combined_staged_for_removal.remove()
+            self.combined_staged_for_removal = None
+        if self.res_indexes_staged:
+            staged_indexes = sorted(self.res_indexes_staged)
+            stage_values = [self.combined_data[staged_index, self.combined_data_index]
+                            for staged_index in staged_indexes]
+            self.combined_staged_for_removal, =  ax_combined.plot(staged_indexes, stage_values, 'x', ls='None',
+                                                                  markersize=12, color='firebrick')
 
     def refresh_plot(self, autoscale=True):
         if len(self.flags[self.plot_index]) > 0:
@@ -369,51 +387,129 @@ class InteractivePlot(object):
                 self.ax_combined.set_yscale('log')
             else:
                 self.ax_combined.set_yscale('linear')
-            self.combined_data_points.set_data(np.arange(0, self.combined_data.shape[0]),
-                                               self.combined_data[:, self.combined_data_index])
-            label = self.combined_data_format[self.combined_data_index].format(
-                self.combined_data[self.plot_index, self.combined_data_index])
+            # reset the combined plot data
+            self.combined_data_points.set_data(self.res_indexes, self.combined_data_values[:, self.combined_data_index])
+            # label for the value of the highlighted data point
+            highlighted_value = self.combined_data[self.plot_index, self.combined_data_index]
+            label = self.combined_data_format[self.combined_data_index].format(highlighted_value)
             x_pos = self.plot_index
-            y_pos = self.combined_data[self.plot_index, self.combined_data_index]
+            y_pos = highlighted_value
             self.combined_data_highlight.set_data(x_pos, y_pos)
-            self.combined_data_crosshair_x.set_xdata(x_pos)
-            self.combined_data_crosshair_y.set_ydata(y_pos)
-            self.ax3_legend.texts[0].set_text(label)
+            self.combined_data_legend.texts[0].set_text(label)
             self.ax_combined.relim()
+            if self.res_indexes_staged:
+                staged_indexes = sorted(self.res_indexes_staged)
+                stage_values = [self.combined_data[staged_index, self.combined_data_index]
+                                for staged_index in staged_indexes]
+                self.combined_staged_for_removal.set_data(staged_indexes, stage_values)
             if autoscale:
                 self.ax_combined.autoscale()
+            self.combined_data_crosshair_x.set_xdata(x_pos)
+            self.combined_data_crosshair_y.set_ydata(y_pos)
+
         plt.draw()
 
+    def update_min_index(self):
+        if self.find_min:
+            self.min_index = np.argmin(
+                self.Is[self.targ_size // 2 - self.look_around:self.targ_size // 2 + self.look_around, :, 0] ** 2 +
+                self.Qs[self.targ_size // 2 - self.look_around:self.targ_size // 2 + self.look_around, :, 0] ** 2,
+                axis=0) + (self.targ_size // 2 - self.look_around)
+        else:
+            self.min_index = find_max_didq(self.z[:, :, 0], self.look_around)
+        # handel overridden points
+        for i, override_index in enumerate(self.res_index_override):
+            self.min_index[override_index] = self.override_freq_index[i]
+
+        if self.retune:
+            self.combined_data = np.expand_dims(self.min_index, 1)
+
+    def instructions(self):
+        instructions = [("left-arrow", "change resonator left", 'green'),
+                        ("right-arrow", "change resonator right", 'cyan')]
+        if self.retune:
+            instructions.extend([('down-arrow', 'change look around points down', 'yellow'),
+                                 ('up-arrow', 'change look around points up', 'blue')])
+            if platform.system() == 'Darwin':
+                instructions.extend([("Hold any letter a key and right click on the magnitude plot",
+                                      "to override tone position", 'clack')])
+            else:
+                instructions.extend([("Hold 'shift' and right click on the magnitude plot",
+                                      "to override tone position", 'black')])
+        if self.combined_data is not None:
+            instructions.extend([('down-arrow', 'change y-data type', 'yellow'),
+                                 ('up-arrow', 'change y-data type', 'blue'),
+                                 ('double-click', 'go to the resonator index', 'black'),
+                                 ("E-key", "to enter 'Remove-Mode'", 'red')])
+            if self.retune:
+                instructions.extend(["Warning both look around points and combined data are mapped to " +
+                                     "up and down arrows, consider not returning and plotting combined " +
+                                     "data at the same time"])
+        instructions.append(("W-key", "write a pdf of all resonators", 'purple'))
+
+        return instructions
+
+    def instructions_remove(self):
+        instructions = [("left-arrow", "change resonator left", 'green'),
+                        ("right-arrow", "change resonator right", 'cyan'),
+                        ('down-arrow', 'change y-data type', 'yellow'),
+                        ('up-arrow', 'change y-data type', 'blue'),
+                        ('double-click', 'go to the resonator index', 'black'),
+                        ("T-key", "save and exit 'remove-mode'", 'purple'),
+                        ("E-key", "exit 'remove-mode'", 'red'),
+                        ("X-key", "stage for removal", 'yellow'),
+                        ("Z-key", "un-stage (clear) for removal", 'white')]
+
+        return instructions
+
+    def plot_instructions(self):
+        if self.remove_mode:
+            instructions = self.instructions_remove()
+        else:
+            instructions = self.instructions()
+        self.ax_key.clear()
+        stemps_per_item = 1.5
+        y_step = 0.9 / (stemps_per_item * float(len(instructions)))
+        y_now = 0.95
+        for key_press, description, color in instructions:
+            self.ax_key.text(0.4, y_now, key_press.center(13), color=text_color_matplotlib[color],
+                             ha='right', va='center', size=self.key_font_size, weight="bold",
+                             family='monospace', bbox=dict(color=color, ls='-', lw=2.0, ec='black'))
+            self.ax_key.text(0.45, y_now, description, color='black',
+                             ha='left', va='center', size=self.key_font_size - 2)
+            y_now -= stemps_per_item * y_step
+        self.ax_key.set_xlim(0, 1)
+        self.ax_key.set_ylim(0, 1)
+        plt.draw()
+
+    def print_instructions(self):
+        if self.remove_mode:
+            instructions = self.instructions_remove()
+        else:
+            instructions = self.instructions()
+        for key_press, description, color in instructions:
+            if color == 'black':
+                text_color = 'white'
+            else:
+                text_color = 'black'
+            color_text = colorize_text(text=key_press.capitalize().center(20), style_text='bold',
+                                       color_text=text_color, color_background=color)
+            print(f'{color_text} : {description}')
+
     def on_key_press(self, event):
-        # print event.key
-        if event.key == 'f':
-            print("flagging point", event.xdata)
-            print("current flags: ", self.flags[self.plot_index])
-            flag = input("Enter flag string: ").lower()
-            if flag == "c":
-                flag = "collision"
-            elif flag == "s":
-                flag = "shallow"
-            else:
-                pass
-
-            if flag != '':
-                self.flags[self.plot_index].append(flag)
-                self.refresh_plot()
-            print("Flags are now: ", self.flags[self.plot_index])
-
+        # items on all menus
         if event.key == 'right':
-            if self.plot_index == self.chan_freqs.shape[1] - 1:
-                self.plot_index = 0
+            if self.plot_index == self.res_indexes[-1]:
+                self.plot_index = self.res_indexes[0]
             else:
-                self.plot_index = self.plot_index + 1
+                self.plot_index = self.res_indexes[np.where(self.res_indexes == self.plot_index)[-1] + 1][-1]
             self.refresh_plot()
 
         if event.key == 'left':
-            if self.plot_index == 0:
-                self.plot_index = self.chan_freqs.shape[1] - 1
+            if self.plot_index == self.res_indexes[0]:
+                self.plot_index = self.res_indexes[-1]
             else:
-                self.plot_index = self.plot_index - 1
+                self.plot_index = self.res_indexes[np.where(self.res_indexes == self.plot_index)[-1] - 1][0]
             self.refresh_plot()
 
         if event.key == 'up':
@@ -449,15 +545,72 @@ class InteractivePlot(object):
             if event.key == 'shift':
                 self.shift_is_held = True
 
-        if event.key == 'w':
-            print("saving to pdf")
-            filename = input("enter filename for pdf: ")
-            if filename == '':
-                filename = "res_plots.pdf"
-            elif filename[-4:] != '.pdf':
-                filename = filename + '.pdf'
+        # toggle different menus
+        if self.remove_mode:
+            self.on_key_press_remove_mode(event=event)
+        else:
+            # only on the main menu
+            if event.key == 'e':
+                self.remove_mode = True
+                print('\nEntered "Remove Mode"')
+                self.print_instructions()
+                self.plot_instructions()
 
-            self.make_pdf(filename)
+            if event.key == 'f':
+                print("flagging point", event.xdata)
+                print("current flags: ", self.flags[self.plot_index])
+                flag = input("Enter flag string: ").lower()
+                if flag == "c":
+                    flag = "collision"
+                elif flag == "s":
+                    flag = "shallow"
+                else:
+                    pass
+
+                if flag != '':
+                    self.flags[self.plot_index].append(flag)
+                    self.refresh_plot()
+                print("Flags are now: ", self.flags[self.plot_index])
+
+            if event.key == 'w':
+                print("saving to pdf")
+                filename = input("enter filename for pdf: ")
+                if filename == '':
+                    filename = "res_plots.pdf"
+                elif filename[-4:] != '.pdf':
+                    filename = filename + '.pdf'
+
+                self.make_pdf(filename)
+
+    def on_key_press_remove_mode(self, event):
+        if event.key == 'e' or event.key == 't':
+            # reset the plot instructions
+            self.remove_mode = False
+            self.plot_instructions()
+            print('\nMain Menu')
+            self.print_instructions()
+            if event.key == 't':
+                # save what is removed
+                self.res_indexes_removed.update(self.res_indexes_staged)
+                # reset the combined plot
+                self.combined_plot(ax_combined=self.ax_combined)
+            self.res_indexes_staged = set()
+            # this removes the staged points (red "X"s) from the plot
+            self.plot_staged_for_removal(ax_combined=self.ax_combined)
+            plt.draw()
+        elif event.key == 'x':
+            # remove the selected point
+            self.res_indexes_staged.add(self.plot_index)
+            self.plot_staged_for_removal(ax_combined=self.ax_combined)
+            plt.draw()
+        elif event.key == 'z':
+            # clear the staged points
+            if self.plot_index in self.res_indexes_staged:
+                self.res_indexes_staged.remove(self.plot_index)
+                self.plot_staged_for_removal(ax_combined=self.ax_combined)
+                plt.draw()
+            else:
+                print(f"Res-Index {self.plot_index} not staged for removal")
 
     def on_key_release(self, event):
         # windows or mac
