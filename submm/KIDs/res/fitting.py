@@ -104,8 +104,8 @@ def fit_nonlinear_iq(f_hz, z, bounds=None, x0: list = None, fr_guess: float = No
         # define default bounds
         if verbose:
             print("default bounds used")
-        bounds = ([np.min(f_hz), 50, .01, -np.pi, 0, -np.inf, -np.inf, 0, np.min(f_hz)],
-                  [np.max(f_hz), 200000, 1, np.pi, 5, np.inf, np.inf, 1 * 10 ** -6, np.max(f_hz)])
+        bounds = ([np.min(f_hz), 50, .01, -np.pi, 0, -np.inf, -np.inf, -1.0e-6, np.min(f_hz)],
+                  [np.max(f_hz), 200000, 1, np.pi, 5, np.inf, np.inf, 1.0e-6, np.max(f_hz)])
     if x0 is None:
         # define default initial guess
         if verbose:

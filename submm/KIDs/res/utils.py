@@ -467,6 +467,24 @@ default_true_strings = {'Y', 'y', 'True', 'true'}
 default_false_strings = {'N', 'n', 'False', 'false'}
 
 
+def autoscale_from_data(data, log_scale=False, pad_fraction=0.05, min_data_span=1.0e-8):
+    data_min = min(data)
+    data_max = max(data)
+    if log_scale:
+        data_min = np.log10(data_min)
+        data_max = np.log10(data_max)
+    data_span = data_max - data_min
+    if data_span == 0.0:
+        data_span = min_data_span
+    pad = data_span * pad_fraction
+    plot_min = data_min - pad
+    plot_max = data_max + pad
+    if log_scale:
+        plot_min = 10 ** plot_min
+        plot_max = 10 ** plot_max
+    return plot_min, plot_max
+
+
 def make_int(test_num_str):
     """
     Parameters

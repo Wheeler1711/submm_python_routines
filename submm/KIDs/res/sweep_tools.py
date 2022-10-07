@@ -10,7 +10,7 @@ from matplotlib.widgets import LassoSelector
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
 
-from submm.KIDs.res.utils import colorize_text, text_color_matplotlib
+from submm.KIDs.res.utils import colorize_text, text_color_matplotlib, autoscale_from_data
 
 '''
 Tools for handling resonator iq sweeps 
@@ -260,6 +260,7 @@ class InteractivePlot(object):
         self.combined_data_legend = None
         self.res_indexes = None
         self.combined_data_values = None
+        self.pop_up_text = None
         if self.combined_data is None:
             self.res_indexes_original = np.arange(0, self.chan_freqs.shape[1])
             self.res_indexes = self.res_indexes_original
@@ -315,8 +316,8 @@ class InteractivePlot(object):
             ax_combined.set_yscale('linear')
         # plot the points and define the curves handle to update the data later
         combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
-        self.combined_data_points, = ax_combined.plot(self.res_indexes, combined_values_this_index, '.',
-                                                      markersize=12, color='darkorchid', markerfacecolor="black")
+        self.combined_data_points = ax_combined.scatter(x=self.res_indexes, y=combined_values_this_index, s=60,
+                                                        color='k', marker='o', edgecolors='darkorchid')
         # highlighting and cross-hairs for the selected data point
         highlighted_data_value = self.combined_data[self.plot_index, self.combined_data_index]
         label = self.combined_data_format[self.combined_data_index].format(highlighted_data_value)
@@ -381,14 +382,16 @@ class InteractivePlot(object):
         self.ax_iq.autoscale()
         if self.combined_data is not None:
             data_type = self.combined_data_names[self.combined_data_index]
-            self.ax_combined.set_title(data_type)
+            self.ax_combined.set_title(data_type, color='black')
             self.ax_combined.set_ylabel(data_type)
             if data_type in self.log_y_data_types:
                 self.ax_combined.set_yscale('log')
             else:
                 self.ax_combined.set_yscale('linear')
             # reset the combined plot data
-            self.combined_data_points.set_data(self.res_indexes, self.combined_data_values[:, self.combined_data_index])
+            combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
+            new_offsets = np.column_stack((self.res_indexes, combined_values_this_index))
+            self.combined_data_points.set_offsets(new_offsets)
             # label for the value of the highlighted data point
             highlighted_value = self.combined_data[self.plot_index, self.combined_data_index]
             label = self.combined_data_format[self.combined_data_index].format(highlighted_value)
@@ -403,7 +406,10 @@ class InteractivePlot(object):
                                 for staged_index in staged_indexes]
                 self.combined_staged_for_removal.set_data(staged_indexes, stage_values)
             if autoscale:
-                self.ax_combined.autoscale()
+                self.ax_combined.set_xlim(autoscale_from_data(self.res_indexes))
+                plot_min, plot_max = autoscale_from_data(combined_values_this_index,
+                                                         log_scale=data_type in self.log_y_data_types)
+                self.ax_combined.set_ylim((plot_min, plot_max))
             self.combined_data_crosshair_x.set_xdata(x_pos)
             self.combined_data_crosshair_y.set_ydata(y_pos)
 
@@ -458,7 +464,8 @@ class InteractivePlot(object):
                         ("T-key", "save and exit 'remove-mode'", 'purple'),
                         ("E-key", "exit 'remove-mode'", 'red'),
                         ("X-key", "stage for removal", 'yellow'),
-                        ("Z-key", "un-stage (clear) for removal", 'white')]
+                        ("Z-key", "un-stage (clear) for removal", 'white'),
+                        ('B-Key', "then click+drag+draw to stage", 'black')]
 
         return instructions
 
@@ -611,6 +618,29 @@ class InteractivePlot(object):
                 plt.draw()
             else:
                 print(f"Res-Index {self.plot_index} not staged for removal")
+        # Lasso selection
+        elif event.key == 'b':
+            selector = SelectFromCollection(ax=self.ax_combined, collection=self.combined_data_points)
+
+            def accept_lasso(event_lasso):
+                if event_lasso.key == "enter":
+                    selected_indexes = [int(index_as_float) for index_as_float in selector.xys[selector.ind][:, 0]]
+                    self.res_indexes_staged.update(selected_indexes)
+                    selector.disconnect()
+                    if self.pop_up_text is not None:
+                        self.pop_up_text.remove()
+                        self.pop_up_text = None
+                    self.plot_staged_for_removal(ax_combined=self.ax_combined)
+                    self.refresh_plot()
+
+            self.fig.canvas.mpl_connect("key_press_event", accept_lasso)
+            self.pop_up_text = self.ax_combined.text(0.5, 0.8, "Press enter to accept selection",
+                                                     transform=self.ax_combined.transAxes, ha="center", va="center",
+                                                     size=16, color="yellow", family="monospace",
+                                                     bbox=dict(facecolor='black', alpha=0.6))
+            self.ax_combined.set_title("Click and Drag to select points with a lasso (you click and draw on the plot).",
+                                       size=16, color="firebrick", family="monospace")
+            self.fig.canvas.draw()
 
     def on_key_release(self, event):
         # windows or mac
