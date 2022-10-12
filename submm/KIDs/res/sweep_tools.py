@@ -162,6 +162,7 @@ class InteractivePlot(object):
         # data remove variables for the interactive plot
         self.res_indexes_removed = set()
         self.res_indexes_staged = {}
+        self.combined_y_over_x_scale = 1.0
 
         # set up plot
         top = 0.94
@@ -201,6 +202,7 @@ class InteractivePlot(object):
             key_figure_coords = [left + combined_x_width, bottom, key_x_width, key_y_height]
             # the combined data plot - lower plane
             combined_y_height = key_y_height
+            self.combined_y_over_x_scale = combined_y_height / combined_x_width
             combined_figure_coords = [left, bottom, combined_x_width, combined_y_height]
 
         if plot_title is not None:
@@ -275,6 +277,7 @@ class InteractivePlot(object):
         self.combined_data_legend = None
         self.res_indexes = None
         self.combined_data_values = None
+        self.combined_values_this_index = None
         self.pop_up_text = None
         if self.combined_data is None:
             self.res_indexes_original = np.arange(0, self.chan_freqs.shape[1])
@@ -330,7 +333,7 @@ class InteractivePlot(object):
         else:
             ax_combined.set_yscale('linear')
         # plot the points and define the curves handle to update the data later
-        combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
+        self.combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
         color_array = []
         edge_color_array = []
         for res_index, flags_this_res in list(enumerate(self.flags)):
@@ -342,7 +345,7 @@ class InteractivePlot(object):
                     color_array.append('black')
                     edge_color_array.append('darkorchid')
 
-        self.combined_data_points = ax_combined.scatter(x=self.res_indexes, y=combined_values_this_index, s=60,
+        self.combined_data_points = ax_combined.scatter(x=self.res_indexes, y=self.combined_values_this_index, s=60,
                                                         color=color_array, marker='o', edgecolors=edge_color_array)
         # highlighting and cross-hairs for the selected data point
         highlighted_data_value = self.combined_data[self.plot_index, self.combined_data_index]
@@ -438,8 +441,8 @@ class InteractivePlot(object):
             else:
                 self.ax_combined.set_yscale('linear')
             # reset the combined plot data
-            combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
-            new_offsets = np.column_stack((self.res_indexes, combined_values_this_index))
+            self.combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
+            new_offsets = np.column_stack((self.res_indexes, self.combined_values_this_index))
             self.combined_data_points.set_offsets(new_offsets)
             # label for the value of the highlighted data point
             highlighted_value = self.combined_data[self.plot_index, self.combined_data_index]
@@ -457,7 +460,7 @@ class InteractivePlot(object):
                     self.combined_staged_flagged.set_data(flag_indexes, flag_values)
             if autoscale:
                 self.ax_combined.set_xlim(autoscale_from_data(self.res_indexes))
-                plot_min, plot_max = autoscale_from_data(combined_values_this_index,
+                plot_min, plot_max = autoscale_from_data(self.combined_values_this_index,
                                                          log_scale=data_type in self.log_y_data_types)
                 self.ax_combined.set_ylim((plot_min, plot_max))
             self.combined_data_crosshair_x.set_xdata(x_pos)
@@ -751,10 +754,24 @@ class InteractivePlot(object):
     def onClick(self, event):
         if self.combined_data is not None:
             if event.dblclick:
-                self.plot_index = np.argmin(np.abs(np.arange(0, self.combined_data.shape[0]) - event.xdata))
+                if self.combined_data:
+                    # get the radius of each point from the click
+                    x_data_coords = self.res_indexes - event.xdata
+                    x_data_min, x_dat_max = self.ax_combined.get_xlim()
+                    x_data_range = x_dat_max - x_data_min
+                    x_norm_coords = x_data_coords / x_data_range
+                    x_yratio_coords = x_norm_coords * self.combined_y_over_x_scale
+                    y_data_coords = self.combined_values_this_index - event.ydata
+                    y_data_min, y_dat_max = self.ax_combined.get_ylim()
+                    y_data_range = y_dat_max - y_data_min
+                    y_norm_coords = y_data_coords / y_data_range
+                    radius_array = np.sqrt(x_yratio_coords ** 2 + y_norm_coords ** 2)
+                    self.plot_index = self.res_indexes[np.argmin(radius_array)]
+                else:
+                    self.plot_index = np.argmin(np.abs(np.arange(0, self.combined_data.shape[0]) - event.xdata))
                 self.refresh_plot(autoscale=False)
                 return
-        if event.button == 3:
+        elif event.button == 3:
             if self.shift_is_held:
                 print("overriding point selection", event.xdata)
                 # print(self.chan_freqs[:,self.plot_index][50])
