@@ -162,7 +162,7 @@ class InteractivePlot(object):
         # data remove variables for the interactive plot
         self.res_indexes_removed = set()
         self.res_indexes_staged = {}
-        self.combined_y_over_x_scale = 1.0
+        self.combined_x_width_over_y_height = 1.0
 
         # set up plot
         top = 0.94
@@ -202,7 +202,7 @@ class InteractivePlot(object):
             key_figure_coords = [left + combined_x_width, bottom, key_x_width, key_y_height]
             # the combined data plot - lower plane
             combined_y_height = key_y_height
-            self.combined_y_over_x_scale = combined_y_height / combined_x_width
+            self.combined_x_width_over_y_height = combined_x_width / combined_y_height
             combined_figure_coords = [left, bottom, combined_x_width, combined_y_height]
 
         if plot_title is not None:
@@ -754,21 +754,18 @@ class InteractivePlot(object):
     def onClick(self, event):
         if self.combined_data is not None:
             if event.dblclick:
-                if self.combined_data:
-                    # get the radius of each point from the click
-                    x_data_coords = self.res_indexes - event.xdata
-                    x_data_min, x_dat_max = self.ax_combined.get_xlim()
-                    x_data_range = x_dat_max - x_data_min
-                    x_norm_coords = x_data_coords / x_data_range
-                    x_yratio_coords = x_norm_coords * self.combined_y_over_x_scale
-                    y_data_coords = self.combined_values_this_index - event.ydata
-                    y_data_min, y_dat_max = self.ax_combined.get_ylim()
-                    y_data_range = y_dat_max - y_data_min
-                    y_norm_coords = y_data_coords / y_data_range
-                    radius_array = np.sqrt(x_yratio_coords ** 2 + y_norm_coords ** 2)
-                    self.plot_index = self.res_indexes[np.argmin(radius_array)]
-                else:
-                    self.plot_index = np.argmin(np.abs(np.arange(0, self.combined_data.shape[0]) - event.xdata))
+                # get the radius of each point from the click
+                x_data_coords = self.res_indexes - event.xdata
+                x_data_min, x_dat_max = self.ax_combined.get_xlim()
+                x_data_range = x_dat_max - x_data_min
+                x_norm_coords = x_data_coords / x_data_range
+                x_yratio_coords = x_norm_coords * self.combined_x_width_over_y_height
+                y_data_coords = self.combined_values_this_index - event.ydata
+                y_data_min, y_dat_max = self.ax_combined.get_ylim()
+                y_data_range = y_dat_max - y_data_min
+                y_norm_coords = y_data_coords / y_data_range
+                radius_array = np.sqrt(x_yratio_coords ** 2 + y_norm_coords ** 2)
+                self.plot_index = self.res_indexes[np.argmin(radius_array)]
                 self.refresh_plot(autoscale=False)
                 return
         elif event.button == 3:
