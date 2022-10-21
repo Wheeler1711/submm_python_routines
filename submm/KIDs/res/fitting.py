@@ -594,13 +594,12 @@ def fit_so_resonator_cable(f_hz, z, bounds=None, x0=None, verbose=True):
     popt, pcov = optimization.curve_fit(so_resonator_cable_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
     # human-readable results
     f_0, Q, Q_e_real, Q_e_imag, delay, phi, f_min, A_mag, A_slope = popt
-    Qc, Qi = calc_qc_qi(qr=Q, amp=A_mag)
     z_fit = so_resonator_cable(f=f_hz, f_0=f_0, Q=Q, Q_e_real=Q_e_real, Q_e_imag=Q_e_imag, delay=delay,
                                phi=phi, f_min=f_min, A_mag=A_mag, A_slope=A_slope)
     chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
     result = ResonatorCable(fr=f_0, Q=Q, Q_e_real=Q_e_real, Q_e_imag=Q_e_imag, delay=delay,
                             phi=phi, f_min=f_min, A_mag=A_mag, A_slope=A_slope,
-                            chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
+                            chi_sq=chi_sq, p_value=p_value)
     if verbose:
         result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=so_resonator_cable,
