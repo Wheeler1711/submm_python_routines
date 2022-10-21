@@ -3,7 +3,6 @@ from numba import jit
 
 from submm.KIDs.res.utils import cardan
 
-
 # at import time, create a dictionary of all the fitting functions in this module
 fitting_functions = {}
 
@@ -273,6 +272,97 @@ def nonlinear_iq_for_fitter(f_hz, fr, Qr, amp, phi, a, i0, q0, tau, f0):
         y[i] = cardan(4.0, -4.0 * yg[i], 1.0, -(yg[i] + a))
     z = (i0 + 1.j * q0) * np.exp(-1.0j * 2 * np.pi * deltaf * tau) * (
             1.0 - amp * np.exp(1.0j * phi) / (1.0 + 2.0 * 1.0j * y) + amp / 2. * (np.exp(1.0j * phi) - 1.0))
+    real_z = np.real(z)
+    imag_z = np.imag(z)
+    return np.hstack((real_z, imag_z))
+
+
+"""
+Simons Observatory fitting functions. 
+Copied from https://github.com/simonsobs/sodetlib/blob/master/sodetlib/resonator_fitting.py
+
+See LICENSE file at: https://github.com/simonsobs/sodetlib/blob/master/LICENSE
+Copyright (c) 2019, Simons Observatory
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
+
+@fit_func
+@jit(nopython=True)
+def so_linear_resonator(f, f_0, Q, Q_e_real, Q_e_imag):
+    """
+    Function for a resonator with asymmetry parameterized by the imaginary
+    part of ``Q_e``. The real part of ``Q_e`` is what we typically refer to as
+    the coupled Q, ``Q_c``.
+    """
+    Q_e = Q_e_real + 1j * Q_e_imag
+    return 1 - (Q * Q_e ** (-1) / (1 + 2j * Q * (f - f_0) / f_0))
+
+
+@fit_func
+@jit(nopython=True)
+def so_cable_delay(f, delay, phi, f_min):
+    """
+    Function implements a time delay (phase variation linear with frequency).
+    """
+    return np.exp(1j * (-2 * np.pi * (f - f_min) * delay + phi))
+
+
+@fit_func
+@jit(nopython=True)
+def so_general_cable(f, delay, phi, f_min, A_mag, A_slope):
+    """
+    Function implements a time delay (phase variation linear with frequency) and
+    attenuation slope characterizing a background RF cable transfer function.
+    """
+    phase_term = so_cable_delay(f, delay, phi, f_min)
+    magnitude_term = ((f - f_min) * A_slope + 1) * A_mag
+    return magnitude_term * phase_term
+
+
+@fit_func
+@jit(nopython=True)
+def so_resonator_cable(f, f_0, Q, Q_e_real, Q_e_imag, delay, phi, f_min, A_mag, A_slope):
+    """
+    Function that includes asymmetric resonator (``linear_resonator``) and cable
+    transfer functions (``general_cable``). Which most closely matches our full
+    measured transfer function.
+    """
+    resonator_term = so_linear_resonator(f, f_0, Q, Q_e_real, Q_e_imag)
+    cable_term = so_general_cable(f, delay, phi, f_min, A_mag, A_slope)
+    return resonator_term * cable_term
+
+
+@fit_func
+@jit(nopython=True)
+def so_resonator_cable_for_fitter(f, f_0, Q, Q_e_real, Q_e_imag, delay, phi, f_min, A_mag, A_slope):
+    """
+    Function that includes asymmetric resonator (``linear_resonator``) and cable
+    transfer functions (``general_cable``). Which most closely matches our full
+    measured transfer function.
+    """
+    z = so_resonator_cable(f, f_0, Q, Q_e_real, Q_e_imag, delay, phi, f_min, A_mag, A_slope)
     real_z = np.real(z)
     imag_z = np.imag(z)
     return np.hstack((real_z, imag_z))

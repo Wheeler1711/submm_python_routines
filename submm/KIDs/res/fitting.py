@@ -26,10 +26,10 @@ import scipy.optimize as optimization
 import scipy.stats as stats
 
 from submm.KIDs.res.fit_funcs import linear_mag, nonlinear_mag, nonlinear_iq, nonlinear_iq_for_fitter, \
-    nonlinear_mag_for_plot, linear_mag_for_plot
-from submm.KIDs.res.data_io import Fit, ResSet, NonlinearIQRes, NonlinearMagRes, LinearMagRes
+    nonlinear_mag_for_plot, linear_mag_for_plot, so_resonator_cable, so_resonator_cable_for_fitter
+from submm.KIDs.res.data_io import Fit, ResSet, NonlinearIQRes, NonlinearMagRes, LinearMagRes, ResonatorCable
 from submm.KIDs.res.utils import amplitude_normalization, calc_qc_qi, guess_x0_iq_nonlinear, guess_x0_mag_nonlinear, \
-    guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep
+    guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep, guess_so_resonator_cable
 
 
 def bounds_check(x0, bounds):
@@ -543,6 +543,67 @@ def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
     if verbose:
         result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=nonlinear_mag_for_plot,
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
+    return fit
+
+
+def fit_so_resonator_cable(f_hz, z, bounds=None, x0=None, verbose=True):
+    """
+    Parameters
+    ----------
+    f_hz : numpy.array
+        frequencies Hz
+    z : numpy.array
+        complex s21
+    bounds : tuple, option (default None)
+        A 2d tuple of low values bounds[0] the high values bounds[1] to bound the fitting problem.
+    x0 : list, optional (default None)
+        The initial guesses for all parameters:
+        fr_guess  = x0[0]
+        Qr_guess  = x0[1]
+        amp_guess = x0[2]
+        phi_guess = x0[3]
+        b0_guess  = x0[4]
+        The fit's initial guess can be very important because least squares fitting does not completely search the
+        parameter space.
+    verbose : bool, optional (default True)
+        Uses the print function to display fit results when true, no prints to the console when false.
+
+
+    Returns
+    -------
+    fit : Fit
+        A Fit NamedTuple containing the fit results.
+    """
+    real = np.real(z)
+    imag = np.imag(z)
+    z_stacked = np.hstack((np.real(z), np.imag(z)))
+    if bounds is None or x0 is None:
+        x0_default, bounds_default = guess_so_resonator_cable(freqs=f_hz, real=real, imag=imag)
+        if bounds is None:
+            bounds = bounds_default
+        if x0 is None:
+            x0 = x0_default
+
+    guess = ResonatorCable(*x0)
+    if verbose:
+        guess.console(label='Guess', print_header=True)
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fit
+    popt, pcov = optimization.curve_fit(so_resonator_cable_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
+    # human-readable results
+    f_0, Q, Q_e_real, Q_e_imag, delay, phi, f_min, A_mag, A_slope = popt
+    Qc, Qi = calc_qc_qi(qr=Q, amp=A_mag)
+    z_fit = so_resonator_cable(f=f_hz, f_0=f_0, Q=Q, Q_e_real=Q_e_real, Q_e_imag=Q_e_imag, delay=delay,
+                               phi=phi, f_min=f_min, A_mag=A_mag, A_slope=A_slope)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = ResonatorCable(fr=f_0, Q=Q, Q_e_real=Q_e_real, Q_e_imag=Q_e_imag, delay=delay,
+                            phi=phi, f_min=f_min, A_mag=A_mag, A_slope=A_slope,
+                            chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
+    if verbose:
+        result.console(label='Fit', print_header=True)
+    fit = Fit(origin=inspect.currentframe().f_code.co_name, func=so_resonator_cable,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z)
     return fit
 

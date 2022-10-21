@@ -17,18 +17,22 @@ from submm.KIDs.res.sweep_tools import InteractivePlot
 
 
 derived_params = {'qi', 'qc', 'red_chi_sq', 'chi_sq', 'p_value'}
-field_to_first_format_int = {'fr': 5, 'qr': 7, 'amp': 1, 'phi': 2, 'a': 1, 'b0': 2, 'b1': 2, 'i0': 1, 'q0': 1, 'tau': 6,
+field_to_first_format_int = {'fr': 5, 'f_0': 5, 'f_min': 5, 'qr': 7, 'q': 7, 'q_e_real': 7, 'q_e_imag': 7, 'amp': 1, 'phi': 2,
+                             'a': 1, 'a_mag': 1, 'a_slope': 2, 'b0': 2, 'b1': 2, 'i0': 1, 'q0': 1, 'tau': 6, 'delay': 6,
                              'f0': 5, 'qi': 7, 'qc': 7, 'flin': 5, 'red_chi_sq': 2, 'chi_sq': 1, 'p_value': 2}
-field_to_decimal_format_int = {'fr': 4, 'qr': 0, 'amp': 2, 'phi': 2, 'a': 2, 'b0': 2, 'b1': 2, 'i0': 2, 'q0': 2,
-                               'tau': 2, 'f0': 4, 'qi': 0, 'qc': 0, 'flin': 4, 'red_chi_sq': 3, 'chi_sq': 1,
+field_to_decimal_format_int = {'fr': 4, 'f_0': 4,  'f_min': 4, 'qr': 0, 'q': 0, 'q_e_real': 0, 'q_e_imag': 0, 'amp': 2, 'phi': 2,
+                               'a': 2, 'a_mag': 2, 'a_slope': 2, 'b0': 2, 'b1': 2, 'i0': 2, 'q0': 2, 'tau': 2, 'delay': 2,
+                               'f0': 4, 'qi': 0, 'qc': 0, 'flin': 4, 'red_chi_sq': 3, 'chi_sq': 1,
                                'p_value': 3}
-field_to_format_letter = {'fr': 'f', 'qr': 'f', 'amp': 'f', 'phi': 'f', 'a': 'f', 'b0': 'E', 'b1': 'E', 'i0': 'E',
-                          'q0': 'E', 'tau': 'f', 'f0': 'f', 'qi': 'f', 'qc': 'f', 'flin': 'f', 'red_chi_sq': 'f',
+field_to_format_letter = {'fr': 'f', 'f_0': 'f',  'f_min': 'f', 'qr': 'f', 'q': 'f', 'q_e_real': 'f', 'q_e_imag': 'f',  'amp': 'f', 'phi': 'f',
+                          'a': 'f', 'a_mag': 'f', 'a_slope': 'E', 'b0': 'E', 'b1': 'E', 'i0': 'E', 'q0': 'E', 'tau': 'f', 'delay': 'f',
+                          'f0': 'f', 'qi': 'f', 'qc': 'f', 'flin': 'f', 'red_chi_sq': 'f',
                           'chi_sq': 'E',  'p_value': 'f'}
-field_to_field_label = {'fr': 'fr (MHz)', 'qr': 'Qr', 'amp': 'amp', 'phi': 'phi', 'a': 'a', 'b0': 'b0', 'b1': 'b1',
-                        'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc',
+
+field_to_field_label = {'fr': 'fr (MHz)', 'f_0': 'f_O (MHz)',  'f_min': 'fmin (MHz)', 'qr': 'Qr', 'q': 'Q', 'q_e_real': 'Qe (real)', 'q_e_imag': 'Qe (imag)', 'amp': 'amp', 'phi': 'phi',
+                        'a': 'a', 'a_mag': 'a_mag', 'a_slope': 'a_slope', 'b0': 'b0', 'b1': 'b1', 'i0': 'i0', 'q0': 'q0', 'tau': 'tau (ns)', 'delay': 'delay', 'f0': 'f0 (MHz)', 'qi': 'Qi', 'qc': 'Qc',
                         'flin': 'flin (MHz)', 'red_chi_sq': 'reduced chi-sqr', 'chi_sq': 'chi-sq', 'p_value': 'p-value'}
-field_to_multiplier = {'fr': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6, 'flin': 1.0e-6}
+field_to_multiplier = {'fr': 1.0e-6, 'f_0': 1.0e-6, 'f_min': 1.0e-6, 'tau': 1.0e9, 'f0': 1.0e-6, 'flin': 1.0e-6}
 
 field_to_format_strs = {}
 field_to_text_len = {}
@@ -280,6 +284,29 @@ class LinearMagResBase(NamedTuple):
 
 class LinearMagRes(LinearMagResBase, Res):
     """ The resonator parameters for a Linear Mag fit, fit_linear_mag(), linear_mag()"""
+
+
+# f_0, Q, Q_e_real, Q_e_imag, delay, phi_offset, fmin, A_mag, A_mag_slope
+class ResonatorCableBase(NamedTuple):
+    """ Base resonator parameters for a resonator_cable(), fit_resonator_cable()"""
+    fr: Optional[float] = None
+    Q: Optional[float] = None
+    Q_e_real: Optional[float] = None
+    Q_e_imag: Optional[float] = None
+    delay: Optional[float] = None
+    phi: Optional[float] = None
+    f_min: Optional[float] = None
+    A_mag: Optional[float] = None
+    A_slope: Optional[float] = None
+    chi_sq: Optional[float] = None
+    p_value: Optional[float] = None
+    red_chi_sq: Optional[float] = None
+    Qi: Optional[float] = None
+    Qc: Optional[float] = None
+
+
+class ResonatorCable(ResonatorCableBase, Res):
+    """ The resonator parameters for a resonator_cable(), fit_resonator_cable()"""
 
 
 class Fit(NamedTuple):

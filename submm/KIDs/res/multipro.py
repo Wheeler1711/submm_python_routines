@@ -5,7 +5,7 @@ from multiprocessing import Pool
 
 import numpy as np
 import matplotlib as mpl
-from submm.KIDs.res.fitting import fit_nonlinear_iq
+from submm.KIDs.res.fitting import fit_nonlinear_iq, fit_so_resonator_cable
 
 # Debug mode
 debug_mode = False
@@ -28,7 +28,18 @@ else:
     multiprocessing_threads_default = half_threads
 
 
-def fit_nonlinear_iq_wrapper(f_hz, z, tau, verbose):
+
+allowed_fits = ['fit_nonlinear_iq', 'fit_so_resonator_cable']
+allowed_fits_int = set(range(len(allowed_fits)))
+allowed_functions = {'fit_nonlinear_iq': fit_nonlinear_iq, 'fit_so_resonator_cable': fit_so_resonator_cable}
+
+
+def fit_nonlinear_iq_wrapped(f_hz, z, tau=None, verbose: bool = True):
+    if debug_mode:
+        fit_single_res = fit_nonlinear_iq(f_hz, z, tau=tau, verbose=False)
+        if verbose:
+            fit_single_res.console()
+        return fit_single_res
     try:
         fit_single_res = fit_nonlinear_iq(f_hz, z, tau=tau, verbose=False)
     except Exception as e:
@@ -41,28 +52,85 @@ def fit_nonlinear_iq_wrapper(f_hz, z, tau, verbose):
         return fit_single_res
 
 
-def fit_nonlinear_iq_pool(f_hz_list, z_list,
-                          tau: float = None, verbose: bool = True,
-                          multiprocessing_threads: Union[int, None] = multiprocessing_threads_default) \
-        -> list:
+def fit_so_resonator_cable_wrapped(f_hz, z, verbose: bool = True):
+    if debug_mode:
+        fit_single_res = fit_so_resonator_cable(f_hz, z, verbose=False)
+        if verbose:
+            fit_single_res.console()
+        return fit_single_res
+    try:
+        fit_single_res = fit_so_resonator_cable(f_hz, z, verbose=False)
+    except Exception as e:
+        print(e)
+        print(f"failed to fit freq range: {np.min(f_hz) * 1e-6} - {np.max(f_hz) * 1e-6} MHz\n")
+        return None
+    else:
+        if verbose:
+            fit_single_res.console()
+        return fit_single_res
+
+
+wrapped_functions = {'fit_nonlinear_iq': fit_nonlinear_iq_wrapped,
+                     'fit_so_resonator_cable': fit_so_resonator_cable_wrapped}
+
+
+def fit_select(function_select: Union[str, int]):
+    if isinstance(function_select, str):
+        function_select = function_select.lower().strip().replace(' ', '_')
+        for allowed_fit in allowed_fits:
+            if function_select in allowed_fit:
+                function_select = allowed_fit
+                break
+        else:
+            raise ValueError(f"function_select must be one of {allowed_fits}")
+        function_select = function_select
+    elif isinstance(function_select, int):
+        if function_select in allowed_fits_int:
+            function_select = allowed_fits[function_select]
+        else:
+            raise ValueError(f"function_select must be one of {allowed_fits_int}")
+
+    else:
+        raise TypeError(f"function_select must be a string or int, not {type(function_select)}")
+    f_wrapped = wrapped_functions[function_select]
+    return f_wrapped
+
+
+def fit_pool(f_hz_list, z_list, *args, fit_selection: Union[str, int] = 0,
+             multiprocessing_threads: Union[int, None] = multiprocessing_threads_default,
+             verbose: bool = True) -> list:
     """ For Handling N fits at once using multiprocessing. Elements of f_hz_list and z_list, must be the same length
     per item, but not between items.
 
     """
+    f_wrapped = fit_select(fit_selection)
     if multiprocessing_threads is None:
         res_fits = []
         for f_hz, z in zip(f_hz_list, z_list):
-            try:
-                fit_single_res = fit_nonlinear_iq_wrapper(f_hz, z, tau, verbose)
-            except Exception as e:
-                res_fits.append(None)
-                if verbose:
-                    print(e)
-                    print("failed to fit")
-            else:
-                res_fits.append(fit_single_res)
+            fit_single_res = f_wrapped(f_hz, z, *args, verbose)
+            res_fits.append(fit_single_res)
     else:
-        star_args = zip(f_hz_list, z_list, [tau] * len(f_hz_list), [verbose] * len(f_hz_list))
+        list_len = len(f_hz_list)
+        arg_lists = [f_hz_list, z_list]
+        for arg in args:
+            arg_lists.append([arg] * list_len)
+        arg_lists.append([verbose] * list_len)
+        star_args = zip(*arg_lists)
         with Pool(multiprocessing_threads) as p:
-            res_fits = [fit_single_res for fit_single_res in p.starmap(fit_nonlinear_iq_wrapper, star_args)]
+            res_fits = [fit_single_res for fit_single_res in p.starmap(f_wrapped, star_args)]
     return res_fits
+
+
+def fit_nonlinear_iq_pool(f_hz_list, z_list, tau: float = None, verbose: bool = True,
+                          multiprocessing_threads: Union[int, None] = multiprocessing_threads_default) -> list:
+    return fit_pool(f_hz_list, z_list, tau, fit_selection='fit_nonlinear_iq',
+                    multiprocessing_threads=multiprocessing_threads, verbose=verbose)
+
+
+def fit_so_resonator_cable_pool(f_hz_list, z_list, verbose: bool = True,
+                                multiprocessing_threads: Union[int, None] = multiprocessing_threads_default) -> list:
+    return fit_pool(f_hz_list, z_list, fit_selection='fit_so_resonator_cable',
+                    multiprocessing_threads=multiprocessing_threads, verbose=verbose)
+
+
+

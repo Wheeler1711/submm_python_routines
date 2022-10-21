@@ -456,6 +456,68 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
     return x0
 
 
+def guess_so_resonator_cable(freqs, real, imag):
+    """
+    Fitting function that takes in frequency and real and imaginary parts of the
+    transmission of a resonator (needs to trimmed down to only data for a
+    single resonator) and returns fitted parameters to the ``resonator_cable``
+    model.
+    Args
+    ----
+    freqs : float ndarray
+        Frequencies that line up with complex transmission data.
+    real : float ndarray
+        Real part of resonator complex transmission to be fit
+    imag : float ndarray
+        Imaginary part of resonator complex transmission to be fit.
+    Returns
+    -------
+    result : tuple
+        Initial guess parameters for a fitting of so_resonator_cable model, the 9 values expected are:
+        (f_0_guess, Q_guess, Q_e_real_guess, Q_e_imag_guess, delay, phi_offset, fmin, A_mag, A_mag_slope)
+    """
+    s21_complex = np.vectorize(complex)(real, imag)
+
+    # set our initial guesses
+    argmin_s21 = np.abs(s21_complex).argmin()
+    fmin = freqs.min()
+    fmax = freqs.max()
+    f_span = fmax - fmin
+    f_0_guess = freqs[argmin_s21]
+
+    Q_min = 0.1 * (f_0_guess / (fmax - fmin))
+    delta_f = np.diff(freqs)
+    min_delta_f = delta_f[delta_f > 0].min()
+    Q_max = f_0_guess / min_delta_f
+    Q_guess = np.sqrt(Q_min * Q_max)
+
+    s21_min = np.abs(s21_complex[argmin_s21])
+    s21_max = np.abs(s21_complex).max()
+    Q_e_real_guess = Q_guess / (1 - s21_min / s21_max)
+    Q_e_imag_guess = 0.0
+
+    A_slope, A_offset = np.polyfit(freqs - fmin, np.abs(s21_complex), 1)
+    A_mag_guess = A_offset
+    A_slope_guess = A_slope / A_mag_guess
+    phi_slope, phi_guess = np.polyfit(freqs - fmin, np.unwrap(np.angle(s21_complex)), 1)
+    delay_guess = -phi_slope / (2 * np.pi)
+    f_min_guess = fmin
+
+
+    n_inf = float('-inf')
+    inf = float('inf')
+    phi_min = phi_guess - np.pi
+    phi_max = phi_guess + np.pi
+    fmin_min = fmin - f_span
+
+    x0 = (f_0_guess, Q_guess, Q_e_real_guess, Q_e_imag_guess, delay_guess, phi_guess, f_min_guess, A_mag_guess, A_slope_guess)
+
+    bounds = ((fmin,   Q_min,          1.0e0,         -1.0e7,      n_inf,    phi_min,  fmin_min,        n_inf,             n_inf),
+              (fmax,   Q_max,          1.0e7,          1.0e7,        inf,    phi_max,      fmax,          inf,               inf))
+
+    return x0, bounds
+
+
 def calc_qc_qi(qr: float, amp: float):
     qc = qr / amp
     qi = 1.0 / ((1.0 / qr) - (1.0 / qc))
