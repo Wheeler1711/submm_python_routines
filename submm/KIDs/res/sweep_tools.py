@@ -117,11 +117,11 @@ class InteractivePlot(object):
     log_y_data_types = {'chi_sq'}
     key_font_size = 9
 
-    flags_types = ["collision", "shallow", 'remove', 'other']
+    flags_types_default = ["collision", "shallow", 'remove', 'other']
 
     def __init__(self, chan_freqs, z, look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
-                 combined_data_format=None, flags=None, plot_title=None, plot_frames=True):
+                 combined_data_format=None, flags=None, flags_types=None, plot_title=None, plot_frames=True):
         if len(z.shape) < 3:  # only one sweep
             self.z = z.reshape((z.shape[0], z.shape[1], 1))
             self.chan_freqs = chan_freqs.reshape((chan_freqs.shape[0], chan_freqs.shape[1], 1))
@@ -156,6 +156,11 @@ class InteractivePlot(object):
                 self.flags.append([])
         else:
             self.flags = flags
+        if flags_types is None:
+            self.flags_types = self.flags_types_default
+        else:
+            self.flags_types = flags_types
+        self.all_flags = set(self.flags_types)
         self.flag_type_index = 0
         if retune:
             self.combined_data_names = ['min index']
@@ -591,6 +596,7 @@ class InteractivePlot(object):
             if flag_type_new and flag_type_new not in self.flags_types:
                 # to new resonator type
                 self.flags_types.append(flag_type_new)
+                self.all_flags.add(flag_type_new)
                 self.set_flag_index(flag_index=len(self.flags_types) - 1)
                 flag_type = flag_type_new
         return flag_type

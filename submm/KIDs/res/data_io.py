@@ -319,6 +319,7 @@ class Fit(NamedTuple):
     f_data: Optional[np.ndarray] = None
     z_data: Optional[np.ndarray] = None
     mask: Optional[np.ndarray] = None
+    flags: Optional[set] = None
 
     def __getitem__(self, item):
         if isinstance(item, str):
@@ -648,7 +649,7 @@ class ResSet:
         if self.verbose:
             print(f'Added {len(res_fits)} results and fit_results.')
 
-    def plot(self, flags=None, plot_title=None, plot_frames=True):
+    def plot(self, flags=None, plot_title=None, plot_frames=True, flags_types=None):
         # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
         # also for fitted parameters it wants a list fitted names for the legend
         # and an array that is n_res x len(fitted parameters)
@@ -692,6 +693,19 @@ class ResSet:
 
         ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
                              combined_data_names=data_names, combined_data_format=formats,
-                             sweep_labels=['Data', 'Fit'], flags=flags, plot_title=plot_title, plot_frames=plot_frames)
-
+                             sweep_labels=['Data', 'Fit'], flags=flags, flags_types=flags_types,
+                             plot_title=plot_title, plot_frames=plot_frames)
+        # flag and remove data based on the results of the interactive plot.
+        removed_flag = False
+        for result_index, (result, flags) in list(enumerate(zip(self, ip.flags))):
+            fit = self._fit_results[result]
+            if flags:
+                fit.flags.update(flags)
+            if result_index in ip.res_indexes_removed:
+                fit.flags.add('remove')
+                self._results.remove(result)
+                del self._fit_results[result]
+                removed_flag = True
+        if removed_flag:
+            self.order_and_validate()
         return ip

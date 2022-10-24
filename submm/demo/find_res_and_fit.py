@@ -3,7 +3,6 @@ import time
 import numpy as np
 import matplotlib as mpl
 
-mpl.use('TkAgg')
 from scipy.io import loadmat
 
 from submm.KIDs import find_resonances_interactive as find_kids
