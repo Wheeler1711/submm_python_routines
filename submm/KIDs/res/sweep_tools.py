@@ -117,7 +117,7 @@ class InteractivePlot(object):
     log_y_data_types = {'chi_sq'}
     key_font_size = 9
 
-    flags_types_default = ["collision", "shallow", 'remove', 'other']
+    flags_types_default = ["collision", "shallow", 'no-res', 'remove', 'other']
 
     def __init__(self, chan_freqs, z, look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
@@ -265,7 +265,7 @@ class InteractivePlot(object):
                                        self.Qs[self.min_index[self.plot_index], self.plot_index, 0], '*', markersize=15)
 
         center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0] // 2, self.plot_index, 0] / 10 ** 6
-        self.ax_mag.set_title('Resonator Index ' + str(self.plot_index) + '\n' + f'{"%3.3f" % center_freq_MHz} MHz')
+        self.ax_mag.set_title(f'{"%3.3f" % center_freq_MHz} MHz - Resonator Index: {self.plot_index:03}')
         if self.retune:
             self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         # Say 'Hello' to the User
@@ -380,7 +380,7 @@ class InteractivePlot(object):
         flag_values = []
         for staged_index, staged_value in zip(staged_indexes, staged_values):
             flags = self.res_indexes_staged[staged_index]
-            if 'remove' in flags:
+            if 'remove' in flags or 'no-res' in flags:
                 removed_indexes.append(staged_index)
                 removed_values.append(staged_value)
             else:
@@ -422,7 +422,7 @@ class InteractivePlot(object):
         self.ax_mag.relim()
         self.ax_mag.autoscale()
         center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0] // 2, self.plot_index, 0] / 10 ** 6
-        self.ax_mag.set_title('Resonator Index ' + str(self.plot_index) + '\n' + f'{"%3.3f" % center_freq_MHz} MHz')
+        self.ax_mag.set_title(f'{"%3.3f" % center_freq_MHz} MHz - Resonator Index: {self.plot_index:03}')
         if self.retune:
             self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         for i, iq_line in enumerate(self._iq_lines):
@@ -456,7 +456,6 @@ class InteractivePlot(object):
             y_pos = highlighted_value
             self.combined_data_highlight.set_data(x_pos, y_pos)
             self.combined_data_legend.texts[0].set_text(label)
-            self.ax_combined.relim()
             if self.res_indexes_staged:
                 removed_indexes, removed_values, flag_indexes, flag_values = self.get_stage_plot_points()
                 if removed_indexes:
@@ -687,6 +686,9 @@ class InteractivePlot(object):
                         for flag in sorted(self.res_indexes_staged[res_index]):
                             if flag == 'remove':
                                 self.res_indexes_removed.add(res_index)
+                            if flag == 'no-res':
+                                self.res_indexes_removed.add(res_index)
+                                self.flags[res_index].append(flag)
                             else:
                                 self.flags[res_index].append(flag)
                     # reset the combined plot
