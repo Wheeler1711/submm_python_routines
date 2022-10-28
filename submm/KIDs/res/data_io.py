@@ -645,7 +645,7 @@ class ResSet:
                 self._fit_results[result] = res_fit
         self.order_and_validate()
 
-    def plot(self, global_flags=None, plot_title=None, plot_frames=True, flags_types=None):
+    def plot(self, global_flags=None, flags=None, flags_types=None, plot_title=None, plot_frames=True):
         # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
         # also for fitted parameters it wants a list fitted names for the legend
         # and an array that is n_res x len(fitted parameters)
@@ -691,10 +691,14 @@ class ResSet:
                     fitted_parameters[i, j] = value
 
         # format flags for the interactive plot
-        if global_flags is None:
-            flags = [list(fit.flags) for fit in self._list_fit_results]
-        else:
-            flags = [list(fit.flags.update(global_flags)) for fit in self._list_fit_results]
+        if flags is None:
+            flags = [[]] * len(self._list_fit_results)
+        # add flags from resonators
+        for single_flag_set, single_res_fit in zip(flags, self._list_fit_results):
+            single_flag_set.extend(single_res_fit.flags)
+            if global_flags is not None:
+                single_flag_set.extend(global_flags)
+
         # run the plotter
         ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
                              combined_data_names=data_names, combined_data_format=formats,

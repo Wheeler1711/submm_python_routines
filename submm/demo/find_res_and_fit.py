@@ -1,7 +1,6 @@
 import os
 import time
 import numpy as np
-import matplotlib as mpl
 
 from scipy.io import loadmat
 
@@ -53,7 +52,7 @@ def main(linear=False):  # if resonators are well below bifurcation fitting can 
     print("fields in a fit_result")
     print(fit_result._fields)
 
-    # plot the data, see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plottingzz
+    # plot the data, see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plotting
     ip2 = res_set.plot(flags=ip.flags)
 
     # below is example of retuning resonators
