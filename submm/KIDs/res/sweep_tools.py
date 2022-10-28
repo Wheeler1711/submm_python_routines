@@ -121,7 +121,8 @@ class InteractivePlot(object):
 
     def __init__(self, chan_freqs, z, look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
-                 combined_data_format=None, flags=None, flags_types=None, plot_title=None, plot_frames=True):
+                 combined_data_format=None, flags=None, flags_types=None, plot_title=None, plot_frames=True,
+                 verbose=True):
         if len(z.shape) < 3:  # only one sweep
             self.z = z.reshape((z.shape[0], z.shape[1], 1))
             self.chan_freqs = chan_freqs.reshape((chan_freqs.shape[0], chan_freqs.shape[1], 1))
@@ -160,6 +161,7 @@ class InteractivePlot(object):
             self.flags_types = self.flags_types_default
         else:
             self.flags_types = flags_types
+        self.verbose = verbose
         self.all_flags = set(self.flags_types)
         self.flag_type_index = 0
         if retune:
@@ -269,7 +271,8 @@ class InteractivePlot(object):
         if self.retune:
             self.ax_iq.set_title("Look Around Points " + str(self.look_around))
         # Say 'Hello' to the User
-        print("\nInteractive Resonance Plotting Activated")
+        if self.verbose:
+            print("\nInteractive Resonance Plotting Activated")
         self.print_instructions()
 
         # combined plot variables used in the first initialization
@@ -573,7 +576,8 @@ class InteractivePlot(object):
                 text_color = 'black'
             color_text = colorize_text(text=key_press.capitalize().center(20), style_text='bold',
                                        color_text=text_color, color_background=color)
-            print(f'{color_text} : {description}')
+            if self.verbose:
+                print(f'{color_text} : {description}')
 
     def set_flag_index(self, flag_index: int = None):
         if flag_index is None:
@@ -581,8 +585,8 @@ class InteractivePlot(object):
             self.flag_type_index = (self.flag_type_index + 1) % len(self.flags_types)
         else:
             self.flag_type_index = flag_index
-        print(f'\n Flag mode is now: "{self.flags_types[self.flag_type_index]}"'
-              f'')
+        if self.verbose:
+            print(f'\n Flag mode is now: "{self.flags_types[self.flag_type_index]}"')
         self.print_instructions()
         self.plot_instructions()
         self.refresh_plot()
@@ -647,7 +651,8 @@ class InteractivePlot(object):
             self.refresh_plot()
         # Writing an output file
         elif event.key == 'w':
-            print("saving to pdf")
+            if self.verbose:
+                print("saving to pdf")
             filename = input("enter filename for pdf: ")
             if filename == '':
                 filename = "res_plots.pdf"
@@ -660,7 +665,8 @@ class InteractivePlot(object):
             if event.key == 'f':
                 current_flags = self.flags[self.plot_index]
                 if current_flags:
-                    print(f"Res Index {self.plot_index} current flags: {current_flags}")
+                    if self.verbose:
+                        print(f"Res Index {self.plot_index} current flags: {current_flags}")
                 # stage the selected point for flagging
                 flag_type = self.get_flag_type()
                 # stage the selected point for flagging
@@ -670,7 +676,8 @@ class InteractivePlot(object):
                 # reset the plot
                 self.plot_staged_for_removal(ax_combined=self.ax_combined)
                 self.refresh_plot(autoscale=False)
-                print(f'Res Index {self.plot_index} staged flags: {sorted(self.res_indexes_staged[self.plot_index])}')
+                if self.verbose:
+                    print(f'Res Index {self.plot_index} staged flags: {sorted(self.res_indexes_staged[self.plot_index])}')
                 committed_flags = self.flags[self.plot_index]
             elif event.key == 'd':
                 # cycle the flag mode by one type
@@ -678,7 +685,8 @@ class InteractivePlot(object):
             elif event.key == 'e' or event.key == 't':
                 # reset the plot instructions
                 self.plot_instructions()
-                print('\nMain Menu')
+                if self.verbose:
+                    print('\nMain Menu')
                 self.print_instructions()
                 if event.key == 't':
                     # save what is staged
@@ -709,14 +717,17 @@ class InteractivePlot(object):
                         self.plot_staged_for_removal(ax_combined=self.ax_combined)
                         self.refresh_plot()
                     else:
-                        print(f"Res-Index {self.plot_index} not staged for flag type {flag_type}")
+                        if self.verbose:
+                            print(f"Res-Index {self.plot_index} not staged for flag type {flag_type}")
                 else:
-                    print(f"Res-Index {self.plot_index} not staged.")
+                    if self.verbose:
+                        print(f"Res-Index {self.plot_index} not staged.")
             # Lasso selection
             elif event.key == 'b':
                 self.lasso_mode = True
                 self.plot_instructions()
-                print('\nLasso Mode')
+                if self.verbose:
+                    print('\nLasso Mode')
                 self.print_instructions()
                 self.ax_combined.set_title("Click and Drag to select points with a lasso (you click and draw on the plot).",
                                            size=16, color="firebrick", family="monospace")
@@ -747,7 +758,8 @@ class InteractivePlot(object):
                 self.selector = None
                 self.refresh_plot()
                 self.plot_instructions()
-                print('\nMain Menu')
+                if self.verbose:
+                    print('\nMain Menu')
                 self.print_instructions()
 
     def on_key_release(self, event):
@@ -778,9 +790,10 @@ class InteractivePlot(object):
                 return
         elif event.button == 3:
             if self.shift_is_held:
-                print("overriding point selection", event.xdata)
-                # print(self.chan_freqs[:,self.plot_index][50])
-                # print((self.res_index_override == self.plot_index).any())
+                if self.verbose:
+                    print("overriding point selection", event.xdata)
+                    # print(self.chan_freqs[:,self.plot_index][50])
+                    # print((self.res_index_override == self.plot_index).any())
                 if (self.res_index_override == self.plot_index).any():
                     replace_index = np.argwhere(
                         self.res_index_override == self.plot_index)[0][0]
@@ -791,13 +804,16 @@ class InteractivePlot(object):
                 else:
                     self.res_index_override = np.append(
                         self.res_index_override, np.int(np.asarray(self.plot_index)))
-                    # print(self.res_index_override)
+                    # if self.verbose:
+                    #     print(self.res_index_override)
                     new_freq = np.argmin(
                         np.abs(event.xdata - self.chan_freqs[:, self.plot_index] / 10 ** 6))
-                    # print("new index is ",new_freq)
+                    # if self.verbose:
+                    #     print("new index is ",new_freq)
                     self.override_freq_index = np.append(
                         self.override_freq_index, np.int(np.asarray(new_freq)))
-                    # print(self.override_freq_index)
+                    # if self.verbose:
+                    #     print(self.override_freq_index)
                 self.update_min_index()
                 self.refresh_plot()
 

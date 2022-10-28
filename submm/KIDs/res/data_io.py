@@ -634,8 +634,6 @@ class ResSet:
             else:
                 self._results.add(res_result)
         self.order_and_validate()
-        if self.verbose:
-            print(f'Added {len(res_results)} results.')
 
     def add_res_fits(self, res_fits: Sequence[Fit]):
         for list_index, res_fit in list(enumerate(res_fits)):
@@ -646,8 +644,6 @@ class ResSet:
                 self._results.add(result)
                 self._fit_results[result] = res_fit
         self.order_and_validate()
-        if self.verbose:
-            print(f'Added {len(res_fits)} results and fit_results.')
 
     def plot(self, global_flags=None, plot_title=None, plot_frames=True, flags_types=None):
         # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
@@ -685,11 +681,14 @@ class ResSet:
 
         fitted_parameters = np.zeros((len(self), len(data_names)))
         for i, result in enumerate(self):
-            for j, field in enumerate(data_names):  # this gets rid of the None
+            for j, field in enumerate(data_names): # this gets rid of the None
+                value = getattr(result, field)
+                if value is None or np.isnan(value):
+                    value = -99.99
                 if field in field_to_multiplier.keys():
-                    fitted_parameters[i, j] = getattr(result, field) * field_to_multiplier[field.lower()]
+                    fitted_parameters[i, j] = value * field_to_multiplier[field.lower()]
                 else:
-                    fitted_parameters[i, j] = getattr(result, field)
+                    fitted_parameters[i, j] = value
 
         # format flags for the interactive plot
         if global_flags is None:
@@ -700,7 +699,7 @@ class ResSet:
         ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
                              combined_data_names=data_names, combined_data_format=formats,
                              sweep_labels=['Data', 'Fit'], flags=flags, flags_types=flags_types,
-                             plot_title=plot_title, plot_frames=plot_frames)
+                             plot_title=plot_title, plot_frames=plot_frames, verbose=self.verbose)
         # flag and remove data based on the results of the interactive plot.
         removed_flag = False
         for result_index, (result, flags) in list(enumerate(zip(self, ip.flags))):

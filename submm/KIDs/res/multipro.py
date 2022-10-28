@@ -5,7 +5,8 @@ from multiprocessing import Pool
 
 import numpy as np
 import matplotlib as mpl
-from submm.KIDs.res.fitting import fit_nonlinear_iq, fit_so_resonator_cable
+from submm.KIDs.res.data_io import Fit
+from submm.KIDs.res.fitting import fit_nonlinear_iq, fit_so_resonator_cable, guess_so_resonator_cable, ResonatorCable
 
 # Debug mode
 debug_mode = False
@@ -42,14 +43,39 @@ def fit_nonlinear_iq_wrapped(f_hz, z, tau=None, verbose: bool = True):
         return fit_single_res
     try:
         fit_single_res = fit_nonlinear_iq(f_hz, z, tau=tau, verbose=False)
-    except Exception as e:
-        print(e)
+    except Exception as excep:
+        print(repr(excep))
         print(f"failed to fit freq range: {np.min(f_hz) * 1e-6} - {np.max(f_hz) * 1e-6} MHz\n")
         return None
     else:
         if verbose:
             fit_single_res.console()
         return fit_single_res
+
+
+def null_func(f_list, *args):
+    nan_array = np.empty(len(f_list))
+    nan_array[:] = np.nan
+    return nan_array
+
+
+def make_null_fit(f_hz, z, failed_str=None, flag_str=None):
+    real = np.real(z)
+    imag = np.imag(z)
+    x0, bounds = guess_so_resonator_cable(f_hz, real, imag)
+    guess = ResonatorCable(*x0)
+    popt = np.empty(len(x0))
+    popt[:] = np.nan
+    pcov = np.empty((len(x0), len(x0)))
+    pcov[:] = np.nan
+
+    null_fit = Fit(origin=f'Any Failed Fit: {failed_str}',
+                   func=null_func,
+                   guess=guess, result=ResonatorCable(fr=(f_hz[0] + f_hz[-1]) / 2.0),
+                   popt=popt, pcov=pcov,
+                   f_data=f_hz, z_data=z, mask=None,
+                   flags={flag_str})
+    return null_fit
 
 
 def fit_so_resonator_cable_wrapped(f_hz, z, verbose: bool = True):
@@ -60,10 +86,12 @@ def fit_so_resonator_cable_wrapped(f_hz, z, verbose: bool = True):
         return fit_single_res
     try:
         fit_single_res = fit_so_resonator_cable(f_hz, z, verbose=False)
-    except Exception as e:
-        print(e)
-        print(f"failed to fit freq range: {np.min(f_hz) * 1e-6} - {np.max(f_hz) * 1e-6} MHz\n")
-        return None
+    except RuntimeError as excep:
+        excep_str = repr(excep)
+        print(excep_str)
+        print(f"\nfailed to fit freq range: {np.min(f_hz) * 1e-6} - {np.max(f_hz) * 1e-6} MHz")
+        null_fit = make_null_fit(f_hz=f_hz, z=z, failed_str=excep_str, flag_str='failed-fit-runtimeerror')
+        return null_fit
     else:
         if verbose:
             fit_single_res.console()

@@ -31,7 +31,7 @@ demo_files = get_file_paths(local_dir=local_demos_dir, desired_file_types=desire
 
 
 setup(name='submm',
-      version='0.3.0',
+      version='0.3.1',
       description='Python routines for submm astronomy instrumentation',
       author='Jordan Wheeler',
       author_email='wheeler1711@gmail.com',
@@ -40,7 +40,7 @@ setup(name='submm',
       data_files=[(local_samples_dir, sample_data_files),
                   (local_demos_dir, demo_files)],
       include_package_data=True,
-      python_requires='>3.8',
+      python_requires='>3.7',
       install_requires=['numpy<1.23,>=1.18',
                         'matplotlib>=3.5.2',
                         'scipy',
