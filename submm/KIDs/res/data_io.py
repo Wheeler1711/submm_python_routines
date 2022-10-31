@@ -692,7 +692,7 @@ class ResSet:
 
         # format flags for the interactive plot
         if flags is None:
-            flags = [[]] * len(self._list_fit_results)
+            flags = [[] for _ in range(len(self._list_fit_results))]
         # add flags from resonators
         for single_flag_set, single_res_fit in zip(flags, self._list_fit_results):
             single_flag_set.extend(single_res_fit.flags)

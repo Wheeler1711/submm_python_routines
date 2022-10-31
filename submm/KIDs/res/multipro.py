@@ -22,7 +22,6 @@ current_user = getpass.getuser()
 if debug_mode:
     # this will do standard linear processing.
     multiprocessing_threads_default = None
-    mpl.use(backend='module://backend_interagg')
 elif half_threads < 2:
     multiprocessing_threads_default = None
 else:
@@ -132,11 +131,10 @@ def fit_pool(f_hz_list, z_list, *args, fit_selection: Union[str, int] = 0,
 
     """
     f_wrapped = fit_select(fit_selection)
-    if multiprocessing_threads is None:
-        res_fits = []
+    if multiprocessing_threads is None or multiprocessing_threads == 1:
         for f_hz, z in zip(f_hz_list, z_list):
             fit_single_res = f_wrapped(f_hz, z, *args, verbose)
-            res_fits.append(fit_single_res)
+            yield fit_single_res
     else:
         list_len = len(f_hz_list)
         arg_lists = [f_hz_list, z_list]
@@ -145,8 +143,7 @@ def fit_pool(f_hz_list, z_list, *args, fit_selection: Union[str, int] = 0,
         arg_lists.append([verbose] * list_len)
         star_args = zip(*arg_lists)
         with Pool(multiprocessing_threads) as p:
-            res_fits = [fit_single_res for fit_single_res in p.starmap(f_wrapped, star_args)]
-    return res_fits
+            yield p.starmap(f_wrapped, star_args)
 
 
 def fit_nonlinear_iq_pool(f_hz_list, z_list, tau: float = None, verbose: bool = True,
@@ -159,6 +156,3 @@ def fit_so_resonator_cable_pool(f_hz_list, z_list, verbose: bool = True,
                                 multiprocessing_threads: Union[int, None] = multiprocessing_threads_default) -> list:
     return fit_pool(f_hz_list, z_list, fit_selection='fit_so_resonator_cable',
                     multiprocessing_threads=multiprocessing_threads, verbose=verbose)
-
-
-
