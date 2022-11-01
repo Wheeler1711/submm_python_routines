@@ -4,6 +4,7 @@ from typing import NamedTuple
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.widgets import TextBox
 from scipy import signal, fftpack
 from matplotlib.backends.backend_pdf import PdfPages
 try:
@@ -12,6 +13,7 @@ try:
 except:
     pass
 from submm.KIDs.res.fitting import fit_nonlinear_iq, fit_nonlinear_mag
+from submm.KIDs.res.utils import colorize_text, text_color_matplotlib#, autoscale_from_data
 
 """
 Standalone version of kidPy's find_KIDs_interactive
@@ -83,6 +85,18 @@ class InteractivePlot(object):
         plt.rcParams['keymap.quit'] = ['k']  # remove q for quit make it k for kill
         plt.rcParams['keymap.home'] = ['h']  # remove r for home only make it h
         plt.rcParams['keymap.fullscreen'] = ['shift+=']  # remove ('f', 'ctrl+f'), make +
+
+        # set up plot
+        self.key_font_size = 9
+        top = 0.90
+        bottom = 0.1
+        left = 0.08
+        right = 0.99
+        x_width = right - left
+        y_height= top - bottom
+        key_x_width = 0.2
+        self.x_width_over_y_height = 1.0
+
         self.chan_freqs = chan_freqs
         self.data = data
         self.f_old = f_old
@@ -96,8 +110,18 @@ class InteractivePlot(object):
         self.lim_shift_factor = 0.2
         self.zoom_factor = 0.1  # no greater than 0.5
         self.kid_idx_len = len(kid_idx)
-        self.fig = plt.figure(1000, figsize=(16, 6))
-        self.ax = self.fig.add_subplot(111)
+
+        self.fig = plt.figure(2, figsize=(16, 6))
+        #self.ax = self.fig.add_subplot(111)
+        x_width_plot = x_width - key_x_width
+        figure_coords = [left, bottom, x_width_plot, y_height]
+        self.ax = self.fig.add_axes(figure_coords, frameon=False, autoscale_on=True)
+        key_y_height = 0.8#y_height
+        key_figure_coords = [left + x_width_plot, top-key_y_height, key_x_width, key_y_height]
+        self.ax_key = self.fig.add_axes(key_figure_coords, frameon=False)
+        self.ax_key.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
+        self.ax_key.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+     
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
@@ -108,7 +132,7 @@ class InteractivePlot(object):
         self.p1, = self.ax.plot(self.chan_freqs[self.kid_idx] / 10 ** 9, self.data[self.kid_idx], "r*", markersize=8)
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
-            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
+            self.text_dict[i] = self.ax.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
 
         if isinstance(self.f_old, np.ndarray):
             self.l2, = self.ax.plot(self.f_old / 10 ** 9, self.data_old, color="C0", alpha=0.25)
@@ -117,7 +141,7 @@ class InteractivePlot(object):
                                     alpha=0.1)
             self.text_dict_old = {}
             for i in range(0, len(self.kid_idx_old)):
-                self.text_dict_old[i] = plt.text(self.f_old[self.kid_idx_old][i] / 10 ** 9,
+                self.text_dict_old[i] = self.ax.text(self.f_old[self.kid_idx_old][i] / 10 ** 9,
                                                  self.data_old[self.kid_idx_old][i],
                                                  str(i), color='Grey')
 
@@ -144,7 +168,57 @@ class InteractivePlot(object):
         print("Close all plots when finished")
         plt.xlabel('Frequency (GHz)')
         plt.ylabel('Power (dB)')
+        self.plot_instructions()
         plt.show(block=True)
+
+    def instructions(self):
+        if platform.system() == 'Darwin':
+            instructions = [("left-arrow", "move left", 'green'),
+                        ("right-arrow", "move right", 'cyan'),
+                        ("up-arrow", "move up", 'yellow'),
+                        ("down-arrow", "move down", 'red'),
+                        ("Z-key", "zoom", 'purple'),
+                        ("X-key", "Xplode", 'blue'),
+                        ("Q-key", "zoom x axis", 'black'),
+                        ("W-key", "Xplode x axis", 'white'),
+                        ("E-key", "Zoom y axis", 'green'),
+                        ("R-key", "Xplode y axis", 'cyan'),
+                        ("D+right-click", "delete points", 'yellow'),
+                        ("A+right-click", "add points", 'red'),
+                        ("double-click", "flag points", 'purple')]
+        else:
+            instructions = [("left-arrow", "move left", 'green'),
+                        ("right-arrow", "move right", 'cyan'),
+                        ("up-arrow", "move up", 'yellow'),
+                        ("down-arrow", "move down", 'red'),
+                        ("Z-key", "zoom", 'purple'),
+                        ("X-key", "Xplode", 'blue'),
+                        ("Q-key", "zoom x axis", 'black'),
+                        ("W-key", "Xplode x axis", 'white'),
+                        ("E-key", "Zoom y axis", 'green'),
+                        ("R-key", "Xplode y axis", 'cyan'),
+                        ("shift+right-click", "delete points", 'yellow'),
+                        ("ctrl+right-click", "add points", 'red'),
+                        ("double-click", "flag points", 'purple')]
+        return instructions
+
+    def plot_instructions(self):
+        instructions = self.instructions()
+        self.ax_key.clear()
+        steps_per_item = 1.5
+        y_step = 0.9 / (steps_per_item * float(len(instructions)))
+        y_now = 0.9
+        for key_press, description, color in instructions:
+            self.ax_key.text(0.4, y_now, key_press.center(13), color=text_color_matplotlib[color],
+                             ha='right', va='center', size=self.key_font_size, weight="bold",
+                             family='monospace', bbox=dict(color=color, ls='-', lw=2.0, ec='black'))
+            self.ax_key.text(0.45, y_now, description, color='black',
+                             ha='left', va='center', size=self.key_font_size - 2)
+            y_now -= steps_per_item * y_step
+        #self.ax_key.set_xlim(0, 1)
+        #self.ax_key.set_ylim(0, 1)
+        self.ax_key.set_title('Main Menu')
+        plt.draw()
 
     def on_key_press(self, event):
         # mac or windows
@@ -245,8 +319,6 @@ class InteractivePlot(object):
             if event.key == 'control':
                 self.control_is_held = False
 
-        if event.key == 'f':
-            self.f_is_held = False
 
     def onClick(self, event):
         if event.button == 3:
@@ -266,22 +338,37 @@ class InteractivePlot(object):
                 self.kid_idx.pop(delete_index)
                 self.flags.pop(delete_index)
                 self.refresh_plot()
-            elif self.f_is_held:  # flag resonator
-                print("flagging point", event.xdata)
-                flag_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata * 10 ** 9))
-                print("current flags: ", self.flags[flag_index])
-                flag = input("Enter flag string: ").lower()
-                if flag == "c":
-                    flag = "collision"
-                elif flag == "s":
-                    flag = "shallow"
-                else:
-                    pass
-                self.flags[flag_index].append(flag)
-                print("Flags are now: ", self.flags[flag_index])
-                self.refresh_plot()
             else:
                 print("please hold either the shift or control key while right clicking to add or remove points")
+        elif event.dblclick:
+            x_data_coords = self.chan_freqs[self.kid_idx]/10**9 - event.xdata
+            x_data_min, x_data_max = self.ax.get_xlim()
+            x_data_range = x_data_max - x_data_min
+            x_norm_coords = x_data_coords / x_data_range
+            x_yratio_coords = x_norm_coords * self.x_width_over_y_height
+            y_data_coords = self.data[self.kid_idx] - event.ydata
+            y_data_min, y_data_max = self.ax.get_ylim()
+            y_data_range = y_data_max - y_data_min
+            y_norm_coords = y_data_coords / y_data_range
+            radius_array = np.sqrt(x_yratio_coords ** 2 + y_norm_coords ** 2)
+            flag_index = np.argmin(radius_array)
+            #print("flagging point", event.xdata)
+            #flag_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata * 10 ** 9))
+            print("current flags: ", self.flags[flag_index])
+            pop_up = PopUpDataEntry("Enter flag sting","collision")
+            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
+                plt.pause(0.1)
+            flag = pop_up.value.lower()
+            if flag == "c":
+                flag = "collision"
+            elif flag == "s":
+                flag = "shallow"
+            else:
+                pass
+            self.flags[flag_index].append(flag)
+            print("Flags are now: ", self.flags[flag_index])
+            self.refresh_plot()
+
 
     def refresh_plot(self):
         self.flagged_indexes = self.get_flagged_indexes()
@@ -291,7 +378,7 @@ class InteractivePlot(object):
             self.text_dict[i].set_text("")  # clear all of the texts
         self.text_dict = {}
         for i in range(0, len(self.kid_idx)):
-            self.text_dict[i] = plt.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
+            self.text_dict[i] = self.ax.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
         self.kid_idx_len = len(self.kid_idx)
         plt.draw()
 
@@ -312,6 +399,10 @@ class InteractivePlot(object):
             return []
 
 
+
+
+
+
 class InteractiveThresholdPlot(object):
     def __init__(self, f_Hz, s21_mag, peak_threshold_dB, spacing_threshold_Hz=1.0e5,
                  window_pad_factor=1.2, fitter_pad_factor=5.0, debug_mode=False):
@@ -319,6 +410,16 @@ class InteractiveThresholdPlot(object):
         plt.rcParams['keymap.back'] = ['c', 'backspace']  # remove arrows from back and forward on plot
         self.peak_threshold_dB = peak_threshold_dB
         self.spacing_threshold_Hz = spacing_threshold_Hz
+
+        # set up plot
+        self.key_font_size = 9
+        top = 0.90
+        bottom = 0.1
+        left = 0.08
+        right = 0.99
+        x_width = right - left
+        y_height= top - bottom
+        key_x_width = 0.2
 
         self.window_pad_factor = window_pad_factor
         self.fitter_pad_factor = fitter_pad_factor
@@ -335,7 +436,17 @@ class InteractiveThresholdPlot(object):
 
         if not debug_mode:
             self.fig = plt.figure(2, figsize=(16, 6))
-            self.ax = self.fig.add_subplot(111)
+
+            x_width_plot = x_width - key_x_width
+            figure_coords = [left, bottom, x_width_plot, y_height]
+            self.ax = self.fig.add_axes(figure_coords, frameon=False, autoscale_on=True)
+            key_y_height = 0.25#y_height
+            key_figure_coords = [left + x_width_plot, top-key_y_height, key_x_width, key_y_height]
+            self.ax_key = self.fig.add_axes(key_figure_coords, frameon=False)
+            self.ax_key.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
+            self.ax_key.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+
+
             self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
             self.l1, = self.ax.plot(self.f_GHz, self.s21_mag)
 
@@ -349,7 +460,37 @@ class InteractiveThresholdPlot(object):
             plt.ylabel('Power (dB)')
             self.ax.set_title(
                 F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
+
+            self.plot_instructions()
             plt.show(block=True)
+
+    def instructions(self):
+        instructions = [("left-arrow", "decrease collision spacing", 'green'),
+                        ("right-arrow", "increase collision spacing", 'cyan'),
+                        ("up-arrow", "increase threshold by 0.1 dB", 'yellow'),
+                        ("down-arrow", "decrease threshold by 0.1 dB", 'red'),
+                        ("T-key", "custom dB threshold", 'purple'),
+                        ("Y-key", "custom collision spacing", 'blue')]
+
+        return instructions
+
+    def plot_instructions(self):
+        instructions = self.instructions()
+        self.ax_key.clear()
+        steps_per_item = 1.5
+        y_step = 0.9 / (steps_per_item * float(len(instructions)))
+        y_now = 0.9
+        for key_press, description, color in instructions:
+            self.ax_key.text(0.4, y_now, key_press.center(13), color=text_color_matplotlib[color],
+                             ha='right', va='center', size=self.key_font_size, weight="bold",
+                             family='monospace', bbox=dict(color=color, ls='-', lw=2.0, ec='black'))
+            self.ax_key.text(0.45, y_now, description, color='black',
+                             ha='left', va='center', size=self.key_font_size - 2)
+            y_now -= steps_per_item * y_step
+        #self.ax_key.set_xlim(0, 1)
+        #self.ax_key.set_ylim(0, 1)
+        self.ax_key.set_title('Main Menu')
+        plt.draw()
 
     def on_key_press(self, event):
         # print event.key
@@ -371,10 +512,16 @@ class InteractiveThresholdPlot(object):
             self.spacing_threshold_Q = np.mean(self.f_Hz) / self.spacing_threshold_Hz
             self.refresh_plot()
         if event.key == 't':
-            self.peak_threshold_dB = np.float(input("What threshold would you like in dB? "))
+            pop_up = PopUpDataEntry("Enter threshold in dB","3")
+            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
+                plt.pause(0.1)
+            self.peak_threshold_dB =  float(pop_up.value)
             self.refresh_plot()
         if event.key == 'y':
-            self.spacing_threshold_Hz = np.float(input("What Spacing threshold would you like in Hz? "))
+            pop_up = PopUpDataEntry("Enter Spacing threshold in Hz","100000")
+            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
+                plt.pause(0.1) 
+            self.spacing_threshold_Hz = float(pop_up.value)
             self.refresh_plot()
 
     def refresh_plot(self):
@@ -543,9 +690,9 @@ class InteractiveThresholdPlot(object):
                         self.f_Hz[data_index_minima_left_test] - self.f_Hz[data_index_minima_right_test])
                     if minima_spacing_Hz < self.spacing_threshold_Hz:
                         # minima are too close:
-                        print(F"Spacing Conflict in same threshold region.")
-                        print(F"   Allowed spacing (MHz): {'%3.3f' % (self.spacing_threshold_Hz * 1.0e-6)}")
-                        print(F"    Minima spacing (MHz): {'%3.3f' % (minima_spacing_Hz * 1.0e-6)}")
+                        #print(F"Spacing Conflict in same threshold region.")
+                        #print(F"   Allowed spacing (MHz): {'%3.3f' % (self.spacing_threshold_Hz * 1.0e-6)}")
+                        #print(F"    Minima spacing (MHz): {'%3.3f' % (minima_spacing_Hz * 1.0e-6)}")
                         # keep the lowest of the minima
                         value_left_minima = self.s21_mag[data_index_minima_left_test]
                         value_right_minima = self.s21_mag[data_index_minima_right_test]
@@ -566,12 +713,41 @@ class InteractiveThresholdPlot(object):
                         minima_this_region_index.pop(index_location_to_remove)
                         minima_this_region.pop(index_location_to_remove)
                         # make the users see what decisions the code is making
-                        print(F"Minima Kept: {value_kept_minima} dbM at {'%3.3f' % f_MHz_kept_minima} MHz")
-                        print(F"Minima Removed: {value_removed_minima} dbM at {'%3.3f' % f_MHz_removed_minima} MHz\n")
+                        #print(F"Minima Kept: {value_kept_minima} dbM at {'%3.3f' % f_MHz_kept_minima} MHz")
+                        #print(F"Minima Removed: {value_removed_minima} dbM at {'%3.3f' % f_MHz_removed_minima} MHz\n")
                         # stop the loop here and restart from scratch with one less minima
                         found_spacing_conflict = True
                         break
         return minima_this_region, minima_this_region_index
+
+
+class PopUpDataEntry(object):
+    def __init__(self,label,inital_text):
+        self.pop_up_fig = plt.figure(3,figsize = (3,1))
+        self.value = None
+        # text box axis
+        text_box_height = 0.25
+        text_box_figure_coords = [0.05, 0.05, 0.8, 0.05+text_box_height]
+        self.pop_up_fig.text(0.5,0.65,label,ha = "center")
+        self.axbox = self.pop_up_fig.add_axes(text_box_figure_coords)
+        self.text_box = TextBox(self.axbox, "", textalignment="center",initial = inital_text)
+        self.text_box.on_submit(self.submit)
+        self.pop_up_fig.canvas.mpl_connect('key_press_event', self.update_text)
+        self.pop_up_fig.canvas.mpl_connect('button_press_event', self.update_text)
+        self.text_box.cursor_index = len(inital_text)
+        self.text_box._rendercursor()
+        self.text_box.begin_typing(None)
+        self.pop_up_fig.show()
+      
+    def submit(self,expression):
+        #print(expression)
+        self.value = expression
+        #print(self.value)
+        plt.close(self.pop_up_fig)
+
+    def update_text(self, event): #everytime you type redraw text box plot
+        plt.draw()
+
 
 
 def compute_dI_and_dQ(I, Q, freq=None, filterstr='SG', do_deriv=True):
@@ -617,8 +793,27 @@ class InteractiveFilterPlot(object):
         self.f_GHz = f_Hz * 1.0e-9
         self.s21_mag = s21_mag
 
+        # set up plot
+        self.key_font_size = 9
+        top = 0.90
+        bottom = 0.1
+        left = 0.08
+        right = 0.99
+        x_width = right - left
+        y_height= top - bottom
+        key_x_width = 0.3
+        
         self.fig = plt.figure(2, figsize=(16, 6))
-        self.ax = self.fig.add_subplot(111)
+        #self.ax = self.fig.add_subplot(111)
+        x_width_plot = x_width - key_x_width
+        figure_coords = [left, bottom, x_width_plot, y_height]
+        self.ax = self.fig.add_axes(figure_coords, frameon=False, autoscale_on=True)
+        key_y_height = 0.15#y_height
+        key_figure_coords = [left + x_width_plot, top-key_y_height, key_x_width, key_y_height]
+        self.ax_key = self.fig.add_axes(key_figure_coords, frameon=False)
+        self.ax_key.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
+        self.ax_key.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+     
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
 
         # first plot data and filter function before removing filter function
@@ -636,21 +831,24 @@ class InteractiveFilterPlot(object):
         self.highpass_mags = self.s21_mag - self.filtermags
         self.l1, = self.ax.plot(self.f_GHz, self.s21_mag, label='#nofilter')
         self.l2, = self.ax.plot(self.f_GHz, self.filtermags, label='#filter')
-        self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
-        plt.legend(loc=1)
+        self.ax.set_title(F"Close all plots when finished\nSmoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
+        self.ax.legend(loc=1)
 
         print(
             "Press left or right to change the smothing scale by 10% or press t to enter a custom smoothing scale value.")
         print("Close all plots when finished")
-        plt.xlabel('Frequency (GHz)')
-        plt.ylabel('Power (dB)')
+        self.ax.set_xlabel('Frequency (GHz)')
+        self.ax.set_ylabel('Power (dB)')
+        self.plot_instructions()
         plt.show(block=True)
+
 
     def on_key_press(self, event):
         # print event.key
         # has to be shift and ctrl because remote viewers only forward
         # certain key combinations
         # print event.key == 'd'
+        self.refresh_plot()
         if event.key == 'left':
             self.smoothing_scale_Hz = self.smoothing_scale_Hz / 1.4
             self.refresh_plot()
@@ -658,7 +856,10 @@ class InteractiveFilterPlot(object):
             self.smoothing_scale_Hz = self.smoothing_scale_Hz * 1.4
             self.refresh_plot()
         if event.key == 't':
-            self.smoothing_scale_Hz = np.float(input("What smoothing scale would you like in Hz? "))
+            pop_up = PopUpDataEntry("Enter smoothing scale value in Hz","6000000")
+            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
+                plt.pause(0.1)
+            self.smoothing_scale_Hz = float(pop_up.value)
             self.refresh_plot()
 
     def refresh_plot(self):
@@ -677,8 +878,33 @@ class InteractiveFilterPlot(object):
         self.highpass_mags = self.s21_mag - self.filtermags
         self.l1.set_data(self.f_GHz, self.s21_mag)
         self.l2.set_data(self.f_GHz, self.filtermags)
-        self.ax.set_title(F"Smoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
+        self.ax.set_title(F"Close all plots when finished\nSmoothing Scale: {'%.2E' % self.smoothing_scale_Hz} Hz.")
 
+        plt.draw()
+
+    def instructions(self):
+        instructions = [("left-arrow", "decrease smoothing scale", 'green'),
+                        ("right-arrow", "increase smoothing scale", 'cyan'),
+                        ("T-key", "enter smoothing scale value", 'yellow')]
+
+        return instructions
+
+    def plot_instructions(self):
+        instructions = self.instructions()
+        self.ax_key.clear()
+        steps_per_item = 1.5
+        y_step = 0.9 / (steps_per_item * float(len(instructions)))
+        y_now = 0.9
+        for key_press, description, color in instructions:
+            self.ax_key.text(0.4, y_now, key_press.center(13), color=text_color_matplotlib[color],
+                             ha='right', va='center', size=self.key_font_size, weight="bold",
+                             family='monospace', bbox=dict(color=color, ls='-', lw=2.0, ec='black'))
+            self.ax_key.text(0.45, y_now, description, color='black',
+                             ha='left', va='center', size=self.key_font_size - 2)
+            y_now -= steps_per_item * y_step
+        #self.ax_key.set_xlim(0, 1)
+        #self.ax_key.set_ylim(0, 1)
+        self.ax_key.set_title('Main Menu')
         plt.draw()
 
 
@@ -876,3 +1102,5 @@ def retune_vna(f, z, kid_index, n_points_look_around=0, look_low_high=[0, 0], f_
                          kid_idx_old=kid_index_old)
 
     return ip
+
+
