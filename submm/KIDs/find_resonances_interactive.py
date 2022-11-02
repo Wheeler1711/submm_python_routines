@@ -1,6 +1,7 @@
 import os
 import platform
 from typing import NamedTuple
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -209,7 +210,7 @@ class InteractivePlot(object):
         y_step = 0.9 / (steps_per_item * float(len(instructions)))
         y_now = 0.9
         for key_press, description, color in instructions:
-            self.ax_key.text(0.4, y_now, key_press.center(13), color=text_color_matplotlib[color],
+            self.ax_key.text(0.4, y_now, key_press.center(17), color=text_color_matplotlib[color],
                              ha='right', va='center', size=self.key_font_size, weight="bold",
                              family='monospace', bbox=dict(color=color, ls='-', lw=2.0, ec='black'))
             self.ax_key.text(0.45, y_now, description, color='black',
@@ -355,9 +356,7 @@ class InteractivePlot(object):
             #print("flagging point", event.xdata)
             #flag_index = np.argmin(np.abs(self.chan_freqs[self.kid_idx] - event.xdata * 10 ** 9))
             print("current flags: ", self.flags[flag_index])
-            pop_up = PopUpDataEntry("Enter flag sting","collision")
-            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
-                plt.pause(0.1)
+            pop_up = PopUpDataEntry("Enter flag string","collision")
             flag = pop_up.value.lower()
             if flag == "c":
                 flag = "collision"
@@ -513,14 +512,10 @@ class InteractiveThresholdPlot(object):
             self.refresh_plot()
         if event.key == 't':
             pop_up = PopUpDataEntry("Enter threshold in dB","3")
-            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
-                plt.pause(0.1)
             self.peak_threshold_dB =  float(pop_up.value)
             self.refresh_plot()
         if event.key == 'y':
             pop_up = PopUpDataEntry("Enter Spacing threshold in Hz","100000")
-            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
-                plt.pause(0.1) 
             self.spacing_threshold_Hz = float(pop_up.value)
             self.refresh_plot()
 
@@ -736,14 +731,17 @@ class PopUpDataEntry(object):
         self.pop_up_fig.canvas.mpl_connect('button_press_event', self.update_text)
         self.text_box.cursor_index = len(inital_text)
         self.text_box._rendercursor()
+        plt.show()
+        plt.pause(0.1)
         self.text_box.begin_typing(None)
-        self.pop_up_fig.show()
-      
-    def submit(self,expression):
-        #print(expression)
-        self.value = expression
-        #print(self.value)
+
+        while self.value is None:  # can't use same plt.show(block = True) since already in use
+            plt.pause(0.1)
         plt.close(self.pop_up_fig)
+
+
+    def submit(self,expression):
+        self.value = expression
 
     def update_text(self, event): #everytime you type redraw text box plot
         plt.draw()
@@ -835,7 +833,7 @@ class InteractiveFilterPlot(object):
         self.ax.legend(loc=1)
 
         print(
-            "Press left or right to change the smothing scale by 10% or press t to enter a custom smoothing scale value.")
+            "Press left or right to change the smothing scale by 40% or press t to enter a custom smoothing scale value.")
         print("Close all plots when finished")
         self.ax.set_xlabel('Frequency (GHz)')
         self.ax.set_ylabel('Power (dB)')
@@ -857,8 +855,6 @@ class InteractiveFilterPlot(object):
             self.refresh_plot()
         if event.key == 't':
             pop_up = PopUpDataEntry("Enter smoothing scale value in Hz","6000000")
-            while pop_up.value is None: #can't use same plt.show(block = True) since already in use
-                plt.pause(0.1)
             self.smoothing_scale_Hz = float(pop_up.value)
             self.refresh_plot()
 
