@@ -731,7 +731,7 @@ class PopUpDataEntry(object):
         self.pop_up_fig.canvas.mpl_connect('button_press_event', self.update_text)
         self.text_box.cursor_index = len(inital_text)
         self.text_box._rendercursor()
-        plt.show()
+        plt.show(block = False)
         plt.pause(0.1)
         self.text_box.begin_typing(None)
 
