@@ -18,6 +18,7 @@ JDW 2017-08-30 added in fitting for magnitude fitting of resonators i.e. not in 
 JDW 2018-03-05 added more clever function for guessing x0 for fits
 JDW 2018-08-23 added more clever guessing for resonators with large phi into guess separate functions
 CHW 2022-09-02 PEP-8 formatting, spelling corrections, and minor code cleanup
+LMF 2022-11-04 Added nonlinear_iq_ss function and fitter, which corrects Qc to match Khalil+12 and removes the extra term
 """
 import inspect
 
@@ -26,10 +27,11 @@ import scipy.optimize as optimization
 import scipy.stats as stats
 
 from submm.KIDs.res.fit_funcs import linear_mag, nonlinear_mag, nonlinear_iq, nonlinear_iq_for_fitter, \
-    nonlinear_mag_for_plot, linear_mag_for_plot, so_resonator_cable, so_resonator_cable_for_fitter
+    nonlinear_mag_for_plot, linear_mag_for_plot, so_resonator_cable, so_resonator_cable_for_fitter, \
+    nonlinear_iq_ss, nonlinear_iq_ss_for_fitter
 from submm.KIDs.res.data_io import Fit, ResSet, NonlinearIQRes, NonlinearMagRes, LinearMagRes, ResonatorCable
 from submm.KIDs.res.utils import amplitude_normalization, calc_qc_qi, guess_x0_iq_nonlinear, guess_x0_mag_nonlinear, \
-    guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep, guess_so_resonator_cable
+    guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep, guess_so_resonator_cable, guess_x0_iq_nonlinear_ss
 
 
 def bounds_check(x0, bounds):
@@ -463,7 +465,7 @@ def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
 def fit_nonlinear_mag_sep(fine_f_hz, fine_z, gain_f_hz, gain_z,
                           fine_z_err=None, gain_z_err=None, bounds=None, x0=None, verbose=True):
     """Same as, fit_nonlinear_mag(), above but fine and gain scans are provided separately.
-    
+
     Parameters
     ----------
     fine_f_hz : numpy.array
@@ -615,7 +617,7 @@ def fit_nonlinear_iq_multi(f_hz, z, center_freqs=None, tau: float = None, fit_ov
     f_hz and z should have shape n_iq_points x n_res points
     center_freqs can be specified if you are fitting n resonators but you
     know there are actually more the n resonators at the frequency locations
-    in center_freqs. This is useful if you didn't collect data for all of the 
+    in center_freqs. This is useful if you didn't collect data for all of the
     resonators but don't want collisions to screw up your fitting.
     fit_overlap: default 0.5 will only use data to halfway between the resonator
     you are trying to fit and the nearest neighbor resonators if it is close by.
@@ -685,7 +687,7 @@ def fit_linear_mag_multi(f_hz, z, verbose: bool = True):
     for i in range(0, f_hz.shape[1]):
         f_single = f_hz[:, i]
         z_single = z[:, i]
-        # flag data that is too close to other resonators              
+        # flag data that is too close to other resonators
         distance = center_freqs - center_freqs[i]
         if center_freqs[i] != np.min(center_freqs):  # don't do if lowest frequency resonator
             closest_lower_dist = -np.min(np.abs(distance[np.where(distance < 0)]))
@@ -722,6 +724,120 @@ def fit_linear_mag_multi(f_hz, z, verbose: bool = True):
             res_fits.append(fit)
     res_set = ResSet(res_fits=res_fits, verbose=verbose)
     return res_set
+
+"""
+Fitting functions for KIDs corrected to match Khalil+12.
+This removes the extra term from nonlinear_iq that is not physical, and corrects
+The definition of Qc to be given by 1 / Qc = Re(1 / Qe), rather than Qc = abs(Qe).
+See Khalil 2012 for an explanation of why this definiion of Qc should be used:
+https://doi.org/10.1063/1.3692073
+See Seth Siegel's thesis (2016) for a complete derivaiton of the fitting equation,
+including nonlinearity: https://thesis.library.caltech.edu/9238/
+
+Adapted from the Jordan's code by Joanna Perido and Logan Foote, Fall 2022
+"""
+def fit_nonlinear_iq_ss(f_hz, z, bounds = None, x0: list = None,
+                        fr_guess: float = None, tau = None, tau_guess = None,
+                        amp_norm: bool = False, verbose: bool = True):
+    """Fit a nonlinear IQ with from an S21 sweep.
+
+    Parameters
+    ----------
+    f_hz : numpy.array
+        frequencies Hz
+    z : numpy.array
+        complex s21
+    bounds : tuple, option (default None)
+        A 2d tuple of low values bounds[0] the high values bounds[1] to bound the fitting problem.
+    x0 : list, optional (default None)
+        The initial guesses for all parameters:
+        fr_guess  = x0[0]
+        Qr_guess  = x0[1]
+        amp       = x0[2]
+        phi_guess = x0[3]
+        a_guess   = x0[4]
+        i0_guess  = x0[5]
+        q0_guess  = x0[6]
+        tau_guess = x0[7]
+        The fit's initial guess can be very important because least squares fitting does not completely search the
+        parameter space.
+    fr_guess : float, optional (default None)
+        The center resonator frequency in Hz. If None, the center frequency is calculated from the data.
+        This overrides the value (x0[0]) specified in the x0 parameter list.
+    tau : float, optional (default None)
+        If not None, the fitter uses a fixed value for tau (phase delay), speeding up the calculation.
+    tau_guess: float, optional (default None)
+        Set the initial guess for tau without. This overrides the value (xo[7]) specified in the x0 parameter list.
+    amp_norm: bool, optional (default False)
+        When True, a normalization is preformed for the amplitude variable. This parameter is useful when the transfer
+        function of the cryostat is not flat.
+    verbose : bool, optional (default True)
+        Uses the print function to display fit results when true, no prints to the console when false.
+
+    Returns
+    -------
+    fit : Fit
+        A Fit NamedTuple containing the fit results.
+    """
+    if bounds is None:
+        # define default bounds
+        if verbose:
+            print("default bounds used")
+        bounds = ([np.min(f_hz), 50, .01, -np.pi, 0, -np.inf, -np.inf, -1.0e-6],
+                  [np.max(f_hz), 200000, 1, np.pi, 5, np.inf, np.inf, 1.0e-6])
+    if x0 is None:
+        # define default initial guess
+        if verbose:
+            print("default initial guess used")
+        x0 = guess_x0_iq_nonlinear_ss(f_hz, z)
+    if fr_guess is not None:
+        x0[0] = fr_guess
+    if tau is None:
+        use_given_tau = False
+    else:
+        use_given_tau = True
+    if tau_guess is not None:
+        x0[7] = tau_guess
+    if amp_norm:
+        z = amplitude_normalization(f_hz, z)
+    z_stacked = np.hstack((np.real(z), np.imag(z)))
+    # map the initial guess to the standard data record
+    guess = NonlinearIQRes(*(x0 + [np.nan]))
+    if verbose:
+        guess.console(label='Guess', print_header=True)
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fitter choices
+    if use_given_tau:
+        del bounds[0][7]
+        del bounds[1][7]
+        del x0[7]
+        popt, pcov = optimization.curve_fit(
+            lambda x_lamb, a, b, c, d, e, f, g: nonlinear_iq_ss_for_fitter(x_lamb, a, b, c, d, e, f, g, tau), f_hz,
+            z_stacked, x0, bounds=bounds)
+        popt = np.insert(popt, 7, tau)
+        # fill covariance matrix#
+        cov = np.ones((pcov.shape[0] + 1, pcov.shape[1] + 1)) * -1
+        cov[0:7, 0:7] = pcov[0:7, 0:7]
+        pcov = cov
+    else:
+        popt, pcov = optimization.curve_fit(nonlinear_iq_ss_for_fitter, f_hz, z_stacked, x0, bounds=bounds)
+    # human-readable results
+    fr, Qr, amp, phi, a, i0, q0, tau = popt
+    f0 = np.nan
+    Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
+    z_fit = nonlinear_iq_ss(f=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = NonlinearIQRes(fr=fr, Qr=Qr, amp=amp, phi=phi, a=a, i0=i0, q0=q0, tau=tau, f0=f0,
+                            chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
+    if verbose:
+        result.console(label='Fit', print_header=True)
+    # make a packaged result (NamedTuple) to return
+    # This function needs to be created to use the same console code as fit_nonlinear_iq
+    func = lambda x,a,b,c,d,e,f,g,h,i: nonlinear_iq_ss(x,a,b,c,d,e,f,g,h)
+    fit = Fit(origin=inspect.currentframe().f_code.co_name, func=func,
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z, flags=set())
+    return fit
 
 
 if __name__ == '__main__':

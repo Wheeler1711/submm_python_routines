@@ -517,6 +517,80 @@ def guess_so_resonator_cable(freqs, real, imag):
 
     return x0, bounds
 
+def guess_x0_iq_nonlinear_ss(x, z, verbose=False):
+    """
+    This uses the same guess as guess_x0_iq_nonlinear, but removes f0 to match
+    nonlinear_iq_ss
+    """
+    sort_index = np.argsort(x)
+    x = x[sort_index]
+    z = z[sort_index]
+    # extract just fine data
+    df = np.abs(x - np.roll(x, 1))
+    fine_df = np.min(df[np.where(df != 0)])
+    fine_z_index = np.where(df < fine_df * 1.1)
+    fine_z = z[fine_z_index]
+    fine_x = x[fine_z_index]
+    # extract the gain scan
+    gain_z_index = np.where(df > fine_df * 1.1)
+    gain_z = z[gain_z_index]
+    gain_x = x[gain_z_index]
+    gain_phase = np.arctan2(np.real(gain_z), np.imag(gain_z))
+
+    # guess f0
+    fr_guess_index = np.argmin(np.abs(z))
+    # fr_guess = x[fr_guess_index]
+    fr_guess_index_fine = np.argmin(np.abs(fine_z))
+    # below breaks if there is not a right and left side in the fine scan
+    if fr_guess_index_fine == 0:
+        fr_guess_index_fine = len(fine_x) // 2
+    elif fr_guess_index_fine == (len(fine_x) - 1):
+        fr_guess_index_fine = len(fine_x) // 2
+    fr_guess = fine_x[fr_guess_index_fine]
+
+    # guess Q
+    mag_max = np.max(np.abs(fine_z) ** 2)
+    mag_min = np.min(np.abs(fine_z) ** 2)
+    mag_3dB = (mag_max + mag_min) / 2.
+    half_distance = np.abs(fine_z) ** 2 - mag_3dB
+    right = half_distance[fr_guess_index_fine:-1]
+    left = half_distance[0:fr_guess_index_fine]
+    right_index = np.argmin(np.abs(right)) + fr_guess_index_fine
+    left_index = np.argmin(np.abs(left))
+    Q_guess_Hz = fine_x[right_index] - fine_x[left_index]
+    Q_guess = fr_guess / Q_guess_Hz
+
+    # guess amp
+    d = np.max(20 * np.log10(np.abs(z))) - np.min(20 * np.log10(np.abs(z)))
+    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
+
+    # guess impedance rotation phi
+    phi_guess = 0
+
+    # guess non-linearity parameter
+    # might be able to guess this by taking the ratio of the distance between min and max distance between iq points in fine sweep
+    a_guess = 0
+
+    # i0 and iq guess
+    i0_guess = (np.real(fine_z[0]) + np.real(fine_z[-1])) / 2.
+    q0_guess = (np.imag(fine_z[0]) + np.imag(fine_z[-1])) / 2.
+
+    # cable delay guess tau
+    # y = mx +b
+    # m = (y2 - y1)/(x2-x1)
+    # b = y-mx
+    if len(gain_z) > 1:  # is there a gain scan?
+        m = (gain_phase - np.roll(gain_phase, 1)) / (gain_x - np.roll(gain_x, 1))
+        b = gain_phase - m * gain_x
+        m_best = np.median(m[~np.isnan(m)])
+        tau_guess = m_best / (2 * np.pi)
+    else:
+        tau_guess = 3 * 10 ** -9
+
+    x0 = [fr_guess, Q_guess, amp_guess, phi_guess, a_guess, i0_guess, q0_guess, tau_guess]
+
+    return x0
+
 
 def calc_qc_qi(qr: float, amp: float):
     qc = qr / amp

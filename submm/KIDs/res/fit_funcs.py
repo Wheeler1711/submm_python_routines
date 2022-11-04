@@ -72,10 +72,10 @@ def nonlinear_mag(f_hz, fr, Qr, amp, phi, a, b0, b1, flin):
         print(roots)
         # more accurate version that doesn't seem to change the fit at all
         # only cares about real roots
-        roots = np.roots((16.,-16.*yg[i],8.,-8.*yg[i]+4*a*yg[i]/Qr-4*a,1.,-yg[i]+a*yg[i]/Qr-a+a**2/Qr))       
+        roots = np.roots((16.,-16.*yg[i],8.,-8.*yg[i]+4*a*yg[i]/Qr-4*a,1.,-yg[i]+a*yg[i]/Qr-a+a**2/Qr))
         where_real = np.where(np.imag(roots) == 0)
         # analytic version has some floating point error accumulation
-        where_real = np.where(np.abs(np.imag(roots)) < 1e-10) 
+        where_real = np.where(np.abs(np.imag(roots)) < 1e-10)
         """
         # np.max(np.real(roots[where_real]))
         y[i] = cardan(4.0, -4.0 * yg[i], 1.0, -(yg[i] + a))
@@ -238,7 +238,7 @@ def nonlinear_iq(f_hz, fr, Qr, amp, phi, a, i0, q0, tau, f0):
         """
         4y^3+ -4yg*y^2+ y -(yg+a)
         roots = np.roots((4.0,-4.0*yg[i],1.0,-(yg[i]+a)))
-        # more accurate version that doesn't seem to change the fit at al     
+        # more accurate version that doesn't seem to change the fit at al
         roots = np.roots((16.,-16.*yg[i],8.,-8.*yg[i]+4*a*yg[i]/Qr-4*a,1.,-yg[i]+a*yg[i]/Qr-a+a**2/Qr))
         only care about real roots
         where_real = np.where(np.imag(roots) == 0)
@@ -278,7 +278,7 @@ def nonlinear_iq_for_fitter(f_hz, fr, Qr, amp, phi, a, i0, q0, tau, f0):
 
 
 """
-Simons Observatory fitting functions. 
+Simons Observatory fitting functions.
 Copied from https://github.com/simonsobs/sodetlib/blob/master/sodetlib/resonator_fitting.py
 
 See LICENSE file at: https://github.com/simonsobs/sodetlib/blob/master/LICENSE
@@ -366,3 +366,75 @@ def so_resonator_cable_for_fitter(f, f_0, Q, Q_e_real, Q_e_imag, delay, phi, f_m
     real_z = np.real(z)
     imag_z = np.imag(z)
     return np.hstack((real_z, imag_z))
+
+"""
+Fitting functions for KIDs corrected to match Khalil+12.
+This removes the extra term from nonlinear_iq that is not physical, and corrects
+The definition of Qc to be given by 1 / Qc = Re(1 / Qe), rather than Qc = abs(Qe).
+See Khalil 2012 for an explanation of why this definiion of Qc should be used:
+https://doi.org/10.1063/1.3692073
+See Seth Siegel's thesis (2016) for a complete derivaiton of the fitting equation,
+including nonlinearity: https://thesis.library.caltech.edu/9238/
+
+Adapted from the Jordan's code by Joanna Perido and Logan Foote, Fall 2022
+"""
+@fit_func
+@jit(nopython=True)
+def nonlinear_iq_ss(f, fr, Qr, amp, phi, a, i0, q0, tau):
+    """
+    To describe the I-Q loop of a nonlinear resonator
+    The resonance equation is fully derived in Seth Siegel's 2016 thesis. See
+    Khalil+12 for an explanation of the Qc calculation (the cos(phi) term)
+
+
+                        (-j 2 pi f tau)    /                           (j phi)   \
+            (i0+j*q0)*e^                * |1 -        Qr             e^           |
+                                          |     --------------  X  ------------   |
+                                           \     Qc * cos(phi)       (1+ 2jy)    /
+
+        where the nonlinearity of y is described by
+            yg = y+ a/(1+y^2)  where yg = Qr*xg and xg = (f-fr)/fr
+
+    Parameters
+    ----------
+    f : numpy.array
+        The frequencies in your iq sweep covers
+    fr : float
+        The center frequency of the resonator
+    Qr : float
+       The quality factor of the resonator
+    amp : float
+        Qr / Qc
+    phi : float
+        The rotation parameter for an impedance mismatch between the resonator
+        and the readout system
+    a : float
+        The nonlinearity parameter, bifurcation occurs at a = 0.77
+    i0 : float
+    q0 : float
+        these are constants that describes an overall phase rotation of the iq
+        loop + a DC gain offset
+    tau : float
+        The cable delay
+    """
+    deltaf = f - fr
+    fg = deltaf / fr
+    yg = Qr * fg
+    y = np.zeros(f.shape[0])
+    #find the roots of the y equation above
+    for i in range(0, f.shape[0]):
+        y[i] = cardan(4.0, -4.0*yg[i], 1.0, -(yg[i]+a))
+    Q_term = amp / np.cos(phi)
+    s21_readout = (i0 + 1.j * q0) * np.exp(-2.0j * np.pi * deltaf * tau)
+    z = s21_readout * (1.0 - Q_term * np.exp(1.0j * phi)/ (1.0 + 2.0j * y))
+    return z
+
+@fit_func
+@jit(nopython=True)
+def nonlinear_iq_ss_for_fitter(f, fr, Qr, amp, phi, a, i0, q0, tau):
+    """
+    when using a fitter that can't handel complex number
+    one needs to return both the real and imaginary components separately
+    """
+    z = nonlinear_iq_ss(f, fr, Qr, amp, phi, a, i0, q0, tau)
+    return np.hstack((np.real(z), np.imag(z)))
