@@ -645,7 +645,7 @@ class ResSet:
                 self._fit_results[result] = res_fit
         self.order_and_validate()
 
-    def plot(self, global_flags=None, flags=None, flags_types=None, plot_title=None, plot_frames=True):
+    def plot(self, global_flags=None, flags=None, flags_types=None, plot_title=None, plot_frames=True, show_guess = False):
         # plotter want frequencies and z values with shape n_frequency_point x n_res x n_sweeps
         # also for fitted parameters it wants a list fitted names for the legend
         # and an array that is n_res x len(fitted parameters)
@@ -658,16 +658,28 @@ class ResSet:
         fitted_frequencies = np.zeros((n_iq_points, len(self)))
         z_values = np.zeros((n_iq_points, len(self)), dtype='complex')
         fitted_z_values = np.zeros((n_iq_points, len(self)), dtype='complex')
+        guess_z_values = np.zeros((n_iq_points, len(self)), dtype='complex')
         for i, result in enumerate(self):
             fit_result = self._fit_results[result]
             frequencies[:, i] = fit_result.f_data  # input frequencies nominally the same as res_freq_array
             fitted_frequencies[:, i] = fit_result.f_data  # input frequencies nominally the same as res_freq_array
             z_values[:, i] = fit_result.z_data
             fitted_z_values[:, i] = fit_result.z_fit()
+            guess_z_values[:, i] = fit_result.z_guess()
 
         # stack the data with fit data
-        multi_sweep_freqs = np.dstack((np.expand_dims(frequencies, axis=2), np.expand_dims(fitted_frequencies, axis=2)))
-        multi_sweep_z = np.dstack((np.expand_dims(z_values, axis=2), np.expand_dims(fitted_z_values, axis=2)))
+        if show_guess:
+            multi_sweep_freqs = np.dstack((np.expand_dims(frequencies, axis=2),
+                                               np.expand_dims(fitted_frequencies,axis=2),
+                                               np.expand_dims(fitted_frequencies, axis=2)))
+            multi_sweep_z = np.dstack((np.expand_dims(z_values, axis=2),
+                                           np.expand_dims(fitted_z_values, axis=2),
+                                           np.expand_dims(guess_z_values, axis=2)))
+            sweep_labels = ['Data', 'Fit','Guess']
+        else:
+            multi_sweep_freqs = np.dstack((np.expand_dims(frequencies, axis=2), np.expand_dims(fitted_frequencies, axis=2)))
+            multi_sweep_z = np.dstack((np.expand_dims(z_values, axis=2), np.expand_dims(fitted_z_values, axis=2)))
+            sweep_labels  = ['Data', 'Fit']
 
         # now get the fitted values
         # first get names of fitted values
@@ -702,7 +714,7 @@ class ResSet:
         # run the plotter
         ip = InteractivePlot(multi_sweep_freqs, multi_sweep_z, retune=False, combined_data=fitted_parameters,
                              combined_data_names=data_names, combined_data_format=formats,
-                             sweep_labels=['Data', 'Fit'], flags=flags, flags_types=flags_types,
+                             sweep_labels=sweep_labels, flags=flags, flags_types=flags_types,
                              plot_title=plot_title, plot_frames=plot_frames, verbose=self.verbose)
         # flag and remove data based on the results of the interactive plot.
         removed_flag = False
