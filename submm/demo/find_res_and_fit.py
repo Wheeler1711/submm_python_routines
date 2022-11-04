@@ -10,11 +10,18 @@ from submm.KIDs.res.sweep_tools import InteractivePlot
 from submm.KIDs.res.fitting import fit_nonlinear_iq_multi, fit_linear_mag_multi
 
 
-def main(linear=False):  # if resonators are well below bifurcation fitting can be much faster
+def main(linear=False,data_set = 1):  # if resonators are well below bifurcation fitting can be much faster
 
     # load the sample data
-    data_path = os.path.join(abs_path_sample_data,
+    # HAWC+ TiN KIDs
+    if data_set == 1:
+        data_path = os.path.join(abs_path_sample_data,
                              "Survey_Tbb20.000K_Tbath170mK_Pow-60dBm_array_temp_sweep_long.mat")
+        q_slice=2000
+    else: #CCAT aluminum array with the longest wirebonds ever
+        data_path = os.path.join(abs_path_sample_data,
+                             "survey_100mK_minus50dBm.mat")
+        q_slice=5000
     sample_data = loadmat(data_path)
 
     # recast the data
@@ -31,12 +38,12 @@ def main(linear=False):  # if resonators are well below bifurcation fitting can 
     ip = find_kids.find_vna_sweep(freq_hz, s21_complex)
 
     # slice up the vna with a span equal to q_slice where q = f/delta_f
-    res_freq_array, res_array = find_kids.slice_vna(freq_hz, s21_complex, ip.kid_idx, q_slice=2000, flag_collided=False)
+    res_freq_array, res_array = find_kids.slice_vna(freq_hz, s21_complex, ip.kid_idx, q_slice=q_slice, flag_collided=False)
 
     # fit the resonators
     t1 = time.time()
     if not linear:
-        res_set = fit_nonlinear_iq_multi(res_freq_array, res_array, tau=97 * 10 ** -9)
+        res_set = fit_nonlinear_iq_multi(res_freq_array, res_array, tau=97 * 10 ** -9,eqn = 'ss') #eqn = standard or ss
     else:
         res_set = fit_linear_mag_multi(res_freq_array, res_array)
     t2 = time.time()
@@ -53,11 +60,13 @@ def main(linear=False):  # if resonators are well below bifurcation fitting can 
     print(fit_result._fields)
 
     # plot the data, see submm/KIDs/res/data_io.py's ResSet plot function for example of sweep plotting
-    ip2 = res_set.plot(flags=ip.flags)
+    ip2 = res_set.plot(flags=ip.flags,show_guess = True)
 
     # below is example of retuning resonators
 
     # ip2 = InteractivePlot(res_freq_array,res_array,retune = True,find_min = False)
+
+    return res_set
 
 
 if __name__ == "__main__":

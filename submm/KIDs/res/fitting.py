@@ -609,7 +609,7 @@ def fit_so_resonator_cable(f_hz, z, bounds=None, x0=None, verbose=True):
     return fit
 
 
-def fit_nonlinear_iq_multi(f_hz, z, center_freqs=None, tau: float = None, fit_overlap=0.5, verbose: bool = True):
+def fit_nonlinear_iq_multi(f_hz, z, center_freqs=None, tau: float = None, fit_overlap=0.5, verbose: bool = True, eqn = 'standard'):
     """
     wrapper for handling n resonator fits at once
     mostly just a for loop for fitting but also trys to fit in a way that
@@ -659,7 +659,13 @@ def fit_nonlinear_iq_multi(f_hz, z, center_freqs=None, tau: float = None, fit_ov
         z_single_res = z_single[use_index]
 
         try:
-            fit_single_res = fit_nonlinear_iq(f_single_res, z_single_res, tau=tau, verbose=verbose)
+            if eqn == 'standard':
+                fit_single_res = fit_nonlinear_iq(f_single_res, z_single_res, tau=tau, verbose=verbose)
+            elif eqn == 'ss':
+                fit_single_res = fit_nonlinear_iq_ss(f_single_res, z_single_res, tau=tau, verbose=verbose)
+            else:
+                print("please set eqn = to standard or ss")
+                return
         except Exception as e:
             if verbose:
                 print(e)
