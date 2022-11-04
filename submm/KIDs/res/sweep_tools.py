@@ -467,7 +467,7 @@ class InteractivePlot(object):
                     self.combined_staged_flagged.set_data(flag_indexes, flag_values)
             if autoscale:
                 self.ax_combined.set_xlim(autoscale_from_data(self.res_indexes))
-                plot_min, plot_max = autoscale_from_data(self.combined_values_this_index,
+                plot_min, plot_max = autoscale_from_data(self.combined_values_this_index[np.isfinite(self.combined_values_this_index)],
                                                          log_scale=data_type in self.log_y_data_types)
                 self.ax_combined.set_ylim((plot_min, plot_max))
             self.combined_data_crosshair_x.set_xdata(x_pos)
