@@ -1,5 +1,5 @@
 # The version range is for numba
-numpy<1.23,>=1.18
+numpy
 matplotlib>=3.5.2
 scipy
 numba

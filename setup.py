@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 def get_file_paths(local_dir, desired_file_types):
     data_files = []
-    # loop over  all the sample data files and get  with the appropriate extension
+    # loop over all the sample data files and get  with the appropriate extension
     for file_basename in os.listdir(local_dir):
         try:
             filename_prefix, filename_extension = file_basename.rsplit('.', 1)
@@ -31,7 +31,7 @@ demo_files = get_file_paths(local_dir=local_demos_dir, desired_file_types=desire
 
 
 setup(name='submm',
-      version='0.3.2',
+      version='0.3.3',
       description='Python routines for submm astronomy instrumentation',
       author='Jordan Wheeler',
       author_email='wheeler1711@gmail.com',
@@ -41,7 +41,7 @@ setup(name='submm',
                   (local_demos_dir, demo_files)],
       include_package_data=True,
       python_requires='>3.7',
-      install_requires=['numpy<1.23,>=1.18',
+      install_requires=['numpy',
                         'matplotlib>=3.5.2',
                         'scipy',
                         'numba',
