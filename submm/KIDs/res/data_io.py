@@ -381,7 +381,10 @@ class Fit(NamedTuple):
 
     def z_guess(self) -> np.ndarray:
         """Return the complex impedance of the guess."""
-        return self.func(self.f_data, *self.guess[0:-len(derived_params)])
+        if self.f_data is None:
+            return None
+        else:
+            return self.func(self.f_data, *self.guess[0:-len(derived_params)])
 
     def chi2_p(self) -> np.array:
         """Return the chi-squared and p-value of the fit."""
@@ -675,11 +678,11 @@ class ResSet:
             multi_sweep_z = np.dstack((np.expand_dims(z_values, axis=2),
                                            np.expand_dims(fitted_z_values, axis=2),
                                            np.expand_dims(guess_z_values, axis=2)))
-            sweep_labels = ['Data', 'Fit','Guess']
+            sweep_labels = ['Data', 'Fit', 'Guess']
         else:
             multi_sweep_freqs = np.dstack((np.expand_dims(frequencies, axis=2), np.expand_dims(fitted_frequencies, axis=2)))
             multi_sweep_z = np.dstack((np.expand_dims(z_values, axis=2), np.expand_dims(fitted_z_values, axis=2)))
-            sweep_labels  = ['Data', 'Fit']
+            sweep_labels = ['Data', 'Fit']
 
         # now get the fitted values
         # first get names of fitted values
