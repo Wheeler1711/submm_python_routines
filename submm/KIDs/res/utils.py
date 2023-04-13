@@ -126,7 +126,10 @@ def guess_x0_iq_nonlinear(x, z, verbose=False):
 
     # guess amp
     d = np.max(20 * np.log10(np.abs(z))) - np.min(20 * np.log10(np.abs(z)))
-    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
+    if d>30:
+        amp_guess = 0.99
+    else:
+        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
 
     # guess impedance rotation phi
     phi_guess = 0
@@ -207,7 +210,10 @@ def guess_x0_mag_nonlinear(x, z, verbose=False):
 
     # guess amp
     d = np.max(20 * np.log10(np.abs(z))) - np.min(20 * np.log10(np.abs(z)))
-    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
+    if d>30:
+        amp_guess = 0.99
+    else:
+        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
 
     # guess impedance rotation phi
     phi_guess = 0
@@ -268,7 +274,10 @@ def guess_x0_iq_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
 
     # guess amp
     d = np.max(20 * np.log10(np.abs(gain_z))) - np.min(20 * np.log10(np.abs(fine_z)))
-    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
+    if d>30:
+        amp_guess = 0.99
+    else:
+        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
 
     # guess impedance rotation phi
     # phi_guess = 0
@@ -309,7 +318,10 @@ def guess_x0_iq_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
         Q_guess = fr_guess / Q_guess_Hz
         # also fix amp guess
         d = np.max(20 * np.log10(np.abs(gain_z))) - np.min(20 * np.log10(np.abs(fine_z_derot)))
-        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
+        if d>30:
+            amp_guess = 0.99
+        else:
+            amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
 
     # guess non-linearity parameter
     # might be able to guess this by taking the ratio of the distance between min and max distance between iq points
@@ -382,8 +394,10 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
 
     # guess amp
     d = np.max(20 * np.log10(np.abs(gain_z))) - np.min(20 * np.log10(np.abs(fine_z)))
-    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + \
-                0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
+    if d>30:
+        amp_guess = 0.99
+    else:
+        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
     # polynomial fit to amp versus depth calculated empirically
 
     # guess impedance rotation phi
@@ -422,7 +436,10 @@ def guess_x0_mag_nonlinear_sep(fine_x, fine_z, gain_x, gain_z, verbose=False):
         Q_guess = fr_guess / Q_guess_Hz
         # also fix amp guess
         d = np.max(20 * np.log10(np.abs(gain_z))) - np.min(20 * np.log10(np.abs(fine_z_derot)))
-        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4
+        if d>30:
+            amp_guess = 0.99
+        else:
+            amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
 
     # guess non-linearity parameter
     # might be able to guess this by taking the ratio of the distance between min and max distance between
@@ -562,7 +579,10 @@ def guess_x0_iq_nonlinear_ss(x, z, verbose=False):
 
     # guess amp
     d = np.max(20 * np.log10(np.abs(z))) - np.min(20 * np.log10(np.abs(z)))
-    amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
+    if d>30:
+        amp_guess = 0.99
+    else:
+        amp_guess = 0.0037848547850284574 + 0.11096782437821565 * d - 0.0055208783469291173 * d ** 2 + 0.00013900471000261687 * d ** 3 + -1.3994861426891861e-06 * d ** 4  # polynomial fit to amp verus depth
 
     # guess impedance rotation phi
     phi_guess = 0
