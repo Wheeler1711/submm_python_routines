@@ -167,8 +167,8 @@ class InteractivePlot(object):
         print("Use e to zoom in y axis")
         print("Use r go Xplode in y axis")
         print("Close all plots when finished")
-        plt.xlabel('Frequency (GHz)')
-        plt.ylabel('Power (dB)')
+        self.ax.set_xlabel('Frequency (GHz)')
+        self.ax.set_ylabel('Power (dB)')
         self.plot_instructions()
         plt.show(block=True)
 
