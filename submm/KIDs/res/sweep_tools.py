@@ -7,7 +7,8 @@ import numpy as np
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
-from matplotlib.widgets import LassoSelector
+from matplotlib.widgets import LassoSelector, TextBox
+
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
 
@@ -526,7 +527,8 @@ class InteractivePlot(object):
             flag_type = self.flags_types[self.flag_type_index]
             instructions.extend([('down-arrow', 'change y-data type', 'yellow'),
                                  ('up-arrow', 'change y-data type', 'blue'),
-                                 ('double-click', 'go to the resonator index', 'black')])
+                                 ('double-click', 'go to the resonator index', 'black'),
+                                  ('Y-key', 'change y limits', 'purple')   ])
             if self.lasso_mode:
                 instructions.extend([('Enter-Key', f'Stage Lassoed, flag: {flag_type}', 'red'),
                                      ('B-Key', "Exit Lasso-selection", 'white'),
@@ -615,14 +617,14 @@ class InteractivePlot(object):
                 self.plot_index = self.res_indexes[0]
             else:
                 self.plot_index = self.res_indexes[np.where(self.res_indexes == self.plot_index)[-1] + 1][-1]
-            self.refresh_plot()
+            self.refresh_plot(autoscale = False)
 
         elif event.key == 'left':
             if self.plot_index == self.res_indexes[0]:
                 self.plot_index = self.res_indexes[-1]
             else:
                 self.plot_index = self.res_indexes[np.where(self.res_indexes == self.plot_index)[-1] - 1][0]
-            self.refresh_plot()
+            self.refresh_plot(autoscale = False)
 
         elif event.key == 'up':
             if self.look_around != self.chan_freqs.shape[0] // 2:
@@ -659,6 +661,17 @@ class InteractivePlot(object):
             elif filename[-4:] != '.pdf':
                 filename = filename + '.pdf'
             self.make_pdf(filename)
+
+        elif event.key == 'y':
+            data_type = self.combined_data_names[self.combined_data_index]
+            plot_min, plot_max = autoscale_from_data(self.combined_values_this_index[np.isfinite(self.combined_values_this_index)],
+                                                         log_scale=data_type in self.log_y_data_types)
+            pop_up = PopUpDataEntry("Enter upper y limit",str(plot_max))
+            upper = float(pop_up.value)
+            pop_up = PopUpDataEntry("Enter lower y limit",str(plot_min))
+            lower = float(pop_up.value)
+            self.ax_combined.set_ylim((lower, upper))
+            self.refresh_plot(autoscale = False)
 
         # Flagging and removing interactions
         elif not self.lasso_mode:
@@ -1039,14 +1052,14 @@ class InteractivePowerTuningPlot(object):
                 self.plot_index = self.plot_index + 1
                 # snap to the automated choice in power level
                 self.power_index = np.argmin(np.abs(self.bif_levels[self.plot_index] + self.attn_levels))
-                self.refresh_plot()
+                self.refresh_plot(autoscale = False)
 
         if event.key == 'left':
             if self.plot_index != 0:
                 self.plot_index = self.plot_index - 1
                 # snap to the automated choice in power level
                 self.power_index = np.argmin(np.abs(self.bif_levels[self.plot_index] + self.attn_levels))
-                self.refresh_plot()
+                self.refresh_plot(autoscale = False)
 
         if event.key == 'up':
             if self.power_index != self.Is.shape[2] - 1:
@@ -1119,3 +1132,34 @@ def tune_resonance_power(f, z, attn_levels, fitted_a_mag=None, fitted_a_iq=None,
 
     plt.show()
     return picked_power_levels, normalizing_amplitudes
+
+
+class PopUpDataEntry(object):
+    def __init__(self,label,inital_text):
+        self.pop_up_fig = plt.figure(3,figsize = (3,1))
+        self.value = None
+        # text box axis
+        text_box_height = 0.25
+        text_box_figure_coords = [0.05, 0.05, 0.8, 0.05+text_box_height]
+        self.pop_up_fig.text(0.5,0.65,label,ha = "center")
+        self.axbox = self.pop_up_fig.add_axes(text_box_figure_coords)
+        self.text_box = TextBox(self.axbox, "", textalignment="center",initial = inital_text)
+        self.text_box.on_submit(self.submit)
+        self.pop_up_fig.canvas.mpl_connect('key_press_event', self.update_text)
+        self.pop_up_fig.canvas.mpl_connect('button_press_event', self.update_text)
+        self.text_box.cursor_index = len(inital_text)
+        self.text_box._rendercursor()
+        plt.show(block = False)
+        plt.pause(0.1)
+        self.text_box.begin_typing(None)
+
+        while self.value is None:  # can't use same plt.show(block = True) since already in use
+            plt.pause(0.1)
+        plt.close(self.pop_up_fig)
+
+
+    def submit(self,expression):
+        self.value = expression
+
+    def update_text(self, event): #everytime you type redraw text box plot
+        plt.draw()
