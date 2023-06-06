@@ -136,6 +136,7 @@ class InteractivePlot(object):
             self.text_dict[i] = self.ax.text(self.chan_freqs[self.kid_idx][i] / 10 ** 9, self.data[self.kid_idx][i], str(i))
 
         if isinstance(self.f_old, np.ndarray):
+            print("plotting supplemental data")
             self.l2, = self.ax.plot(self.f_old / 10 ** 9, self.data_old, color="C0", alpha=0.25)
             self.p2, = self.ax.plot(self.f_old[self.kid_idx_old] / 10 ** 9, self.data_old[self.kid_idx_old], "r*",
                                     markersize=8,
@@ -963,7 +964,8 @@ def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     return filtered
 
 
-def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5):
+def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5,
+                       plot_filtered = True, f_old=None, data_old=None, kid_idx_old=None):
     """
     f is frequencies (Hz)
     z is complex S21
@@ -972,6 +974,8 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
     """
     # first plot data and filter function before removing filter function
     s21_mag = 20 * np.log10(np.abs(z))
+    if data_old is not None:
+        data_old = 20 * np.log10(np.abs(data_old))
     ipf = InteractiveFilterPlot(f_Hz, s21_mag, smoothing_scale_Hz=smoothing_scale_Hz)
 
     # identify peaks using the interactive threshold plot
@@ -985,7 +989,12 @@ def find_vna_sweep(f_Hz, z, smoothing_scale_Hz=5.0e6, spacing_threshold_Hz=1.0e5
 
     # the spacing thresholding was move to be inside the interactive threshold class
     kid_idx = ipt.local_minima
-    ip = InteractivePlot(ipf.f_Hz, ipf.highpass_mags, kid_idx)
+    if plot_filtered:
+        ip = InteractivePlot(ipf.f_Hz, ipf.highpass_mags, kid_idx, f_old = f_old, data_old = data_old,
+                                 kid_idx_old = kid_idx_old)
+    else:
+        ip = InteractivePlot(f_Hz, s21_mag, kid_idx, f_old= f_old, data_old = data_old,
+                                 kid_idx_old = kid_idx_old)
     return ip
 
 
