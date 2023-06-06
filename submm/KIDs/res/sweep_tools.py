@@ -182,7 +182,7 @@ class InteractivePlot(object):
         x_width_total = right - left - x_space
         y_height_total = top - bottom - y_space
         if self.combined_data is None:
-            self.fig = plt.figure(1, figsize=(13, 6))
+            self.fig = plt.figure(1, figsize=(12, 5))
             # the magnitude plot - upper left quadrant
             mag_x_width = 0.5
             mag_y_height = y_height_total
@@ -194,24 +194,25 @@ class InteractivePlot(object):
             combined_figure_coords = None
             key_figure_coords = None
         else:
-            self.fig = plt.figure(1, figsize=(13, 10))
+            self.fig = plt.figure(1, figsize=(12, 9))
             # the magnitude plot - upper left quadrant
-            mag_x_width = 0.5
-            mag_y_height = 0.45
+            mag_x_width = 0.3
+            mag_y_height = 0.4
             mag_figure_coords = [left, top - mag_y_height, mag_x_width, mag_y_height]
             # the IQ plot - upper right quadrant
-            iq_x_width = x_width_total - mag_x_width
+            iq_x_width = 0.3#x_width_total - mag_x_width
             iq_y_height = mag_y_height
             iq_figure_coords = [left + mag_x_width + x_space, top - iq_y_height, iq_x_width, iq_y_height]
             # the Key Figure area for the interactive plot instructions-key
             key_x_width = 0.2
-            key_y_height = y_height_total - mag_y_height
-            combined_x_width = right - left - key_x_width
-            key_figure_coords = [left + combined_x_width, bottom, key_x_width, key_y_height]
+            key_y_height = mag_y_height
+            combined_x_width = 0.6
+            key_figure_coords = [right - key_x_width, top - mag_y_height, key_x_width, key_y_height]
             # the combined data plot - lower plane
             combined_y_height = key_y_height
             self.combined_x_width_over_y_height = combined_x_width / combined_y_height
             combined_figure_coords = [left, bottom, combined_x_width, combined_y_height]
+            combined_hist_figure_coords = [left + combined_x_width + x_space, bottom, right-combined_x_width-left-x_space, combined_y_height]
 
         if plot_title is not None:
             self.fig.suptitle(plot_title, y=0.99)
@@ -231,6 +232,8 @@ class InteractivePlot(object):
             self.ax_key.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
             self.ax_key.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
             self.plot_instructions()
+            self.ax_combined_hist = self.fig.add_axes(combined_hist_figure_coords, frameon=False, autoscale_on=True)
+            self.ax_combined_hist.set_xlabel("number")
         self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
         self.fig.canvas.mpl_connect('key_release_event', self.on_key_release)
         self.fig.canvas.mpl_connect('button_press_event', self.onClick)
@@ -278,6 +281,7 @@ class InteractivePlot(object):
 
         # combined plot variables used in the first initialization
         self.combined_data_points = None
+        self.bar_container = None
         self.combined_data_highlight = None
         self.combined_data_crosshair_x = None
         self.combined_data_crosshair_y = None
@@ -305,14 +309,17 @@ class InteractivePlot(object):
                 self.combined_data_format = self.combined_data_format
             self.res_indexes_original = np.arange(0, self.combined_data.shape[0])
             # run the initialization script
-            self.combined_plot(ax_combined=self.ax_combined)
+            self.combined_plot(ax_combined=self.ax_combined,ax_combined_hist=self.ax_combined_hist)
 
         plt.show(block=True)
 
-    def combined_plot(self, ax_combined):
+    def combined_plot(self, ax_combined,ax_combined_hist):
         if self.combined_data_points is not None:
             self.combined_data_points.remove()
             self.combined_data_points = None
+        if self.bar_container is not None:
+            self.bar_container.remove()
+            self.bar_container = None
         if self.combined_data_highlight is not None:
             self.combined_data_highlight.remove()
             self.combined_data_highlight = None
@@ -356,6 +363,11 @@ class InteractivePlot(object):
 
         self.combined_data_points = ax_combined.scatter(x=self.res_indexes, y=self.combined_values_this_index, s=60,
                                                         color=color_array, marker='o', edgecolors=edge_color_array)
+        #histogram
+        bins = np.linspace(np.min(self.combined_values_this_index),np.max(self.combined_values_this_index),20)
+        _,_, self.bar_container = ax_combined_hist.hist(self.combined_values_this_index,orientation='horizontal',bins = bins,
+                                                            color = "C1")
+        
         # highlighting and cross-hairs for the selected data point
         highlighted_data_value = self.combined_data[self.plot_index, self.combined_data_index]
         label = self.combined_data_format[self.combined_data_index].format(highlighted_data_value)
@@ -453,6 +465,18 @@ class InteractivePlot(object):
             self.combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
             new_offsets = np.column_stack((self.res_indexes, self.combined_values_this_index))
             self.combined_data_points.set_offsets(new_offsets)
+            #histogram
+            bins = np.linspace(np.min(self.combined_values_this_index),np.max(self.combined_values_this_index),20)
+            n, bin_edges = np.histogram(self.combined_values_this_index,bins = bins)
+            bin_x0 = bin_edges[:-1]
+            bin_width = bin_edges[1]-bin_edges[0]           
+            for count, bin_x, rect in zip(n, bin_x0, self.bar_container.patches):
+                rect.set_y(bin_x)
+                rect.set_height(bin_width)
+                rect.set_width(count)
+            #self.ax_combined_hist.relim()
+            #self.ax_combined_hist.autoscale()
+            
             # label for the value of the highlighted data point
             highlighted_value = self.combined_data[self.plot_index, self.combined_data_index]
             label = self.combined_data_format[self.combined_data_index].format(highlighted_value)
@@ -471,6 +495,8 @@ class InteractivePlot(object):
                 plot_min, plot_max = autoscale_from_data(self.combined_values_this_index[np.isfinite(self.combined_values_this_index)],
                                                          log_scale=data_type in self.log_y_data_types)
                 self.ax_combined.set_ylim((plot_min, plot_max))
+                self.ax_combined_hist.set_ylim((plot_min, plot_max))
+                self.ax_combined_hist.set_xlim((0,np.max(n)))
             self.combined_data_crosshair_x.set_xdata(x_pos)
             self.combined_data_crosshair_y.set_ydata(y_pos)
         # lasso tool
@@ -671,6 +697,7 @@ class InteractivePlot(object):
             pop_up = PopUpDataEntry("Enter lower y limit",str(plot_min))
             lower = float(pop_up.value)
             self.ax_combined.set_ylim((lower, upper))
+            self.ax_combined_hist.set_ylim((lower, upper))
             self.refresh_plot(autoscale = False)
 
         # Flagging and removing interactions
@@ -713,7 +740,7 @@ class InteractivePlot(object):
                             else:
                                 self.flags[res_index].append(flag)
                     # reset the combined plot
-                    self.combined_plot(ax_combined=self.ax_combined)
+                    self.combined_plot(ax_combined=self.ax_combined,ax_combined_hist=self.ax_combined_hist)
                 self.res_indexes_staged = {}
                 # this removes the staged points (red "X"s) from the plot
                 self.plot_staged_for_removal(ax_combined=self.ax_combined)
