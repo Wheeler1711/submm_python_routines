@@ -530,7 +530,8 @@ class InteractivePlot(object):
 
         if self.retune:
             self.combined_data = np.expand_dims(self.min_index, 1)
-
+            self.combined_data_values = np.expand_dims(self.min_index,1)
+            
     def popup_lasso(self):
         self.pop_up_text = self.ax_combined.text(0.5, 0.8, "Press enter to accept selection",
                                                  transform=self.ax_combined.transAxes, ha="center", va="center",
@@ -566,10 +567,7 @@ class InteractivePlot(object):
                                      ('D-key', 'change flag mode', 'yellow'),
                                      ('T-Key', 'commit all staged flagging', 'blue'),
                                      ('E-Key', 'clear all staged flagging', 'green')])
-            if self.retune:
-                instructions.extend(["Warning both look around points and combined data are mapped to " +
-                                     "up and down arrows, consider not returning and plotting combined " +
-                                     "data at the same time"])
+                        
         instructions.append(("W-key", "write a pdf of all resonators", 'purple'))
 
         return instructions
@@ -659,10 +657,11 @@ class InteractivePlot(object):
                 if self.retune:
                     self.combined_data = np.expand_dims(self.min_index, 1)
             if self.combined_data is not None:
-                if self.combined_data_index == self.combined_data.shape[1] - 1:
-                    self.combined_data_index = 0
-                else:
-                    self.combined_data_index = self.combined_data_index + 1
+                if self.combined_data.shape[1] >1:
+                    if self.combined_data_index == self.combined_data.shape[1] - 1:
+                        self.combined_data_index = 0
+                    else:
+                        self.combined_data_index = self.combined_data_index + 1
             self.refresh_plot()
 
         elif event.key == 'down':
@@ -672,10 +671,11 @@ class InteractivePlot(object):
                 if self.retune:
                     self.combined_data = np.expand_dims(self.min_index, 1)
             if self.combined_data is not None:
-                if self.combined_data_index == 0:
-                    self.combined_data_index = self.combined_data.shape[1] - 1
-                else:
-                    self.combined_data_index = self.combined_data_index - 1
+                if self.combined_data.shape[1] > 1:
+                    if self.combined_data_index == 0:
+                        self.combined_data_index = self.combined_data.shape[1] - 1
+                    else:
+                        self.combined_data_index = self.combined_data_index - 1
             self.refresh_plot()
         # Writing an output file
         elif event.key == 'w':
@@ -828,32 +828,32 @@ class InteractivePlot(object):
                 self.plot_index = self.res_indexes[np.argmin(radius_array)]
                 self.refresh_plot(autoscale=False)
                 return
-        elif event.button == 3:
-            if self.shift_is_held:
-                if self.verbose:
-                    print("overriding point selection", event.xdata)
-                    # print(self.chan_freqs[:,self.plot_index][50])
-                    # print((self.res_index_override == self.plot_index).any())
-                if (self.res_index_override == self.plot_index).any():
-                    replace_index = np.argwhere(
+            elif event.button == 3:
+                if self.shift_is_held:
+                    if self.verbose:
+                        print("overriding point selection", event.xdata)
+                        # print(self.chan_freqs[:,self.plot_index][50])
+                        # print((self.res_index_override == self.plot_index).any())
+                    if (self.res_index_override == self.plot_index).any():
+                        replace_index = np.argwhere(
                         self.res_index_override == self.plot_index)[0][0]
-                    new_freq = np.argmin(
+                        new_freq = np.argmin(
                         np.abs(event.xdata - self.chan_freqs[:, self.plot_index] / 10 ** 6))
-                    self.override_freq_index[replace_index] = np.int(new_freq)
+                        self.override_freq_index[replace_index] = np.int(new_freq)
 
-                else:
-                    self.res_index_override = np.append(
-                        self.res_index_override, np.int(np.asarray(self.plot_index)))
-                    # if self.verbose:
-                    #     print(self.res_index_override)
-                    new_freq = np.argmin(
+                    else:
+                        self.res_index_override = np.append(
+                            self.res_index_override, np.int(np.asarray(self.plot_index)))
+                        # if self.verbose:
+                        #     print(self.res_index_override)
+                        new_freq = np.argmin(
                         np.abs(event.xdata - self.chan_freqs[:, self.plot_index] / 10 ** 6))
-                    # if self.verbose:
-                    #     print("new index is ",new_freq)
-                    self.override_freq_index = np.append(
+                        # if self.verbose:
+                        #     print("new index is ",new_freq)
+                        self.override_freq_index = np.append(
                         self.override_freq_index, np.int(np.asarray(new_freq)))
-                    # if self.verbose:
-                    #     print(self.override_freq_index)
+                        # if self.verbose:
+                        #     print(self.override_freq_index)
                 self.update_min_index()
                 self.refresh_plot()
 
