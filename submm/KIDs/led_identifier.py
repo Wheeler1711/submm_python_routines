@@ -103,14 +103,12 @@ class InteractivePlot(object):
     flags_types_default = ["collision", "shallow", 'no-res', 'remove', 'other']
 
     def __init__(self, chan_freqs, z_baseline, z, pixel_locations_x = None,pixel_locations_y = None,
-                 pixel_index = None,group_index = None,assigned = None,assigned_group_index = None,asigned_res_index = None,
+                 pixel_index = None,group_index = None,assigned_group_index = None,assigned_res_index = None,
                  assigned_pixel_index = None,pixel_freqs = None,look_around=2, stream_data=None, retune=True, find_min=True,
                  combined_data=None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
                  combined_data_format=None, flags=None, flags_types=None, plot_title=None, plot_frames=True,
                  verbose=True,n_detectors_per_led = 1):
-        
-        
-        
+                
 
         self.z_baseline = z_baseline
         self.z = z
@@ -130,12 +128,26 @@ class InteractivePlot(object):
         self.pixel_freqs = pixel_freqs
         self.designed_freqs = np.empty(chan_freqs.shape[1])
         self.designed_freqs[:] = np.nan
-        if self.pixel_freqs is not None: # this is not right yet
-            for i in range(0,chan_freqs.shape[1]):
-                if self.assigned_group_index[i] > 0 and self.assigned_pixel_index[i] > 0 and self.assigned_res_index >0:
-                    for k in range(0,len(self.pixel_freqs.shape[1])):
-                        if self.assigned_group_index[i] == self.group_index[k] and self.assigned_pixel_index[i] == pixel_index[k]:
-                            self.designed_freqs[i] = self.pixel_freqs[self.assigned_res_index[i],k]
+        self.assigned = np.zeros(combined_data.shape[1])
+        # for reloaded data
+        if self.pixel_freqs is not None and self.assigned_group_index.any()>-1: 
+            for i in range(0,self.chan_freqs.shape[1]):
+                self.plot_index = i
+                if self.assigned_group_index[self.plot_index] >-1:
+                    self.combined_data_index = np.where(np.logical_and(self.group_index == self.assigned_group_index[self.plot_index],
+                                                                       self.pixel_index == self.assigned_pixel_index[self.plot_index]))[0][0]
+                    self.assigned[self.combined_data_index] = 1
+                    self.designed_freqs[self.plot_index] = self.pixel_freqs[self.assigned_res_index[self.plot_index],
+                                                                    self.combined_data_index]
+        self.plot_index = 0
+        self.combined_data_index = 0
+            #for i in range(0,chan_freqs.shape[1]):
+            #    if self.assigned_group_index[i] > 0 and self.assigned_pixel_index[i] > 0 and self.assigned_res_index[i] >0:
+            #        for k in range(0,self.pixel_freqs.shape[1]):
+            #            if self.assigned_group_index[i] == self.group_index[k] and self.assigned_pixel_index[i] == pixel_index[k]:
+            #                self.designed_freqs[i] = self.pixel_freqs[self.assigned_res_index[i],k]
+            #                self.designed_freqs[self.plot_index] = self.pixel_freqs[self.assigned_res_index[self.plot_index],
+            #                                                        self.combined_data_index]
         self.measured_freqs = self.chan_freqs[self.chan_freqs.shape[0]//2,:]
         plt.rcParams['keymap.fullscreen'] = ['shift+=']  # remove ('f', 'ctrl+f'), make +
 
@@ -146,7 +158,6 @@ class InteractivePlot(object):
         self.combined_data = combined_data
         self.combined_data_format = combined_data_format
         self.combined_data_names = combined_data_names
-        self.assigned = assigned
         self.stream_data = stream_data
         self.targ_size = chan_freqs.shape[0]
         self.look_around = look_around
@@ -821,8 +832,7 @@ class InteractivePlot(object):
                     else:
                         guess = 1
                     self.assigned_res_index[self.plot_index] = guess
-                    self.assigned_pixel_index[self.plot_index] = int(pop_up.value)
-                    self.pixel_index[self.combined_data_index]
+                    self.assigned_pixel_index[self.plot_index] = self.pixel_index[self.combined_data_index]
                     self.designed_freqs[self.plot_index] = self.pixel_freqs[self.assigned_res_index[self.plot_index],
                                                                     self.combined_data_index]
                 else:
