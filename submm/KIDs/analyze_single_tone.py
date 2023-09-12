@@ -7,14 +7,16 @@ import pickle
 from scipy.stats import binned_statistic
 
 
-def calibrate_single_tone(fine_f, fine_z, gain_f, gain_z, stream_f, stream_z, plot_period=1, interp="quadratic"):
+def calibrate_single_tone(fine_f, fine_z, stream_f, stream_z, gain_f = None, gain_z = None, tau = None, plot_period=1, interp="quadratic",filename = None):
     fig = plt.figure(3, figsize=(16, 10))
 
     plt.subplot(241, aspect='equal')
     plt.title("Raw data")
-    plt.plot(np.real(stream_z[::plot_period]), np.real(stream_z[::plot_period]), '.')
+    plt.plot(np.real(stream_z[::plot_period]), np.imag(stream_z[::plot_period]), '.')
+
     plt.plot(np.real(fine_z), np.imag(fine_z), 'o')
-    plt.plot(np.real(gain_z), np.imag(gain_z), 'o')
+    if gain_f is not None:
+        plt.plot(np.real(gain_z), np.imag(gain_z), 'o')
 
     plt.subplot(242)
     plt.title("Raw data")
@@ -22,40 +24,60 @@ def calibrate_single_tone(fine_f, fine_z, gain_f, gain_z, stream_f, stream_z, pl
     plt.plot(np.real(fine_z), np.imag(fine_z), 'o')
 
     # normalize amplitude variation in the gain scan
-    amp_norm_dict = amplitude_normalization_sep(gain_f, gain_z, fine_f, fine_z, stream_f, stream_z)
+    if gain_f is not None:
+        amp_norm_dict = amplitude_normalization_sep(gain_f, gain_z, fine_f, fine_z, stream_f, stream_z)
 
-    plt.subplot(243)
-    plt.title("Gain amplitude variation fit")
-    plt.plot(gain_f, 10 * np.log10(np.abs(gain_z) ** 2), 'o')
-    plt.plot(gain_f, 10 * np.log10(np.abs(amp_norm_dict['normalized_gain']) ** 2), 'o')
-    plt.plot(fine_f, 10 * np.log10(np.abs(amp_norm_dict['normalized_fine']) ** 2), 'o')
-    plt.plot(gain_f, 10 * np.log10(np.abs(amp_norm_dict['poly_data']) ** 2))
+        plt.subplot(243)
 
-    plt.subplot(244)
-    plt.title("Data normalized for gain amplitude variation")
-    plt.plot(np.real(amp_norm_dict['normalized_fine']), np.imag(amp_norm_dict['normalized_fine']), 'o')
-    # plt.plot(gain_dict['freqs'][:,k]*10**6,np.log10(np.abs(amp_norm_dict['poly_data'])**2))
-    plt.plot(np.real(amp_norm_dict['normalized_stream'][::plot_period]),
+        plt.title("Gain amplitude variation fit")
+        plt.plot(gain_f, 10 * np.log10(np.abs(gain_z) ** 2), 'o')
+        plt.plot(gain_f, 10 * np.log10(np.abs(amp_norm_dict['normalized_gain']) ** 2), 'o')
+        plt.plot(fine_f, 10 * np.log10(np.abs(amp_norm_dict['normalized_fine']) ** 2), 'o')
+        plt.plot(gain_f, 10 * np.log10(np.abs(amp_norm_dict['poly_data']) ** 2))
+
+        plt.subplot(244)
+        plt.title("Data normalized for gain amplitude variation")
+        plt.plot(np.real(amp_norm_dict['normalized_fine']), np.imag(amp_norm_dict['normalized_fine']), 'o')
+        # plt.plot(gain_dict['freqs'][:,k]*10**6,np.log10(np.abs(amp_norm_dict['poly_data'])**2))
+        plt.plot(np.real(amp_norm_dict['normalized_stream'][::plot_period]),
              np.imag(amp_norm_dict['normalized_stream'][::plot_period]), '.')
+        
     # fit the gain
-    gain_phase = np.arctan2(np.real(amp_norm_dict['normalized_gain']), np.imag(amp_norm_dict['normalized_gain']))
-    tau, fit_data_phase, gain_phase_rot = calibrate.fit_cable_delay(gain_f, gain_phase)
-
     plt.subplot(245)
-    plt.title("Gain phase fit")
-    plt.plot(gain_f, gain_phase_rot, 'o')
-    plt.plot(gain_f, fit_data_phase)
+    plt.title("Phase fit")
+    if gain_f is not None and tau is None:
+        gain_phase = np.arctan2(np.real(amp_norm_dict['normalized_gain']), np.imag(amp_norm_dict['normalized_gain']))
+        tau, fit_data_phase, gain_phase_rot = calibrate.fit_cable_delay(gain_f, gain_phase)
+        plt.plot(gain_f, gain_phase_rot, 'o')
+        plt.plot(gain_f, fit_data_phase)
+    elif gain_f is None and tau is None:
+        phase = np.arctan2(np.real(fine_z), np.imag(fine_z))
+        tau, fit_data_phase, phase_rot = calibrate.fit_cable_delay(fine_f, phase)
+        plt.plot(fine_f, phase_rot, 'o')
+        plt.plot(fine_f, fit_data_phase)
+
+        
     plt.xlabel("Frequency (MHz)")
     plt.ylabel("Phase")
 
     # remove cable delay
-    gain_corr = calibrate.remove_cable_delay(gain_f, amp_norm_dict['normalized_gain'], tau)
-    fine_corr = calibrate.remove_cable_delay(fine_f, amp_norm_dict['normalized_fine'], tau)
-    stream_corr = calibrate.remove_cable_delay(stream_f, amp_norm_dict['normalized_stream'], tau)
+    if gain_f is not None:
+        gain_corr = calibrate.remove_cable_delay(gain_f, amp_norm_dict['normalized_gain'], tau)
+        fine_corr = calibrate.remove_cable_delay(fine_f, amp_norm_dict['normalized_fine'], tau)
+        stream_corr = calibrate.remove_cable_delay(stream_f, amp_norm_dict['normalized_stream'], tau)
+    else:
+        gain_corr = None
+        fine_corr = calibrate.remove_cable_delay(fine_f, fine_z, tau)
+        stream_corr = calibrate.remove_cable_delay(stream_f,stream_z, tau)
+
 
     plt.subplot(246)
-    plt.title("Cable delay removed")
-    plt.plot(np.real(gain_corr), np.imag(gain_corr), 'o')
+    
+    if gain_f is not None:
+        plt.title("Cable delay removed")
+        plt.plot(np.real(gain_corr), np.imag(gain_corr), 'o')
+    else:
+        plt.title("Cable delay removed")
     plt.plot(np.real(fine_corr), np.imag(fine_corr), 'o')
     plt.plot(np.real(stream_corr)[10:-10][::plot_period], np.imag(stream_corr)[10:-10][::plot_period], '.')
 
@@ -63,7 +85,8 @@ def calibrate_single_tone(fine_f, fine_z, gain_f, gain_z, stream_f, stream_z, pl
     xc, yc, R, residu = calibrate.leastsq_circle(np.real(fine_corr), np.imag(fine_corr))
 
     # move the data to the origin
-    gain_corr = gain_corr - xc - 1j * yc
+    if gain_f is not None:
+        gain_corr = gain_corr - xc - 1j * yc
     fine_corr = fine_corr - xc - 1j * yc
     stream_corr = stream_corr - xc - 1j * yc
 
@@ -71,14 +94,16 @@ def calibrate_single_tone(fine_f, fine_z, gain_f, gain_z, stream_f, stream_z, pl
     phase_stream = np.arctan2(np.imag(stream_corr), np.real(stream_corr))
     med_phase = np.median(phase_stream)
 
-    gain_corr = gain_corr * np.exp(-1j * med_phase)
+    if gain_f is not None:
+        gain_corr = gain_corr * np.exp(-1j * med_phase)
     fine_corr = fine_corr * np.exp(-1j * med_phase)
     stream_corr = stream_corr * np.exp(-1j * med_phase)
 
     plt.subplot(247)
     plt.title("Moved to 0,0 and rotated")
     plt.plot(np.real(stream_corr)[2:-1][::plot_period], np.imag(stream_corr)[2:-1][::plot_period], '.')
-    plt.plot(np.real(gain_corr), np.imag(gain_corr), 'o')
+    if gain_f is not None:
+        plt.plot(np.real(gain_corr), np.imag(gain_corr), 'o')
     plt.plot(np.real(fine_corr), np.imag(fine_corr), 'o')
     calibrate.plot_data_circle(np.real(fine_corr) - xc, np.imag(fine_corr) - yc, 0, 0, R)
 
@@ -102,6 +127,7 @@ def calibrate_single_tone(fine_f, fine_z, gain_f, gain_z, stream_f, stream_z, pl
     plt.xlim(np.min(phase_stream) - np.pi / 4, np.max(phase_stream) + np.pi / 4)
     plt.xlabel("phase")
     plt.ylabel("Frequency")
+    plt.show()
 
     plt.savefig("calibration.pdf")
 
@@ -113,9 +139,13 @@ def calibrate_single_tone(fine_f, fine_z, gain_f, gain_z, stream_f, stream_z, pl
                 'stream_corr': stream_corr,
                 'gain_corr': gain_corr,
                 'fine_corr': fine_corr,
+                'stream_f':freqs_stream,
                 'stream_df_over_f': stream_df_over_f_all}
 
-    pickle.dump(cal_dict, open("cal.p", "wb"), 2)
+    if filename is None:
+        pickle.dump(cal_dict, open("cal.p", "wb"), 2)
+    else:
+        pickle.dump(cal_dict, open(filename, "wb"), 2)
     return cal_dict
 
 
