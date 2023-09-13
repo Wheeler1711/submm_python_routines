@@ -24,6 +24,7 @@ class Select_ZPD(object):
         x_width = right - left
         y_height= top - bottom
         key_x_width = 0.2
+        x_space = 0.05
         self.x_width_over_y_height = 1.0
 
         self.y = y
@@ -31,7 +32,7 @@ class Select_ZPD(object):
 
         # main figure
         self.fig = plt.figure(figsize=(16, 6))
-        x_width_plot = x_width - key_x_width
+        x_width_plot = x_width - key_x_width - x_space
         figure_coords = [left, bottom, x_width_plot, y_height]
         self.ax = self.fig.add_axes(figure_coords, frameon=False, autoscale_on=True)
 
@@ -64,7 +65,10 @@ class Select_ZPD(object):
         plt.show(block=True)
 
     def instructions(self):
-        instructions = [("D+key", "start over", 'yellow'),
+        instructions = [("H+key", "home", 'orange'),
+                            ("O+key", "rectangle zoom", 'red'),
+                            ("P+key", "pan", 'green'),
+                            ("D+key", "start over", 'yellow'),
                         ("double-click", "select point", 'cyan')]
         return instructions
 
@@ -93,17 +97,20 @@ class Select_ZPD(object):
             print("starting over")
             if self.ZPD1 is not None:
                 self.ZPD1.remove()
+                self.ZPD1 = None
             if self.start is not None:
                 self.start.remove()
+                self.start = None
             if self.end is not None:
                 self.end.remove()
+                self.end = None
             if self.ZPD2 is not None:
                 self.ZPD2.remove()
+                self.ZPD2 = None
             if self.ax.legend is not None:
                 self.ax.get_legend().remove()
+            self.refresh_plot()
             plt.draw()
-
-
 
     def onClick(self, event):
         if event.dblclick:
