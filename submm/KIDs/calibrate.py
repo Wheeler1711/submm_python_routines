@@ -34,13 +34,17 @@ def plot_data_circle(x,y, xc, yc, R):
     y_fit = yc + R*np.sin(theta_fit)
     plt.plot(x_fit, y_fit, 'b-' , label="fitted circle", lw=1)
 
-def fit_cable_delay(gain_f,gain_phase):
-    #fitting is complicated when phase wraps from
-    # positive pi to negative pi
-    # so we apply a phase offset ot get the data to be centered at 0 phase
-    # first we move from -pi to pi to 0 to 2pi so we can use a modulus function
-    # then we shift the phase so that the center point in on pi
-    # gain f in Hz
+def fit_cable_delay(gain_f,gain_phase,plot = False):
+    '''
+    fitting is complicated when phase wraps from
+    positive pi to negative pi
+    so we apply a phase offset ot get the data to be centered at 0 phase
+    first we move from -pi to pi to 0 to 2pi so we can use a modulus function
+    then we shift the phase so that the center point in on pi
+    gain f in Hz
+    '''
+    if gain_f[0]<10**6:
+        print("WARNING - It looks like f is not in Hz please check")
     gain_phase = np.mod(gain_phase+np.pi-((gain_phase[len(gain_phase)//2]+np.pi)-np.pi),2*np.pi)
     #shift back to -pi to pi space for fun
     gain_phase = gain_phase -np.pi
@@ -48,11 +52,22 @@ def fit_cable_delay(gain_f,gain_phase):
     tau = p_phase[0]/(2.*np.pi)
     poly_func_phase = np.poly1d(p_phase)
     fit_data_phase = poly_func_phase(gain_f)
+    if plot:
+        plt.figure()
+        plt.plot(gain_f, gain_phase, 'o',label = "data")
+        plt.plot(gain_f, fit_data_phase,label = "fit")
 
     return tau,fit_data_phase,gain_phase
 
 def fit_cable_delay_from_slope(f,phase,plot = True):
-    # gain f in Hz
+    '''
+    fitting is complicated when phase wraps from
+    positive pi to negative pi
+    so we just look at median slope for adjacent frequency points
+    gain f in Hz
+    '''
+    if f[0]<10**6:
+        print("WARNING - It looks like f is not in Hz please check")
     phase_gradient = np.gradient(phase)/np.gradient(f)/2/np.pi
     tau = np.median(phase_gradient)
     if plot:
@@ -61,7 +76,7 @@ def fit_cable_delay_from_slope(f,phase,plot = True):
         plt.xlabel("Frequency (MHz)")
         plt.ylabel("Phase gradient")
         plt.legend()
-        plt.title("Tau = "+str(tau))
+        plt.title("Tau = "+str(tau*10**9)+" ns")
         plt.show()
     return tau,phase_gradient
         
