@@ -16,25 +16,36 @@ def convert_noise_mat_to_dict(filename,verbose = False):
     
     data = loadmat(filename)
     dp = data['dp']
-    traj =  dp['traj'][0][0][0] 
-    noise = dp['noise'][0][0][0]
-    noised = dp['noised'][0][0][0]
+    traj =  dp['traj'][0][0][0]
+    if 'noise' in dp.dtype.fields:
+        noise = dp['noise'][0][0][0]
+    else:
+        noise = None
+    if 'noised' in dp.dtype.fields:
+        noised = dp['noised'][0][0][0]
+    else:
+        noised = None
 
     if verbose:
         print("---------\ntraj\n---------")
         for field in traj.dtype.fields:
             #traj_dict[field] = traj[field]
             print(field)
-
-        print("---------\nnoise\n---------")
-        for field in noise.dtype.fields:
-            #noise_dict[field] = noise[field]
-            print(field)
-
-        print("---------\nnoised\n---------")
-        for field in noised.dtype.fields:
-            #noised_dict[field] = noised[field]
-            print(field)
+        if noise is not None:
+            print("---------\nnoise\n---------")
+            for field in noise.dtype.fields:
+                #noise_dict[field] = noise[field]
+                print(field)
+        else:
+            print("no noise in data product")
+                
+        if noised is not None:
+            print("---------\nnoised\n---------")
+            for field in noised.dtype.fields:
+                #noised_dict[field] = noised[field]
+                print(field)
+        else:
+            print("no noised in data product")
 
             
         
@@ -75,121 +86,124 @@ def convert_noise_mat_to_dict(filename,verbose = False):
     #  noise
     #######################################
     noise_dict = {}
+
+    if noise is not None:
     
-    fn = np.asarray(())
-    for i in range(0,n_res):
-        fn = np.append(fn,noise['fn'][i][0][0])
-    noise_dict['fn'] = fn
+        fn = np.asarray(())
+        for i in range(0,n_res):
+            fn = np.append(fn,noise['fn'][i][0][0])
+        noise_dict['fn'] = fn
 
-    fs = np.asarray((),dtype = np.int32)
-    for i in range(0,n_res):
-        fs = np.append(fs,noise['fs'][i][0][0])
-    noise_dict['fs'] = fs
+        fs = np.asarray((),dtype = np.int32)
+        for i in range(0,n_res):
+            fs = np.append(fs,noise['fs'][i][0][0])
+        noise_dict['fs'] = fs
 
-    adtime = np.asarray((),dtype = np.uint8)
-    for i in range(0,n_res):
-        adtime = np.append(adtime,noise['adtime'][i][0][0])
-    noise_dict['adtime'] = adtime
+        adtime = np.asarray((),dtype = np.uint8)
+        for i in range(0,n_res):
+            adtime = np.append(adtime,noise['adtime'][i][0][0])
+        noise_dict['adtime'] = adtime
 
-    nshot = np.asarray((),dtype = np.uint8)
-    for i in range(0,n_res):
-        nshot = np.append(nshot,noise['nshot'][i][0][0])
-    noise_dict['nshot'] = nshot
+        nshot = np.asarray((),dtype = np.uint8)
+        for i in range(0,n_res):
+            nshot = np.append(nshot,noise['nshot'][i][0][0])
+        noise_dict['nshot'] = nshot
 
-    r = np.asarray((),dtype = np.uint8)
-    for i in range(0,n_res):
-        r = np.append(r,noise['r'][i][0][0])
-    noise_dict['r'] = r
+        r = np.asarray((),dtype = np.uint8)
+        for i in range(0,n_res):
+            r = np.append(r,noise['r'][i][0][0])
+        noise_dict['r'] = r
 
-    ch = np.zeros((noise['ch'][0][0].shape[0],n_res),dtype = np.uint8)
-    for i in range(0,n_res):
-        ch[:,i] = noise['ch'][i][0]
-    noise_dict['ch'] = ch
+        ch = np.zeros((noise['ch'][0][0].shape[0],n_res),dtype = np.uint8)
+        for i in range(0,n_res):
+            ch[:,i] = noise['ch'][i][0]
+        noise_dict['ch'] = ch
 
-    vin = np.zeros((noise['vin'][0][0].shape[0],n_res))
-    for i in range(0,n_res):
-        vin[:,i] = noise['vin'][i][0]
-    noise_dict['vin'] = vin
+        vin = np.zeros((noise['vin'][0][0].shape[0],n_res))
+        for i in range(0,n_res):
+            vin[:,i] = noise['vin'][i][0]
+        noise_dict['vin'] = vin
 
-    tt = np.zeros((noise['tt'][0].shape[0],noise['tt'][0].shape[1],n_res))
-    for i in range(0,n_res):
-        tt[:,:,i] = noise['tt'][i][0]
-    noise_dict['tt'] = tt
+        tt = np.zeros((noise['tt'][0].shape[0],noise['tt'][0].shape[1],n_res))
+        for i in range(0,n_res):
+            tt[:,:,i] = noise['tt'][i][0]
+        noise_dict['tt'] = tt
 
-    zfn = np.asarray((),dtype = np.complex128)
-    for i in range(0,n_res):
-        zfn = np.append(zfn,noise['zfn'][i][0][0])
-    noise_dict['zfn'] = zfn
+        zfn = np.asarray((),dtype = np.complex128)
+        for i in range(0,n_res):
+            zfn = np.append(zfn,noise['zfn'][i][0][0])
+        noise_dict['zfn'] = zfn
 
-    zn = np.zeros((noise['zn'][0].shape[0],n_res),dtype = np.complex128)
-    for i in range(0,n_res):
-        zn[:,i] = noise['zn'][i][:,0]+zfn[i]
-    noise_dict['zn'] = zn
+        zn = np.zeros((noise['zn'][0].shape[0],n_res),dtype = np.complex128)
+        for i in range(0,n_res):
+            zn[:,i] = noise['zn'][i][:,0]+zfn[i]
+        noise_dict['zn'] = zn
 
-    #d0 = np.asarray((),dtype = np.uint8)
-    #for i in range(0,n_res):
-    #    d0 = np.append(d0,noise['d0'][i][0][0])
-    #noise_dict['d0'] = d0
+        #d0 = np.asarray((),dtype = np.uint8)
+        #for i in range(0,n_res):
+        #    d0 = np.append(d0,noise['d0'][i][0][0])
+        #noise_dict['d0'] = d0
 
-    #filename = np.asarray((),dtype = np.uint8)
-    #for i in range(0,n_res):
-    #    filename = np.append(filename,noise['filename'][i][0][0])
-    #noise_dict['filename'] = filename
+        #filename = np.asarray((),dtype = np.uint8)
+        #for i in range(0,n_res):
+        #    filename = np.append(filename,noise['filename'][i][0][0])
+        #noise_dict['filename'] = filename
 
     #######################################
     #  noised
     #######################################
     noised_dict = {}
+    if noised is not None:
 
-    fn = np.asarray(())
-    for i in range(0,n_res):
-        fn = np.append(fn,noised['fn'][i][0][0])
-    noised_dict['fn'] = fn
+        fn = np.asarray(())
+        for i in range(0,n_res):
+            fn = np.append(fn,noised['fn'][i][0][0])
+        noised_dict['fn'] = fn
 
-    fs = np.asarray((),dtype = np.int32)
-    for i in range(0,n_res):
-        fs = np.append(fs,noised['fs'][i][0][0])
-    noised_dict['fs'] = fs
+        fs = np.asarray((),dtype = np.int32)
+        for i in range(0,n_res):
+            fs = np.append(fs,noised['fs'][i][0][0])
+        noised_dict['fs'] = fs
 
-    adtime = np.asarray((),dtype = np.uint8)
-    for i in range(0,n_res):
-        adtime = np.append(adtime,noised['adtime'][i][0][0])
-    noised_dict['adtime'] = adtime
+        adtime = np.asarray((),dtype = np.uint8)
+        for i in range(0,n_res):
+            adtime = np.append(adtime,noised['adtime'][i][0][0])
+        noised_dict['adtime'] = adtime
 
-    nshot = np.asarray((),dtype = np.uint8)
-    for i in range(0,n_res):
-        nshot = np.append(nshot,noised['nshot'][i][0][0])
-    noised_dict['nshot'] = nshot
+        nshot = np.asarray((),dtype = np.uint8)
+        for i in range(0,n_res):
+            nshot = np.append(nshot,noised['nshot'][i][0][0])
+        noised_dict['nshot'] = nshot
 
-    r = np.asarray((),dtype = np.uint8)
-    for i in range(0,n_res):
-        r = np.append(r,noised['r'][i][0][0])
-    noised_dict['r'] = r
+        r = np.asarray((),dtype = np.uint8)
+        for i in range(0,n_res):
+            r = np.append(r,noised['r'][i][0][0])
+        noised_dict['r'] = r
 
-    ch = np.zeros((noised['ch'][0][0].shape[0],n_res),dtype = np.uint8)
-    for i in range(0,n_res):
-        ch[:,i] = noised['ch'][i][0]
-    noised_dict['ch'] = ch
+        ch = np.zeros((noised['ch'][0][0].shape[0],n_res),dtype = np.uint8)
+        for i in range(0,n_res):
+            ch[:,i] = noised['ch'][i][0]
+        noised_dict['ch'] = ch
 
-    vin = np.zeros((noised['vin'][0][0].shape[0],n_res))
-    for i in range(0,n_res):
-        vin[:,i] = noised['vin'][i][0]
-    noised_dict['vin'] = vin
+        vin = np.zeros((noised['vin'][0][0].shape[0],n_res))
+        for i in range(0,n_res):
+            vin[:,i] = noised['vin'][i][0]
+        noised_dict['vin'] = vin
 
-    tt = np.zeros((noised['tt'][0].shape[0],noised['tt'][0].shape[1],n_res))
-    for i in range(0,n_res):
-        tt[:,:,i] = noised['tt'][i][0]
-    noised_dict['tt'] = tt
+        tt = np.zeros((noised['tt'][0].shape[0],noised['tt'][0].shape[1],n_res))
+        for i in range(0,n_res):
+            tt[:,:,i] = noised['tt'][i][0]
+        noised_dict['tt'] = tt
 
-    zfn = np.asarray((),dtype = np.complex128)
-    for i in range(0,n_res):
-        zfn = np.append(zfn,noised['zfn'][i][0][0])
-    noised_dict['zfn'] = zfn
+        zfn = np.asarray((),dtype = np.complex128)
+        for i in range(0,n_res):
+            zfn = np.append(zfn,noised['zfn'][i][0][0])
+        noised_dict['zfn'] = zfn
 
-    zn = np.zeros((noised['zn'][0].shape[0],n_res),dtype = np.complex128)
-    for i in range(0,n_res):
-        zn[:,i] = noised['zn'][i][:,0] +zfn[i]
-    noised_dict['zn'] = zn
+        zn = np.zeros((noised['zn'][0].shape[0],n_res),dtype = np.complex128)
+        for i in range(0,n_res):
+            zn[:,i] = noised['zn'][i][:,0] +zfn[i]
+        noised_dict['zn'] = zn
 
     dp = {'traj': traj_dict, 'noise': noise_dict, 'noised': noised_dict}
     
@@ -236,17 +250,22 @@ def calibrate_all(tau = None):
             print("already calibrated")
         else:
             dp = load_dp(filename)
-            for i in range(0,len(dp['traj']['tau'])):
-                filename_save = "processed_python/"+filename.removesuffix(".p")+"_"+str(i)+".p"
-                if tau is None:
-                    cal_dict = ast.calibrate_single_tone(dp['traj']['farray'][:,i]*10**9,dp['traj']['zarray'][:,i],
-                                                         dp['noised']['fn'][i]*10**9,dp['noised']['zn'][:,i],
-                                                             tau = -dp['traj']['tau'][i]*10**-9,filename = filename_save)
-                else: # you forgot to enter tau into the gui
-                    print("using specified tau")
-                    cal_dict = ast.calibrate_single_tone(dp['traj']['farray'][:,i]*10**9,dp['traj']['zarray'][:,i],
-                                                         dp['noised']['fn'][i]*10**9,dp['noised']['zn'][:,i],
-                                                             tau = tau,filename = filename_save)
+            if 'fn' in dp['noised'].keys():
+                for i in range(0,len(dp['traj']['tau'])):
+                    filename_save = "processed_python/"+filename.removesuffix(".p")+"_"+str(i)+".p"
+                    if tau is None:
+                        cal_dict = ast.calibrate_single_tone(dp['traj']['farray'][:,i]*10**9,dp['traj']['zarray'][:,i],
+                                                             dp['noised']['fn'][i]*10**9,dp['noised']['zn'][:,i],
+                                                                 tau = -dp['traj']['tau'][i]*10**-9,filename = filename_save)
+                    else: # you forgot to enter tau into the gui
+                        print("using specified tau")
+                        cal_dict = ast.calibrate_single_tone(dp['traj']['farray'][:,i]*10**9,dp['traj']['zarray'][:,i],
+                                                             dp['noised']['fn'][i]*10**9,dp['noised']['zn'][:,i],
+                                                                 tau = tau,filename = filename_save)
+            else:
+                print("skiping")
+                print(filename)
+                print("no noised in data")
             
     
             
