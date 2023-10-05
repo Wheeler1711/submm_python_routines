@@ -172,16 +172,24 @@ def responsivity_help():
 def f0dirshort(T, f00, Fdelta):
     '''
     fucntion that computes TLS frequency shift 
-     is center frequency in GHz, p2 is the product of filling factor and
-    loss tangent Fdelta_TLS, returns the frequency in GHz
+    f00 is center frequency in Hz at zero temperature, p2 is the product of filling factor and
+    loss tangent Fdelta_TLS, returns the frequency in Hz
     Taken from Jiansong Gao's Matlab code
     '''
-    f01K = 20.8366
+    if f00<10:
+        print("WARNING f should be in Hz")
+    if T[0] >100:
+        print("Warning T should be in Kelvin")
+    f01K = 20.8366*10**9
     ref0 =np.real(special.digamma(1/2 + 1/(2*np.pi*1j)*f00/f01K/T))-np.log(f00/f01K/T/(2*np.pi)); 
     y = f00 + f00*Fdelta*1/np.pi*ref0;
     return y
 
-def fit_tls(T,f,sigma = None,**keywords):
+def fit_tls(T,f,sigma = None,plot = True,**keywords):
+    '''
+    T in kelvin 
+    f in Hz
+    '''
     x0 = np.asarray((f[0],1e-5))
     if sigma is not None:
         print("using error")
@@ -189,6 +197,15 @@ def fit_tls(T,f,sigma = None,**keywords):
         fit = optimization.curve_fit(f0dirshort, T, f,x0,sigma=sigma,absolute_sigma = True)
     else:
         fit = optimization.curve_fit(f0dirshort, T, f, x0)
+
+    if plot:
+        plt.figure()
+        plt.plot(T,(f-f[0])/f[0],'o',label = "data")
+        fit_f = f0dirshort(T,fit[0][0],fit[0][1])
+        plt.plot(T,(fit_f-fit_f[0])/fit_f[0],label = f"fit FDelta = %.2E" % fit[0][1])
+        plt.xlabel("Temperature (K)")
+        plt.ylabel("df/f")
+        plt.legend()
     return fit
 
 def fit_tc_brute(t,df_over_f,nuref,tc_range = (0.5,1.5),alpha_range = (0,1), n_grid_points=100, error=None, plot = True,Verbose = False,**keywords):
