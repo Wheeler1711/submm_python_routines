@@ -3,16 +3,16 @@ Python tools for submm astronomy instrumentation started at the University of Co
 
 ## About This Project
 This project was started to make tools, used by everyone in the submm lab, available to 
-everyone via version control on GitHub. This project continues to grow and expend in scope as
+everyone via version control on GitHub. This project continues to grow and expand in scope as
 University of Colorado graduates and collaborators continue to contribute to the project.
-Contributions and feature requests are not only welcome, but are a fundamental part of 
-the culture of the submm astronomy.
+Contributions and feature requests are not only welcome but are a fundamental part of 
+the culture of submm astronomy.
 
 # Required Software
 ## Git
 Git and GitHub are standard tools across astronomy, computer science, computer engineering,
-and other fields. This is a tool set that everyone should learn for code management. It is 
-always useful, and often expected for contributors to a project of any size.
+and other fields. This is a toolset that everyone should learn for code management. It is 
+always useful and often expected for contributors to a project of any size.
 
 https://git-scm.com/downloads
 
@@ -38,7 +38,7 @@ installations will need to call `python3` instead of `python` from the terminal.
 Check your python version with `python --version` if it comes back with 
 2.7.x, try `python3 --version` and expect to get 3.x.x. 
 
-Modern Python installations require you to sign and SSL certificate after
+Modern Python installations require you to sign an SSL certificate after
 installation. This is done by simply running a script in the installation 
 directory. Programs like, [Homebrew](https://brew.sh/) will do this step for
 you. If you see SSL errors in Python, it is probably because you skip the
@@ -47,7 +47,7 @@ certificate step.
 # Installation
 
 ## Download
-From a commandline interface (terminal, gitbash, cmd, or powershell)
+From a command line interface (terminal, gitbash, cmd, or powershell)
 Clone this Repository (https://github.com/Wheeler1711/submm_python_routines)
 using the following:
 
@@ -68,11 +68,11 @@ Configure the virtual environment for DetMap or from the terminal.
 ### Initial Setup 
 This step is done one time to initialize the virtual environment.
 
-Window and Linux Tested in Windows PowerShell and OSX Terminal. Some python 
-installations will need to call `python3` instead of `python`. Check your python version with
+Window and Linux Tested in Windows PowerShell and OSX Terminal. Some Python 
+installations will need to call `python3` instead of `python`. Check your Python version with
 `python --version` if it comes back with 2.7.x, try `python3 --version` and expect to get 3.x.x. 
 
-If you have a many python installations, or if you just downloaded the latest version
+If you have many Python installations, or if you just downloaded the latest version
 of python then you should replace `python` with the full path to the python executable.
 
 ```
@@ -82,7 +82,7 @@ virtualenv venv
 ```
 
 ### Activating a Virtual Environment
-This step needs to be done everytime you want to use the virtual environment.
+This step needs to be done every time you want to use the virtual environment.
 
 For unix-like environment activation:
 
@@ -97,7 +97,7 @@ for Windows powershell environment activation:
 ```.\venv\Scripts\activate.ps1```
 
 After activation, the term ail will add a `(venv)` to the command prompt. At this point
-you can drop the full paths to the python and pip executables into the terminal, 
+you can drop the full paths to the Python and pip executables into the terminal, 
 and the `python3` in place of `python` commands.
 
 I like test that everything went as expected with the following:
@@ -108,7 +108,7 @@ pip list
 ```
 
 ### Package Installation
-This step needs to be done everytime you want need to install new python packages.
+This step needs to be done every time you want to install new Python packages.
 
 The requirements.txt has the list of all packages needed for submm_python_routines. 
 From a terminal with the virtual environment activated, do:
@@ -117,23 +117,23 @@ From a terminal with the virtual environment activated, do:
 
 Packages can all be installed individually with `pip install <package_name>`
 
-## Install as Python Packaage
-If you are a user of the submm_python_routines but are unlikely modify (develop) 
+## Install as Python Package
+If you are a user of the submm_python_routines but are unlikely to modify (develop) 
 the code in this project, then it is recommended that you install the 
-`submm_python_routines` as a python package. This can be done within a
-virtual environment, or for a user, (or global version of python which makes a 
+`submm_python_routines` as a Python package. This can be done within a
+virtual environment, or for a user, (or global version of Python which makes a 
 mess https://xkcd.com/1987/).
 
 ### Install using setup.py
 If you intend to use a virtual environment, activate the environment before this step. 
-You can always check on the version of python you have installed with `python --version` 
-and you current package list with `pip list`.
+You can always check on the version of Python you have installed with `python --version` 
+and your current package list with `pip list`.
 
 Run setup.py in the usual way:
 
 ```python setup.py install```
 
-check the installation by starting a python console session with:
+check the installation by starting a Python console session with:
 
 ```python```
 
@@ -170,10 +170,10 @@ Tested and designed to work on any platform.
 2. Start the docker engine
    - Check Apps for Windows, OSX
    - Use a command-line call in unix
-   - It is possible configure the docker engine to start on start-up for your machine.
+   - It is possible to configure the docker engine to start on start-up for your machine.
 
 3. Testing Docker Engine and Client
-The docker *engine/Server*, not only client must both be running. Check for them in terminal with:
+The docker *engine/Server*, not only the client must both be running. Check for them in terminal with:
 
 `docker version`
 
@@ -182,11 +182,11 @@ The docker *engine/Server*, not only client must both be running. Check for them
 ```cd submm_python_routines```
 
 5. One command to build and deploy the docker container with a Jupyter server.
-   - Depending on how your permissions and operating system you may need use `sudo` 
-   - If you have issues make sure the docker engine is running (step 3).
+   - Depending on your permissions and operating system you may need to use `sudo` 
+   - If you have issues, make sure the docker engine is running (step 3).
    - The first time build takes about 10 minutes.
    - Subsequent builds will take 2-3 seconds using cached data.
-   - The notebook is accessible on any browsers (I like Chrome) at:
+   - The notebook is accessible on any browser (I like Chrome) at:
 [http://127.0.0.1:8888/lab?token=](http://127.0.0.1:8888/lab?token=).
    - Use default password/token: `docker`
 
@@ -199,21 +199,21 @@ in the local computer at the same path, submm_python_routines. You can shut down
 lose any work.
 
 7. Shut Down the Jupyter server
-    - Shut Down using the browser's drop down menu.
+    - Shut Down using the browser's drop-down menu.
     - or by using `ctrl-c` in the terminal.
 
 8. Clean up the container network built with docker-compose with one terminal command
-    - This is best practice operation.
+    - This is a best practice operation.
 
 ```docker-compose down```
 
 ## Add the submm_python_routines folder to your python path
 This method works and is simple. However, is not recommended for most users. Simply put,
-it teaches bad habits that can cause very hard to diagnose problems years later. The main issue
-is the pollution of the python name space. It is easy to imagine a laboratory computer with
-many users and a lot of code. If everyone adds to the python name spaces by appending to the
+it teaches bad habits that can cause very hard-to-diagnose problems years later. The main issue
+is the pollution of the Python name space. It is easy to imagine a laboratory computer with
+many users and a lot of code. If everyone adds to the Python name spaces by appending to the
 PYTHONPATH, then it is easy to get into a situation where there are multiple copies
-modules with the same name (KIDs, utils, instruments, etc.) even multiple copies of the same 
+of modules with the same name (KIDs, utils, instruments, etc.), even multiple copies of the same 
 repository from  different users and versions/branches of the code. 
 
 To modify your PYTHONPATH environment variable, add the following line to your `~/.bashrc` (linux) or
@@ -221,12 +221,12 @@ To modify your PYTHONPATH environment variable, add the following line to your `
 
 `export PYTHONPATH="${PYTHONPATH}:/Users/jordan/submm_python_routines`
 
-where you replace `/Users/jordan/submm_python_routines` with the local installation path.
+Where you replace `/Users/jordan/submm_python_routines` with the local installation path.
 
 ## Examples 
 ### Resonance fitting
 Maybe the most useful part of this code is the fitting of non-linear resonators. Care has been taken to make sure that resonance fitting is very fast so you can fit many resonators in real-time.
-You can try it out by doing the following
+You can try it out by doing the following.
 
 ```
 cd submm_python_routines
@@ -236,8 +236,20 @@ python
 from submm.demo import res_fit_demo
 res_fit_demo.run()
 ```
+### fitting TLS frequency shift
+For extracting TLS loss
+You can try it out by doing the following.
+
+```
+cd submm_python_routines
+python
+```
+```
+from submm.demo import fit_tls_demo
+fit_tls_demo.run()
+```
 ### Interactive plotting tools
-Real systems are never ideal. At least not anything I make. So when you have a lot of resonators some will have collided or some will just be weird. We try to make our automated code very good but when all else fails some human intervention will be needed. As such we have made some interactive plotting tools using matplotlib that allow for more sophisticated interaction with your data to better facilitate human interaction. In particular, there are interactive tools for identifying resonators and interactive tools for plotting resonators for examination. Try it out by running the below.
+Real systems are never ideal. At least not anything I make. So when you have a lot of resonators, some will have collided or some will just be weird. We try to make our automated code very good, but when all else fails, some human intervention will be needed. As such, we have made some interactive plotting tools using matplotlib that allow for more sophisticated interaction with your data to better facilitate human interaction. In particular, there are interactive tools for identifying resonators and interactive tools for plotting resonators for examination. You can try it out by running the below.
 ```
 cd submm_python_routines
 python3 submm/demo/find_res_and_fit.py
