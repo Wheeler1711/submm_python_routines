@@ -1079,14 +1079,14 @@ class InteractivePowerTuningPlot(object):
                 self.plot_index = self.plot_index + 1
                 # snap to the automated choice in power level
                 self.power_index = np.argmin(np.abs(self.bif_levels[self.plot_index] + self.attn_levels))
-                self.refresh_plot(autoscale = False)
+                self.refresh_plot()
 
         if event.key == 'left':
             if self.plot_index != 0:
                 self.plot_index = self.plot_index - 1
                 # snap to the automated choice in power level
                 self.power_index = np.argmin(np.abs(self.bif_levels[self.plot_index] + self.attn_levels))
-                self.refresh_plot(autoscale = False)
+                self.refresh_plot()
 
         if event.key == 'up':
             if self.power_index != self.Is.shape[2] - 1:
