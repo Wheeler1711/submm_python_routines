@@ -11,7 +11,7 @@ from submm.KIDs import PCA_implementation as PCA
 from tqdm import tqdm
 
 
-def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66*10**-9,
+def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f= None,stream_z=None,ref= None,tau = 66*10**-9,
                     skip_beginning=0, plot_period=10, decimate=1, outfile_dir="./",
                     sample_rate=1.6*10**6, plot=True,n_comp_PCA = 0,verbose = True,
                     rotation_mode = 1,**keywords):
@@ -76,35 +76,53 @@ def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66
         frequency of the streaming data in Hz
     '''
 
-    stream_f = np.asarray(stream_f)
+    if stream_f is not None:
+        stream_f = np.asarray(stream_f)
     
-    #generate relative packet times
-    stream_time = np.arange(0,stream_z.shape[0])[skip_beginning:]*1/sample_rate
-    
-    #bin the data if you like
-    if decimate !=1:
+        #generate relative packet times
+        stream_time = np.arange(0,stream_z.shape[0])[skip_beginning:]*1/sample_rate
+    else:
+        stream_time = None
+        
+    #bin the data if you lik
+    if decimate !=1 and stream_f is not None:
         if verbose:
             print("decimating the data by factor of "+str(decimate))
         decimated_stream_z = stream_z #need deep copy?
-        factors_of_10 = int(np.floor(np.log10(decimate)))
-        for k in range(0,factors_of_10): # not suppose to decimate all at once
-            decimated_stream_z = signal.decimate(decimated_stream_z,10,axis = 0)
+        decimated_ref = ref
+        #factors_of_10 = int(np.floor(np.log10(decimate)))
+        #for k in range(0,factors_of_10): # not suppose to decimate all at once
+        #    decimated_stream_z = signal.decimate(decimated_stream_z,10,axis = 0)
+        #    if ref is not None:
+        #        decimated_ref = signal.decimate(ref,10,axis = 0)
             
-        decimated_stream_z = signal.decimate(decimated_stream_z,
-                                             decimate//(10**factors_of_10),axis =0)
-        decimated_stream_time = np.arange(0,decimated_stream_z.shape[0])[skip_beginning:]*1/sample_rate*decimate
+        #decimated_stream_z = signal.decimate(decimated_stream_z,
+        #                                     decimate//(10**factors_of_10),axis =0)
+
+        decimated_stream_z = signal.resample_poly(decimated_stream_z,1,decimate,padtype = 'mean')
+        if ref is not None:
+            #decimated_ref = signal.decimate(decimated_ref,decimate//(10**factors_of_10),axis =0)
+            decimated_ref = np.round(signal.resample_poly(decimated_ref.astype('float'),1,decimate))
+        decimated_stream_time = np.arange(0,decimated_stream_z.shape[0])*1/sample_rate*decimate
 
         stream_z = decimated_stream_z
         stream_time = decimated_stream_time
         sample_rate = sample_rate/decimate
+        if ref is not None:
+            ref = decimated_ref
 
     #initalize some arrays to hold the calibrated data
-    stream_corr_all = np.zeros(stream_z.shape,dtype = 'complex')
+    if stream_f is not None:
+        stream_corr_all = np.zeros(stream_z.shape,dtype = 'complex')
+        stream_df_over_f_all = np.zeros(stream_z.shape)
+    else:
+        stream_corr_all = None
+        stream_df_over_f_all = None
     fine_corr_all = np.zeros(iq_sweep_data_z.shape,dtype = 'complex')
-    stream_df_over_f_all = np.zeros(stream_z.shape)
+
     interp_functions = []
     circle_fit = np.ndarray((iq_sweep_data_z.shape[1],4))
-    if n_comp_PCA>0:
+    if n_comp_PCA>0 and stream_f is not None:
         stream_df_over_f_all_cleaned = np.zeros(stream_z.shape)
 
     if verbose:
@@ -113,7 +131,8 @@ def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66
         
         #remove cable delay
         fine_corr = calibrate.remove_cable_delay(iq_sweep_data_f[:,k],iq_sweep_data_z[:,k],tau)
-        stream_corr = calibrate.remove_cable_delay(stream_f[k],stream_z[:,k],tau)
+        if stream_f is not None:
+            stream_corr = calibrate.remove_cable_delay(stream_f[k],stream_z[:,k],tau)
         
         # fit a cicle to the data
         xc, yc, R, residu  = calibrate.leastsq_circle(np.real(fine_corr),np.imag(fine_corr))
@@ -121,12 +140,15 @@ def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66
 
         #move the data to the origin
         fine_corr = fine_corr - xc -1j*yc
-        stream_corr = stream_corr  - xc -1j*yc
+        if stream_f is not None:
+            stream_corr = stream_corr  - xc -1j*yc
 
-        
-        # rotate so streaming data is at 0 pi
-        phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
+            # rotate so streaming data is at 0 pi
+            phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
+
         phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
+        if stream_f is None:
+            rotation_mode = 2
         if rotation_mode == 2: # if you have data that covers a large part of the iq loop
             med_phase = np.arctan2(np.imag(fine_corr[0]+fine_corr[-1]),
                                     np.real(fine_corr[0]+fine_corr[-1])) + np.pi
@@ -141,17 +163,27 @@ def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66
 
         
 
-        fine_corr_all[:,k] = fine_corr = fine_corr*np.exp(-1j*med_phase) 
-        stream_corr_all[:,k] = stream_corr = stream_corr*np.exp(-1j*med_phase)
+        fine_corr_all[:,k] = fine_corr = fine_corr*np.exp(-1j*med_phase)
+        #recalc phase_fine
+        phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
+        if stream_f is not None:
+            stream_corr_all[:,k] = stream_corr = stream_corr*np.exp(-1j*med_phase)
+            phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
         
-        stream_df_over_f_all[:,k],interp_function = \
-            calibrate.interp_phase_to_df_over_f(phase_fine,
+            stream_df_over_f_all[:,k],interp_function = \
+                calibrate.interp_phase_to_df_over_f(phase_fine,
                                                 phase_stream,
+                                                iq_sweep_data_f[:,k],
+                                                extrap = extrap)
+        else: #no streaming data
+            ignore ,interp_function = \
+                calibrate.interp_phase_to_df_over_f(phase_fine,
+                                                np.ones(10),
                                                 iq_sweep_data_f[:,k],
                                                 extrap = extrap)
         interp_functions.append(interp_function)
 
-    if n_comp_PCA >0:
+    if n_comp_PCA >0 and stream_f is not None:
         interp_functions = []
         if verbose:
             print("cleaning data")
@@ -188,7 +220,9 @@ def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66
                 'stream_corr_cleaned':stream_corr_all_cleaned,
                 'stream_df_over_f_cleaned':stream_df_over_f_all_cleaned,
                 'interp_functions':interp_functions,
-                'sample_rate':sample_rate}
+                'sample_rate':sample_rate,
+                'circle_fit':circle_fit,
+                'ref':ref}
 
     #plot the data if desired
     if plot:
@@ -198,8 +232,9 @@ def calibrate_multi(iq_sweep_data_f, iq_sweep_data_z, stream_f,stream_z,tau = 66
 
     #save the dictionary
     if verbose:
-        print("saving cal dict")
-    pickle.dump( cal_dict, open(outfile_dir+ "cal.p", "wb" ) )
+        print("saving cal dict:")
+        #print(cal_dict); 
+    pickle.dump( cal_dict, open(outfile_dir+ "_cal.p", "wb" ) ) 
     return cal_dict
 
 
@@ -223,7 +258,8 @@ def plot_calibrate(cal_dict, circle_fit,plot_period, outfile_dir='./'):
     Nothing but produces a pdf plot called outfile_dir + cal_plots.pdf
     '''
     pdf_pages = PdfPages(outfile_dir+"cal_plots.pdf")
-    for k in range(cal_dict['fine_z'].shape[1]):
+    #for k in range(cal_dict['fine_z'].shape[1]):
+    for k in tqdm(range(0,cal_dict['fine_z'].shape[1]),ascii = True):
         fig = plt.figure(k,figsize = (10,10))
 
         #plot the raw data
@@ -267,7 +303,7 @@ def plot_calibrate(cal_dict, circle_fit,plot_period, outfile_dir='./'):
 
         #redo the phase fitting
         phase_fine = np.arctan2(np.imag(fine_corr),np.real(fine_corr))
-        use_index = np.where((-np.pi/2.<phase_fine) & (phase_fine<np.pi/2))
+        #use_index = np.where((-np.pi/2.<phase_fine) & (phase_fine<np.pi/2))
         phase_stream = np.arctan2(np.imag(stream_corr),np.real(stream_corr))
 
         phase_small = np.linspace(np.min(phase_fine),np.max(phase_fine),1000)
