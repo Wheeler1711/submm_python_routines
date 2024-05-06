@@ -11,20 +11,23 @@ from matplotlib.widgets import LassoSelector, TextBox
 from matplotlib import cm
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
+import scipy.signal
 
 from submm.KIDs.res.utils import colorize_text, text_color_matplotlib, autoscale_from_data
-
+from submm.KIDs import find_resonances_interactive as find_kids
 '''
 Tools for identifiy what resonators are what from data 
 where you turn on leds in front of resonators 
 modified from res/sweep_tools.py
+To Do add in pixel index for current led
 '''
 
 
 class InteractivePlot(object):
     """
     interactive plot for plot many resonators iq data
-    chan freqs and z should have dimension n_iq points by n_res
+    
+    chan freqs and z should have dimension n_iq points by n_res by n_leds
     also can provide multiple sweeps for plotting by adding extra dimension
     i.e. chan freqs and z could have dimension n_iq points by n_res by n_rows by n_cols
     combined data should have dimension n_res by n_different_types of data
@@ -39,19 +42,21 @@ class InteractivePlot(object):
 
     flags_types_default = ["collision", "shallow", 'no-res', 'remove', 'other']
 
-    def __init__(self, chan_freqs, z_baseline, z,z_baseline_unmasked= None,z_unmasked = None, pixel_locations_x = None,pixel_locations_y = None,
+    def __init__(self, sweep_freqs, z_off, z_leds,kid_index, pixel_locations_x = None,pixel_locations_y = None,
                  pixel_index = None,group_index = None,assigned_group_index = None,assigned_res_index = None,
-                 assigned_pixel_index = None,pixel_freqs = None,look_around=2, stream_data=None, retune=True, find_min=True,
-                 combined_data=None, combined_data_2 = None, combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
+                 assigned_pixel_index = None,pixel_freqs = None, stream_data=None, retune=True, find_min=True,
+                 combined_data_names=None, sweep_labels=None, sweep_line_styles=None,
                  combined_data_format=None, flags=None, flags_types=None, plot_title=None, plot_frames=True,
                  verbose=True,n_detectors_per_led = 1,pixel_dark = None):
                 
 
-        self.z_baseline = z_baseline
-        self.z_baseline_unmasked = z_baseline_unmasked
-        self.z = z
-        self.z_unmasked = z_unmasked
-        self.chan_freqs = chan_freqs
+        self.sweep_freqs = sweep_freqs
+        self.z_off = z_off
+        self.z_leds = z_leds
+        self.kid_index = kid_index
+        self.chan_freqs, self.z_baseline,self.z_baseline_unmasked,self.z, self.z_unmasked = self.slice_and_dice(sweep_freqs, z_off, z_leds,kid_index)
+        self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
+        self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
         self.pixel_locations_x = pixel_locations_x
         self.pixel_locations_y = pixel_locations_y
         self.pixel_index = pixel_index
@@ -65,33 +70,30 @@ class InteractivePlot(object):
             self.assigned_res_index = assigned_res_index
             self.assigned_pixel_index = assigned_pixel_index
         self.pixel_freqs = pixel_freqs
-        self.designed_freqs = np.empty(chan_freqs.shape[1])
+        self.designed_freqs = np.empty(self.chan_freqs.shape[1])
         self.designed_freqs[:] = np.nan
-        self.assigned_1 = np.zeros(combined_data.shape[1])
-        self.assigned_2 = np.zeros(combined_data.shape[1])
-        self.assigned = np.zeros(combined_data.shape[1])
+        self.assigned_1 = np.zeros(self.combined_data.shape[1])
+        self.assigned_2 = np.zeros(self.combined_data.shape[1])
+        self.assigned = np.zeros(self.combined_data.shape[1])
         if pixel_dark is not None:
             self.pixel_dark = pixel_dark
         else:
-            self.pixel_dark = np.zeros(combined_data.shape[1])
+            self.pixel_dark = np.zeros(self.combined_data.shape[1])
         
         self.plot_index = 0
         self.combined_data_index = 0
         self.measured_freqs = self.chan_freqs[self.chan_freqs.shape[0]//2,:]
         plt.rcParams['keymap.fullscreen'] = ['shift+=']  # remove ('f', 'ctrl+f'), make +
-
+        plt.rcParams['keymap.save'] = ['h']  # remove ('f', 'ctrl+f'), make + 
+        
         self.Is = np.real(self.z)
         self.Qs = np.imag(self.z)
         self.find_min = find_min
         self.retune = retune
-        self.combined_data = combined_data
         self.refresh_assigned_values_for_plotting()
-        self.combined_data_2 = combined_data_2
         self.combined_data_format = combined_data_format
         self.combined_data_names = combined_data_names
         self.stream_data = stream_data
-        self.targ_size = chan_freqs.shape[0]
-        self.look_around = look_around
         self.plot_index = 0
         self.combined_data_index = 0
         self.res_index_override = np.asarray((), dtype=np.int16)
@@ -110,7 +112,7 @@ class InteractivePlot(object):
         self.scalarMap_2 = cm.ScalarMappable(norm=self.norm_2, cmap=self.cmap)
         if flags is None:
             self.flags = []
-            for i in range(chan_freqs.shape[1]):
+            for i in range(self.chan_freqs.shape[1]):
                 self.flags.append([])
         else:
             self.flags = flags
@@ -311,8 +313,22 @@ class InteractivePlot(object):
         self.led_heat_map_2_plot(self.ax_led_heat_map_2)
         self.refresh_plot()
         plt.show(block=True)
-        
 
+    def slice_and_dice(self,sweep_freqs, z_off, z_leds,kid_index,q_slice = 600):
+        #print(sweep_freqs.shape,z_off.shape,kid_index.shape)
+        #print(kid_index)
+        res_freq_array, res_array = find_kids.slice_vna(sweep_freqs,z_off,kid_index,q_slice=q_slice)
+        res_freq_array_2, res_array_2 = find_kids.slice_vna(sweep_freqs,z_off,kid_index,q_slice=q_slice,flag_collided = False)
+        res_arrays_leds = np.zeros((res_array.shape[0],res_array.shape[1],z_leds.shape[1]),dtype = complex)
+        res_arrays_leds_unmasked = np.zeros((res_array.shape[0],res_array.shape[1],z_leds.shape[1]),dtype = complex)
+        for i in range(0,z_leds.shape[1]):
+            res_freq_array_led, res_array_led = find_kids.slice_vna(sweep_freqs,z_leds[:,i],kid_index,q_slice=q_slice)
+            res_freq_array_led, res_array_led_unmasked = find_kids.slice_vna(sweep_freqs,z_leds[:,i],kid_index,q_slice=q_slice,flag_collided = False)
+            res_arrays_leds[:,:,i] = res_array_led
+            res_arrays_leds_unmasked[:,:,i] = res_array_led_unmasked
+            
+        return res_freq_array,res_array,res_array_2,res_arrays_leds,res_arrays_leds_unmasked
+            
     def led_heat_map_plot(self,ax_led_heat_map):
         if self.led_heat_map is not None:
             self.led_heat_map.remove()
@@ -417,7 +433,8 @@ class InteractivePlot(object):
  
     def refresh_plot(self, autoscale=True):
         self.ax_led_map.set_title('LED Assignment Map, current pos '+self.combined_data_names[self.combined_data_index] +
-                                  ", PX"+str(self.group_index[self.combined_data_index]+1))
+                                  ", PX"+str(self.group_index[self.combined_data_index]+1)+
+                                  ", "+str(self.pixel_index[self.combined_data_index]))
         if self.assigned_pixel_index[self.plot_index] > 0:
             self.ax_mag.set_facecolor('lightgreen')
         else:
@@ -594,7 +611,8 @@ class InteractivePlot(object):
                                  ('spacebar', 'assign current resonator', 'red'),
                                  ('D-key', "delete current resonator's\n assignments", 'white'),
                                  ('A-key', 'run auto assignment', 'purple'),
-                                 ('W-key', 'Make PDF', 'cyan')])
+                                 ('W-key', 'Make PDF', 'cyan'),
+                                 ('S-key', 'Show smmothed ratios', 'blue')])
 
         return instructions
 
@@ -738,6 +756,10 @@ class InteractivePlot(object):
                     print("skipping resonator ",i)
             self.refresh_plot()
 
+        elif event.key == 's':#auto assign
+            self.quick_look()
+       
+            
         # Flagging and removing interactions
         elif event.key == 'f':
             current_flags = self.flags[self.plot_index]
@@ -819,6 +841,18 @@ class InteractivePlot(object):
                     self.assigned_group_index[index] = -1
                     self.assigned_res_index[index] = -1
                     self.assigned_pixel_index[index] = -1
+
+    def quick_look(self):
+        smooth = scipy.signal.resample_poly(scipy.signal.savgol_filter(np.abs(self.z_off),100,2),1,10)
+        smooth_led = scipy.signal.resample_poly(scipy.signal.savgol_filter(np.abs(self.z_leds[:,self.combined_data_index]),100,2),1,10)
+        smooth_f = scipy.signal.resample_poly(self.sweep_freqs,1,10,padtype = 'line')
+        plt.figure(figsize = (10,5))
+        ax1 = plt.subplot(2,1,1)
+        ax1.plot(smooth_f,smooth-smooth_led)
+        ax2 = plt.subplot(2,1,2, sharex=ax1)
+        ax2.plot(self.sweep_freqs,20*np.log10(np.abs(self.z_off)))
+        ax2.plot(self.sweep_freqs,20*np.log10(np.abs(self.z_leds[:,self.combined_data_index])))
+        plt.show()
 
 
 class PopUpDataEntry(object):
