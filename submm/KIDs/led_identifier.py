@@ -700,10 +700,11 @@ class InteractivePlot(object):
             self.refresh_plot(autoscale = False)
 
         elif event.key == ' ':#spacebar
+            global_shift = np.nanmean(self.pixel_freqs*10**9)-np.mean(self.measured_freqs)
             pop_up = PopUpDataEntry("Enter Resonator Group index\n0 for PX1, 1 for PX2",str(self.group_index[self.combined_data_index]))
             self.assigned_group_index[self.plot_index] = int(pop_up.value)
             res_freq = self.chan_freqs[self.chan_freqs.shape[0] // 2,self.plot_index]
-            if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9):
+            if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9)-global_shift:
                 guess = 0
             else:
                 guess = 1
@@ -734,6 +735,8 @@ class InteractivePlot(object):
         elif event.key == 'a':#auto assign
             pop_up = PopUpDataEntry("Enter threshold for min index",str(150))
             threshold = int(pop_up.value)
+            global_shift = np.nanmean(self.pixel_freqs*10**9)-np.nanmean(self.measured_freqs)
+            print("global_shift",np.nanmean(self.pixel_freqs*10**9),np.nanmean(self.measured_freqs),global_shift)
             for i in range(0,self.chan_freqs.shape[1]):
                 self.plot_index = i
                 self.refresh_plot()
@@ -743,7 +746,7 @@ class InteractivePlot(object):
                     #self.assigned[self.combined_data_index] = 1
                     self.assigned_group_index[self.plot_index] = self.group_index[self.combined_data_index]
                     res_freq = self.chan_freqs[self.chan_freqs.shape[0] // 2,self.plot_index]
-                    if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9):
+                    if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9)-global_shift:
                         guess = 0
                     else:
                         guess = 1
