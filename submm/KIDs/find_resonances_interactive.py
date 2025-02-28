@@ -199,8 +199,8 @@ class InteractivePlot(object):
                         ("W-key", "Xplode x axis", 'white'),
                         ("E-key", "Zoom y axis", 'green'),
                         ("R-key", "Xplode y axis", 'cyan'),
-                        ("shift+right-click", "delete points", 'yellow'),
-                        ("ctrl+right-click", "add points", 'red'),
+                        ("ctrl+right-click", "delete points", 'yellow'),
+                        ("shift+right-click", "add points", 'red'),
                         ("double-click", "flag points", 'purple')]
         return instructions
 
@@ -244,6 +244,7 @@ class InteractivePlot(object):
             self.ax.set_xlim(xlim_left + self.lim_shift_factor * xlim_size,
                              xlim_right + self.lim_shift_factor * xlim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'left':  # pan left
             xlim_left, xlim_right = self.ax.get_xlim()
@@ -251,6 +252,7 @@ class InteractivePlot(object):
             self.ax.set_xlim(xlim_left - self.lim_shift_factor * xlim_size,
                              xlim_right - self.lim_shift_factor * xlim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'up':  # pan up
             ylim_left, ylim_right = self.ax.get_ylim()
@@ -258,6 +260,7 @@ class InteractivePlot(object):
             self.ax.set_ylim(ylim_left + self.lim_shift_factor * ylim_size,
                              ylim_right + self.lim_shift_factor * ylim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'down':  # pan down
             ylim_left, ylim_right = self.ax.get_ylim()
@@ -265,6 +268,7 @@ class InteractivePlot(object):
             self.ax.set_ylim(ylim_left - self.lim_shift_factor * ylim_size,
                              ylim_right - self.lim_shift_factor * ylim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'z':  # zoom in
             xlim_left, xlim_right = self.ax.get_xlim()
@@ -274,6 +278,7 @@ class InteractivePlot(object):
             self.ax.set_xlim(xlim_left + self.zoom_factor * xlim_size, xlim_right - self.zoom_factor * xlim_size)
             self.ax.set_ylim(ylim_left + self.zoom_factor * ylim_size, ylim_right - self.zoom_factor * ylim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'x':  # zoom out
             xlim_left, xlim_right = self.ax.get_xlim()
@@ -283,30 +288,40 @@ class InteractivePlot(object):
             self.ax.set_xlim(xlim_left - self.zoom_factor * xlim_size, xlim_right + self.zoom_factor * xlim_size)
             self.ax.set_ylim(ylim_left - self.zoom_factor * ylim_size, ylim_right + self.zoom_factor * ylim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'q':  # zoom in x axis only
             xlim_left, xlim_right = self.ax.get_xlim()
             xlim_size = xlim_right - xlim_left
             self.ax.set_xlim(xlim_left + self.zoom_factor * xlim_size, xlim_right - self.zoom_factor * xlim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'w':  # zoom out x axis only
             xlim_left, xlim_right = self.ax.get_xlim()
             xlim_size = xlim_right - xlim_left
             self.ax.set_xlim(xlim_left - self.zoom_factor * xlim_size, xlim_right + self.zoom_factor * xlim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'e':  # zoom in y axis only
             ylim_left, ylim_right = self.ax.get_ylim()
             ylim_size = ylim_right - ylim_left
             self.ax.set_ylim(ylim_left + self.zoom_factor * ylim_size, ylim_right - self.zoom_factor * ylim_size)
             plt.draw()
+            self.ax.figure.canvas.toolbar.push_current()
 
         if event.key == 'r':  # zoom out y axis only
             ylim_left, ylim_right = self.ax.get_ylim()
             ylim_size = ylim_right - ylim_left
             self.ax.set_ylim(ylim_left - self.zoom_factor * ylim_size, ylim_right + self.zoom_factor * ylim_size)
             plt.draw()
+            # this allows for you to zoom in then press back button to get back to previous zoom state
+            self.ax.figure.canvas.toolbar.push_current()
+
+
+        
+        
 
     def on_key_release(self, event):
         # windows or mac
@@ -1006,10 +1021,10 @@ def slice_vna(f, z, kid_index, q_slice=2000, flag_collided=True):
     n_iq_points = int(f[0] / q_slice // df)
     if np.mod(n_iq_points, 2) == 0:
         n_iq_points = n_iq_points + 1
-    print(n_iq_points)
+    #print(n_iq_points)
     res_freq_array = np.zeros((n_iq_points, len(kid_index)))
     res_array = np.zeros((n_iq_points, len(kid_index))).astype('complex')
-    print(res_array.dtype)
+    #print(res_array.dtype)
     for i in range(0, len(kid_index)):
         a = kid_index[i] - n_iq_points // 2 - 1
         b = kid_index[i] + n_iq_points // 2
