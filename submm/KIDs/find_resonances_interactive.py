@@ -6,7 +6,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
-from scipy import signal, fftpack
+from scipy import signal
 from matplotlib.backends.backend_pdf import PdfPages
 try:
     from PyQt5.QtCore import pyqtRemoveInputHook
@@ -941,41 +941,44 @@ def lowpass_cosine(y, tau, f_3db, width, padd_data=True):
     # to reduce/eliminate the discontinuities at the start and stop of a dataset due to filtering
     #
     # False means we're going to have transients at the start and stop of the data
+    y = np.asarray(y)
+    if y.ndim != 1:
+        y = np.ravel(y)
+    if len(y) < 2:
+        return y.copy()
+
     # kill the last data point if y has an odd length
     if np.mod(len(y), 2):
         y = y[0:-1]
-    # add the weird padd
-    # so, make a backwards copy of the data, then the data, then another backwards copy of the data
+
     if padd_data:
-        y = np.append(np.append(np.flipud(y), y), np.flipud(y))
-    # take the FFT
-    ffty = fftpack.fft(y)
-    ffty = fftpack.fftshift(ffty)
-    # make the companion frequency array
-    delta = 1.0 / (len(y) * tau)
-    nyquist = 1.0 / (2.0 * tau)
-    freq = np.arange(-nyquist, nyquist, delta)
-    # turn this into a positive frequency array
-    # print((len(ffty) // 2))
-    pos_freq = freq[(len(ffty) // 2):]
-    # make the transfer function for the first half of the data
-    i_f_3db = min(np.where(pos_freq >= f_3db)[0])
-    f_min = f_3db - (width / 2.0)
-    i_f_min = min(np.where(pos_freq >= f_min)[0])
-    f_max = f_3db + (width / 2.0)
-    i_f_max = min(np.where(pos_freq >= f_max)[0])
-    transfer_function = np.zeros(len(y) // 2)
-    transfer_function[0:i_f_min] = 1
-    transfer_function[i_f_min:i_f_max] = (1 + np.sin(-np.pi * ((freq[i_f_min:i_f_max] - freq[i_f_3db]) / width))) / 2.0
-    transfer_function[i_f_max:(len(freq) // 2)] = 0
-    # symmetrize this to be [0 0 0 ... .8 .9 1 1 1 1 1 1 1 1 .9 .8 ... 0 0 0] to match the FFT
-    transfer_function = np.append(np.flipud(transfer_function), transfer_function)
-    # apply the filter, undo the fft shift, and invert the fft
-    filtered = np.real(fftpack.ifft(fftpack.ifftshift(ffty * transfer_function)))
+        # mirror-padding reduces edge transients from the filter
+        y_proc = np.concatenate((y[::-1], y, y[::-1]))
+    else:
+        y_proc = y
+
+    n_proc = len(y_proc)
+    freqs = np.fft.rfftfreq(n_proc, d=tau)
+
+    transfer_function = np.ones_like(freqs)
+    if width <= 0:
+        transfer_function[freqs >= f_3db] = 0.0
+    else:
+        f_min = f_3db - (width / 2.0)
+        f_max = f_3db + (width / 2.0)
+        if f_min < 0.0:
+            f_min = 0.0
+        roll_mask = (freqs >= f_min) & (freqs < f_max)
+        transfer_function[freqs >= f_max] = 0.0
+        transfer_function[roll_mask] = (1.0 + np.sin(-np.pi * ((freqs[roll_mask] - f_3db) / width))) / 2.0
+
+    filtered = np.fft.irfft(np.fft.rfft(y_proc) * transfer_function, n=n_proc)
+
     # remove the padd, if we applied it
     if padd_data:
-        filtered = filtered[(len(y) // 3):(2 * (len(y) // 3))]
-    # return the filtered data
+        n_base = len(y)
+        filtered = filtered[n_base:(2 * n_base)]
+
     return filtered
 
 
@@ -1046,6 +1049,59 @@ def slice_vna(f, z, kid_index, q_slice=2000, flag_collided=True):
                     # print(i,a,low_cutoff,b)
                     res_freq_array[:low_cutoff - a, i] = np.nan
                     res_array[:low_cutoff - a, i] = np.nan * (1 + 1j)
+
+    return res_freq_array, res_array
+
+
+def slice_vna_fast(f, z, kid_index, q_slice=2000, flag_collided=True):
+    """Vectorized alternative to slice_vna with lower Python-loop overhead.
+
+    Returns arrays with the same shape/meaning as slice_vna:
+    [n_iq_points, n_resonators].
+    """
+    # Keep n_iq_points logic identical to slice_vna for compatible output size.
+    df = f[1] - f[0]
+    n_iq_points = int(f[0] / q_slice // df)
+    if np.mod(n_iq_points, 2) == 0:
+        n_iq_points = n_iq_points + 1
+
+    kid_index = np.asarray(kid_index, dtype=int)
+    n_res = kid_index.size
+    if n_res == 0:
+        return np.zeros((n_iq_points, 0)), np.zeros((n_iq_points, 0), dtype=complex)
+
+    # Build all slice indexes at once.
+    a = kid_index - (n_iq_points // 2) - 1
+    row_offsets = np.arange(n_iq_points, dtype=int)[:, None]
+    idx = a[None, :] + row_offsets
+
+    # Gather resonator windows for frequency and complex data.
+    res_freq_array = f[idx]
+    res_array = np.asarray(z[idx], dtype=complex)
+
+    if flag_collided and n_res > 1:
+        row_idx = row_offsets
+
+        # High-frequency-side overlap masking (except last resonator).
+        high_collide = np.zeros(n_res, dtype=bool)
+        high_collide[:-1] = (kid_index[1:] - kid_index[:-1]) < n_iq_points
+        high_cut = np.full(n_res, n_iq_points, dtype=int)
+        high_cut[:-1] = ((kid_index[1:] + kid_index[:-1]) // 2) - a[:-1]
+        high_mask = (row_idx >= high_cut[None, :]) & high_collide[None, :]
+
+        # Low-frequency-side overlap masking (except first resonator).
+        low_collide = np.zeros(n_res, dtype=bool)
+        low_collide[1:] = (kid_index[1:] - kid_index[:-1]) < n_iq_points
+        low_cut = np.zeros(n_res, dtype=int)
+        low_cut[1:] = ((kid_index[1:] + kid_index[:-1]) // 2) - a[1:]
+        low_mask = (row_idx < low_cut[None, :]) & low_collide[None, :]
+
+        collision_mask = high_mask | low_mask
+        if np.any(collision_mask):
+            res_freq_array = res_freq_array.copy()
+            res_array = res_array.copy()
+            res_freq_array[collision_mask] = np.nan
+            res_array[collision_mask] = np.nan * (1 + 1j)
 
     return res_freq_array, res_array
 
