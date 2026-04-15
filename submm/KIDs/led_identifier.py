@@ -84,7 +84,7 @@ class InteractivePlot(object):
         
         self.plot_index = 0
         self.combined_data_index = 0
-        self.measured_freqs = self.chan_freqs[self.chan_freqs.shape[0]//2,:]
+        self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:]
         plt.rcParams['keymap.fullscreen'] = ['shift+=']  # remove ('f', 'ctrl+f'), make +
         plt.rcParams['keymap.save'] = ['h']  # remove ('f', 'ctrl+f'), make + 
         
@@ -779,7 +779,7 @@ class InteractivePlot(object):
                 self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
                 self.combined_data_values = self.combined_data
                 self.res_indexes = np.arange(0, self.chan_freqs.shape[1])
-                self.measured_freqs = self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
+                self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
                 self.refresh_plot()
                 #plt.close(self.fig)
             else:
@@ -915,7 +915,7 @@ class InteractivePlot(object):
                 self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0) 
                 self.combined_data_values = self.combined_data
                 self.res_indexes = np.arange(0, self.chan_freqs.shape[1])
-                self.measured_freqs = self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
+                self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
                 self.refresh_plot()
                 #plt.close(self.fig)
 
