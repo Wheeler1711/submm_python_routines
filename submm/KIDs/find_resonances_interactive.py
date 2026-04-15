@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 from scipy import signal
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib as mpl
+mpl.use('QtAgg')
 try:
     from PyQt5.QtCore import pyqtRemoveInputHook
     pyqtRemoveInputHook() #input() breaks during interactive plot on linux without this if using Qt backend
@@ -1053,57 +1055,58 @@ def slice_vna(f, z, kid_index, q_slice=2000, flag_collided=True):
     return res_freq_array, res_array
 
 
-def slice_vna_fast(f, z, kid_index, q_slice=2000, flag_collided=True):
-    """Vectorized alternative to slice_vna with lower Python-loop overhead.
+def slice_vna_indicies(f, kid_index, q_slice=2000, flag_collided=True):
+    """Return source indices for the windows used by slice_vna.
 
-    Returns arrays with the same shape/meaning as slice_vna:
-    [n_iq_points, n_resonators].
+    Parameters
+    ----------
+    f : numpy.array
+        Sweep frequencies.
+    kid_index : array-like
+        Resonator center indices.
+    q_slice : int
+        Q-based slice width control (same convention as slice_vna).
+    flag_collided : bool
+        If False, return full fixed-width windows as a 2D array of indices.
+        If True, return only valid (non-NaN in slice_vna) indices as a list
+        of 1D arrays, one per resonator.
     """
-    # Keep n_iq_points logic identical to slice_vna for compatible output size.
     df = f[1] - f[0]
     n_iq_points = int(f[0] / q_slice // df)
     if np.mod(n_iq_points, 2) == 0:
         n_iq_points = n_iq_points + 1
 
-    kid_index = np.asarray(kid_index, dtype=int)
-    n_res = kid_index.size
-    if n_res == 0:
-        return np.zeros((n_iq_points, 0)), np.zeros((n_iq_points, 0), dtype=complex)
+    if not flag_collided:
+        index_array = np.zeros((n_iq_points, len(kid_index)), dtype=int)
+        for i in range(0, len(kid_index)):
+            a = kid_index[i] - n_iq_points // 2 - 1
+            b = kid_index[i] + n_iq_points // 2
+            index_array[:, i] = np.arange(a, b)
+        return index_array
 
-    # Build all slice indexes at once.
-    a = kid_index - (n_iq_points // 2) - 1
-    row_offsets = np.arange(n_iq_points, dtype=int)[:, None]
-    idx = a[None, :] + row_offsets
+    valid_index_list = []
+    for i in range(0, len(kid_index)):
+        a = kid_index[i] - n_iq_points // 2 - 1
+        b = kid_index[i] + n_iq_points // 2
 
-    # Gather resonator windows for frequency and complex data.
-    res_freq_array = f[idx]
-    res_array = np.asarray(z[idx], dtype=complex)
+        start = a
+        stop = b
 
-    if flag_collided and n_res > 1:
-        row_idx = row_offsets
+        if i < len(kid_index) - 1:  # dont check last res
+            if kid_index[i + 1] - kid_index[i] < n_iq_points:  # collision at higher frequency
+                high_cutoff = int((kid_index[i + 1] + kid_index[i]) / 2)
+                stop = min(stop, high_cutoff)
+        if i != 0:  # dont check first res
+            if kid_index[i] - kid_index[i - 1] < n_iq_points:
+                low_cutoff = int((kid_index[i] + kid_index[i - 1]) / 2)
+                start = max(start, low_cutoff)
 
-        # High-frequency-side overlap masking (except last resonator).
-        high_collide = np.zeros(n_res, dtype=bool)
-        high_collide[:-1] = (kid_index[1:] - kid_index[:-1]) < n_iq_points
-        high_cut = np.full(n_res, n_iq_points, dtype=int)
-        high_cut[:-1] = ((kid_index[1:] + kid_index[:-1]) // 2) - a[:-1]
-        high_mask = (row_idx >= high_cut[None, :]) & high_collide[None, :]
+        valid_index_list.append(np.arange(start, stop, dtype=int))
 
-        # Low-frequency-side overlap masking (except first resonator).
-        low_collide = np.zeros(n_res, dtype=bool)
-        low_collide[1:] = (kid_index[1:] - kid_index[:-1]) < n_iq_points
-        low_cut = np.zeros(n_res, dtype=int)
-        low_cut[1:] = ((kid_index[1:] + kid_index[:-1]) // 2) - a[1:]
-        low_mask = (row_idx < low_cut[None, :]) & low_collide[None, :]
+    return valid_index_list
 
-        collision_mask = high_mask | low_mask
-        if np.any(collision_mask):
-            res_freq_array = res_freq_array.copy()
-            res_array = res_array.copy()
-            res_freq_array[collision_mask] = np.nan
-            res_array[collision_mask] = np.nan * (1 + 1j)
 
-    return res_freq_array, res_array
+
 
 
 def fit_slices(res_freq_array, res_array, do_plots=True, plot_filename='fits'):

@@ -56,9 +56,15 @@ class InteractivePlot(object):
         self.kid_index = kid_index
         self.n_detectors_per_led = n_detectors_per_led
         self.marker_scale = marker_scale
-        self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(sweep_freqs, z_off, z_leds, kid_index)
-        self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
-        self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
+        self.res_slice_indicies = find_kids.slice_vna_indicies(sweep_freqs, kid_index)
+        self.combined_data = np.empty((len(self.kid_index),self.z_leds.shape[1]))
+        self.combined_data_2 = np.empty((len(self.kid_index),self.z_leds.shape[1]))
+        for i in range(0,self.z_leds.shape[1]):
+             for j in range(0,len(self.kid_index)):
+                 self.combined_data[j,i] = self.kid_index[j]-np.asarray(self.res_slice_indicies[j])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))]
+                 self.combined_data_2[j,i] =  np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))
+        #self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
+        #self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
         self.pixel_locations_x = pixel_locations_x
         self.pixel_locations_y = pixel_locations_y
         self.pixel_index = pixel_index
@@ -200,18 +206,18 @@ class InteractivePlot(object):
 
         if not sweep_line_styles:
             sweep_line_styles = ["-o"]
-            for i in range(1, self.z.shape[2]):
+            for i in range(1, self.z_leds.shape[1]):
                 sweep_line_styles.append("-")
         if not sweep_labels:
             sweep_labels = ["LED on"]
-            for i in range(1, self.z.shape[2]):
+            for i in range(1, self.z_leds.shape[1]):
                 sweep_labels.append("Data " + str(i + 1))
 
-        self.baseline_mag, = self.ax_mag.plot(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                                              20 * np.log10(np.abs(self.z_baseline[:, self.plot_index])),color = "C0",label = "LED off")
+        self.baseline_mag, = self.ax_mag.plot(self.sweep_freqs[self.res_slice_indicies[self.plot_index]] / 10 ** 6,
+                                              20 * np.log10(np.abs(self.z_off[self.res_slice_indicies[self.plot_index]])),color = "C0",label = "LED off")
                 
-        self.mag_line, = self.ax_mag.plot(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                                          20 * np.log10(np.abs(self.z[:, self.plot_index, self.combined_data_index])), color = "C1",
+        self.mag_line, = self.ax_mag.plot(self.sweep_freqs[self.res_slice_indicies[self.plot_index]] / 10 ** 6,
+                                          20 * np.log10(np.abs(self.z_leds[self.res_slice_indicies[self.plot_index], self.combined_data_index])), color = "C1",
                                             label=sweep_labels[self.combined_data_index])
         
 
@@ -311,6 +317,8 @@ class InteractivePlot(object):
         self.led_heat_map_2_plot(self.ax_led_heat_map_2)
         self.refresh_plot()
         plt.show(block=True)
+        self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(sweep_freqs, z_off, z_leds, kid_index) # for backwards compatibility
+
 
     def slice_and_dice(self,sweep_freqs, z_off, z_leds,kid_index,q_slice = 600):
         #print(sweep_freqs.shape,z_off.shape,kid_index.shape)
@@ -322,6 +330,7 @@ class InteractivePlot(object):
             res_arrays_leds[:,:,i] = res_array_led
             
         return res_freq_array, res_array, res_arrays_leds
+    
 
 
             
@@ -436,10 +445,10 @@ class InteractivePlot(object):
         else:
             self.ax_mag.set_facecolor("None")
         
-        self.mag_line.set_data(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                          20 * np.log10(np.abs(self.z[:, self.plot_index, self.combined_data_index])))
-        self.baseline_mag.set_data(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                                              20 * np.log10(np.abs(self.z_baseline[:, self.plot_index])))
+        self.mag_line.set_data(self.sweep_freqs[self.res_slice_indicies[self.plot_index]] / 10 ** 6,
+                          20 * np.log10(np.abs(self.z_leds[self.res_slice_indicies[self.plot_index], self.combined_data_index])))
+        self.baseline_mag.set_data(self.sweep_freqs[self.res_slice_indicies[self.plot_index]] / 10 ** 6,
+                                              20 * np.log10(np.abs(self.z_off[self.res_slice_indicies[self.plot_index]])))
 
         self.ax_mag.relim()
         self.ax_mag.autoscale()
@@ -773,15 +782,25 @@ class InteractivePlot(object):
                 self.assigned_pixel_index = np.delete(self.assigned_pixel_index,int(pop_up.value))
                 self.designed_freqs = np.delete(self.designed_freqs,int(pop_up.value))
                 self.kid_index = np.delete(self.kid_index,int(pop_up.value))
-                self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(self.sweep_freqs, self.z_off, self.z_leds,self.kid_index)
-                self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
-
-                self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
+                self.res_slice_indicies = find_kids.slice_vna_indicies(self.sweep_freqs,self.kid_index)
+                self.combined_data = np.delete(self.combined_data,int(pop_up.value),axis=0)
+                self.combined_data_2 = np.delete(self.combined_data_2,int(pop_up.value),axis=0)
+#                self.combined_data = np.empty((len(self.kid_index),self.z_leds.shape[1]))
+#                self.combined_data_2 = np.empty((len(self.kid_index),self.z_leds.shape[1]))
+#                for i in range(0,self.z_leds.shape[1]):
+#                    for j in range(0,len(self.kid_index)):
+#                        self.combined_data[j,i] = self.kid_index[j]-np.asarray(self.res_slice_indicies[j])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))]
+#                        self.combined_data_2[j,i] =  np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))
+                #self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
+                #self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
                 self.combined_data_values = self.combined_data
                 self.res_indexes = np.arange(0, len(self.kid_index))
                 self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
                 self.refresh_plot()
+                plt.figure(1)
+                plt.get_current_fig_manager().show()
                 #plt.close(self.fig)
+                
             else:
                 print("operation canceled")
             
@@ -910,13 +929,29 @@ class InteractivePlot(object):
                 self.assigned_pixel_index = np.insert(self.assigned_pixel_index,add_index,-1)
                 self.designed_freqs = np.insert(self.designed_freqs,add_index,np.nan)
                 plt.close(self.quick_look_fig)
-                self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(self.sweep_freqs, self.z_off, self.z_leds,self.kid_index)
-                self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
-                self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0) 
+                self.res_slice_indicies= find_kids.slice_vna_indicies(self.sweep_freqs,self.kid_index)
+                combined_data_new_row = np.empty((1,self.z_leds.shape[1]))
+                for i in range(0,self.z_leds.shape[1]):
+                    combined_data_new_row[0,i] = self.kid_index[add_index]-np.asarray(self.res_slice_indicies[add_index])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[add_index],i]))]
+                self.combined_data = np.insert(self.combined_data,add_index,combined_data_new_row,axis = 0)
+                combined_data_2_new_row = np.empty((1,self.z_leds.shape[1]))
+                for i in range(0,self.z_leds.shape[1]):
+                    combined_data_2_new_row[0,i] = np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[add_index],i]))
+                self.combined_data_2 = np.insert(self.combined_data_2,add_index,combined_data_2_new_row,axis = 0)
+                #self.combined_data = np.empty((len(self.kid_index),self.z_leds.shape[1]))
+                #self.combined_data_2 = np.empty((len(self.kid_index),self.z_leds.shape[1]))
+                #for i in range(0,self.z_leds.shape[1]):
+                #    for j in range(0,len(self.kid_index)):
+                #        self.combined_data[j,i] = self.kid_index[j]-np.asarray(self.res_slice_indicies[j])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))]
+                #        self.combined_data_2[j,i] =  np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))
+                #self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
+                #self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0) 
                 self.combined_data_values = self.combined_data
                 self.res_indexes = np.arange(0, len(self.kid_index))
                 self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
                 self.refresh_plot()
+                plt.figure(1)
+                plt.get_current_fig_manager().show()
                 #plt.close(self.fig)
 
 
