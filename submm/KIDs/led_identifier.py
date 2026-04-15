@@ -61,7 +61,7 @@ class InteractivePlot(object):
         self.combined_data_2 = np.empty((len(self.kid_index),self.z_leds.shape[1]))
         for i in range(0,self.z_leds.shape[1]):
              for j in range(0,len(self.kid_index)):
-                 self.combined_data[j,i] = self.kid_index[j]-np.asarray(self.res_slice_indicies[j])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))]
+                 self.combined_data[j,i] = -self.kid_index[j]+np.asarray(self.res_slice_indicies[j])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))]
                  self.combined_data_2[j,i] =  np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[j],i]))
         #self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
         #self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
@@ -706,9 +706,9 @@ class InteractivePlot(object):
             global_shift = np.nanmean(self.pixel_freqs*10**9)-np.mean(self.measured_freqs)
             pop_up = PopUpDataEntry("Enter Resonator Group index\n0 for PX1, 1 for PX2",str(self.group_index[self.combined_data_index]))
             self.assigned_group_index[self.plot_index] = int(pop_up.value)
-            res_freq = self.sweep_freqs[self.kid_index[self.plot_index]] / 10 ** 6
+            res_freq = self.sweep_freqs[self.kid_index[self.plot_index]]
             if self.n_detectors_per_led > 1: #guess which ever is closest
-                guess = np.argmin(np.abs(res_freq-np.asarray((self.pixel_freqs[0,self.combined_data_index],self.pixel_freqs[1,self.combined_data_index]))*10**9))
+                guess = np.argmin(np.abs(res_freq-np.asarray((self.pixel_freqs[0,self.combined_data_index]-global_shift/10**9,self.pixel_freqs[1,self.combined_data_index]-global_shift/10**9))*10**9))
                 #if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9)-global_shift:
                 #    guess = 0
                 #else:
@@ -740,7 +740,7 @@ class InteractivePlot(object):
 
 
         elif event.key == 'a':#auto assign
-            pop_up = PopUpDataEntry("Enter threshold for min index",str(150))
+            pop_up = PopUpDataEntry("Enter threshold for min index",str(-2))
             threshold = int(pop_up.value)
             global_shift = np.nanmean(self.pixel_freqs*10**9)-np.nanmean(self.measured_freqs)
             print("global_shift",np.nanmean(self.pixel_freqs*10**9),np.nanmean(self.measured_freqs),global_shift)
@@ -752,9 +752,10 @@ class InteractivePlot(object):
                     self.refresh_plot()
                     #self.assigned[self.combined_data_index] = 1
                     self.assigned_group_index[self.plot_index] = self.group_index[self.combined_data_index]
-                    res_freq = self.sweep_freqs[self.kid_index[self.plot_index]] / 10 ** 6
+                    res_freq = self.sweep_freqs[self.kid_index[self.plot_index]]
                     if self.n_detectors_per_led > 1:
-                        guess = np.argmin(np.abs(res_freq-np.asarray((self.pixel_freqs[0,self.combined_data_index],self.pixel_freqs[1,self.combined_data_index]))*10**9))
+                        guess = np.argmin(np.abs(res_freq-np.asarray((self.pixel_freqs[0,self.combined_data_index]-global_shift/10**9,self.pixel_freqs[1,self.combined_data_index]-global_shift/10**9))*10**9))
+                        #print(res_freq,np.asarray((self.pixel_freqs[0,self.combined_data_index]-global_shift,self.pixel_freqs[1,self.combined_data_index]-global_shift))*10**9)
                         #if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9)-global_shift: # this is specific to two res per pixel
                         #    guess = 0
                         #else:
@@ -765,7 +766,7 @@ class InteractivePlot(object):
                     self.assigned_pixel_index[self.plot_index] = self.pixel_index[self.combined_data_index]
                     self.designed_freqs[self.plot_index] = self.pixel_freqs[self.assigned_res_index[self.plot_index],
                                                                     self.combined_data_index]
-                    self.check_for_conflicts(self.plot_index)
+                    self.check_for_conflicts(self.plot_index,show_pop_up=False)
                 else:
                     print("skipping resonator ",i)
             self.refresh_plot()
@@ -873,7 +874,7 @@ class InteractivePlot(object):
             pdf_pages.savefig(self.fig)
         pdf_pages.close()
 
-    def check_for_conflicts(self,index):#assums index has been assigned
+    def check_for_conflicts(self,index,show_pop_up = True):#assums index has been assigned
         group_index = self.assigned_group_index[index]
         res_index = self.assigned_res_index[index]
         pixel_index = self.assigned_pixel_index[index]
@@ -881,10 +882,12 @@ class InteractivePlot(object):
             if i != index:
                 if group_index == self.assigned_group_index[i] and res_index == self.assigned_res_index[i] and pixel_index == self.assigned_pixel_index[i]:
                     print("Resonator " +str(i) +" was already assigned these parameters")
-                    pop_up = PopUpDataEntry("Resonator " +str(i) +" was already\nassigned these parameters","")
+                    if show_pop_up:
+                        pop_up = PopUpDataEntry("Resonator " +str(i) +" was already\nassigned these parameters","")
                     self.assigned_group_index[index] = -1
                     self.assigned_res_index[index] = -1
                     self.assigned_pixel_index[index] = -1
+                    self.designed_freqs[index] = np.nan
 
     def quick_look(self):
         smooth = scipy.signal.resample_poly(scipy.signal.savgol_filter(np.abs(self.z_off),100,2),1,10)
@@ -932,7 +935,7 @@ class InteractivePlot(object):
                 self.res_slice_indicies= find_kids.slice_vna_indicies(self.sweep_freqs,self.kid_index)
                 combined_data_new_row = np.empty((1,self.z_leds.shape[1]))
                 for i in range(0,self.z_leds.shape[1]):
-                    combined_data_new_row[0,i] = self.kid_index[add_index]-np.asarray(self.res_slice_indicies[add_index])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[add_index],i]))]
+                    combined_data_new_row[0,i] = -self.kid_index[add_index]+np.asarray(self.res_slice_indicies[add_index])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[add_index],i]))]
                 self.combined_data = np.insert(self.combined_data,add_index,combined_data_new_row,axis = 0)
                 combined_data_2_new_row = np.empty((1,self.z_leds.shape[1]))
                 for i in range(0,self.z_leds.shape[1]):
