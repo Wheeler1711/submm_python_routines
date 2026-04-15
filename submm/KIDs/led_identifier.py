@@ -56,7 +56,7 @@ class InteractivePlot(object):
         self.kid_index = kid_index
         self.n_detectors_per_led = n_detectors_per_led
         self.marker_scale = marker_scale
-        self.chan_freqs, self.z_baseline,self.z_baseline_unmasked,self.z, self.z_unmasked = self.slice_and_dice_fast(sweep_freqs, z_off, z_leds,kid_index)
+        self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(sweep_freqs, z_off, z_leds, kid_index)
         self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
         self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
         self.pixel_locations_x = pixel_locations_x
@@ -207,17 +207,9 @@ class InteractivePlot(object):
             for i in range(1, self.z.shape[2]):
                 sweep_labels.append("Data " + str(i + 1))
 
-        if self.z_baseline_unmasked is not None:
-            self.baseline_mag_unmasked, = self.ax_mag.plot(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                                                           20 * np.log10(np.abs(self.z_baseline_unmasked[:, self.plot_index])),
-                                                           color = "deepskyblue",alpha = 1)
         self.baseline_mag, = self.ax_mag.plot(self.chan_freqs[:, self.plot_index] / 10 ** 6,
                                               20 * np.log10(np.abs(self.z_baseline[:, self.plot_index])),color = "C0",label = "LED off")
                 
-        if self.z_unmasked is not None:
-            self.mag_line_unmasked, = self.ax_mag.plot(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                                          20 * np.log10(np.abs(self.z_unmasked[:, self.plot_index, self.combined_data_index])),
-                                                       color = "gold",alpha = 1)
         self.mag_line, = self.ax_mag.plot(self.chan_freqs[:, self.plot_index] / 10 ** 6,
                                           20 * np.log10(np.abs(self.z[:, self.plot_index, self.combined_data_index])), color = "C1",
                                             label=sweep_labels[self.combined_data_index])
@@ -324,48 +316,14 @@ class InteractivePlot(object):
         #print(sweep_freqs.shape,z_off.shape,kid_index.shape)
         #print(kid_index)
         res_freq_array, res_array = find_kids.slice_vna(sweep_freqs,z_off,kid_index,q_slice=q_slice)
-        res_freq_array_2, res_array_2 = find_kids.slice_vna(sweep_freqs,z_off,kid_index,q_slice=q_slice,flag_collided = False)
         res_arrays_leds = np.zeros((res_array.shape[0],res_array.shape[1],z_leds.shape[1]),dtype = complex)
-        res_arrays_leds_unmasked = np.zeros((res_array.shape[0],res_array.shape[1],z_leds.shape[1]),dtype = complex)
         for i in range(0,z_leds.shape[1]):
             res_freq_array_led, res_array_led = find_kids.slice_vna(sweep_freqs,z_leds[:,i],kid_index,q_slice=q_slice)
-            res_freq_array_led, res_array_led_unmasked = find_kids.slice_vna(sweep_freqs,z_leds[:,i],kid_index,q_slice=q_slice,flag_collided = False)
             res_arrays_leds[:,:,i] = res_array_led
-            res_arrays_leds_unmasked[:,:,i] = res_array_led_unmasked
             
-        return res_freq_array,res_array,res_array_2,res_arrays_leds,res_arrays_leds_unmasked
+        return res_freq_array, res_array, res_arrays_leds
 
-    def slice_and_dice_fast(self,sweep_freqs, z_off, z_leds, kid_index, q_slice = 600):
-        """Faster alternative to slice_and_dice using vectorized LED slicing.
 
-        This computes the resonator windows once from baseline data, then applies
-        those windows to all LED traces in one indexed operation.
-        """
-        # Baseline slices still use the existing helper to preserve behavior.
-        res_freq_array, res_array = find_kids.slice_vna_fast(
-            sweep_freqs, z_off, kid_index, q_slice=q_slice
-        )
-        res_freq_array_2, res_array_2 = find_kids.slice_vna_fast(
-            sweep_freqs, z_off, kid_index, q_slice=q_slice, flag_collided=False
-        )
-
-        # Convert per-resonator frequencies to source sweep indexes once.
-        freq_indexes = np.searchsorted(sweep_freqs, res_freq_array_2)
-        freq_indexes = np.clip(freq_indexes, 0, sweep_freqs.shape[0] - 1)
-
-        # Gather all LED slices in one vectorized operation: [n_q, n_res, n_led].
-        led_indexes = np.arange(z_leds.shape[1])[None, None, :]
-        res_arrays_leds_unmasked = z_leds[freq_indexes[:, :, None], led_indexes]
-
-        # Preserve collided-mask behavior seen in slice_vna(flag_collided=True).
-        collided_mask = np.isnan(res_array)
-        res_arrays_leds = np.where(
-            collided_mask[:, :, None],
-            np.nan + 0.0j,
-            res_arrays_leds_unmasked,
-        )
-
-        return res_freq_array, res_array, res_array_2, res_arrays_leds, res_arrays_leds_unmasked
             
     def led_heat_map_plot(self,ax_led_heat_map):
         if self.led_heat_map is not None:
@@ -480,14 +438,8 @@ class InteractivePlot(object):
         
         self.mag_line.set_data(self.chan_freqs[:, self.plot_index] / 10 ** 6,
                           20 * np.log10(np.abs(self.z[:, self.plot_index, self.combined_data_index])))
-        if self.z_unmasked is not None:
-            self.mag_line_unmasked.set_data(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                          20 * np.log10(np.abs(self.z_unmasked[:, self.plot_index, self.combined_data_index])))
         self.baseline_mag.set_data(self.chan_freqs[:, self.plot_index] / 10 ** 6,
                                               20 * np.log10(np.abs(self.z_baseline[:, self.plot_index])))
-        if self.z_baseline_unmasked is not None:
-            self.baseline_mag_unmasked.set_data(self.chan_freqs[:, self.plot_index] / 10 ** 6,
-                                              20 * np.log10(np.abs(self.z_baseline_unmasked[:, self.plot_index])))
 
         self.ax_mag.relim()
         self.ax_mag.autoscale()
@@ -821,7 +773,7 @@ class InteractivePlot(object):
                 self.assigned_pixel_index = np.delete(self.assigned_pixel_index,int(pop_up.value))
                 self.designed_freqs = np.delete(self.designed_freqs,int(pop_up.value))
                 self.kid_index = np.delete(self.kid_index,int(pop_up.value))
-                self.chan_freqs, self.z_baseline,self.z_baseline_unmasked,self.z, self.z_unmasked = self.slice_and_dice_fast(self.sweep_freqs, self.z_off, self.z_leds,self.kid_index)
+                self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(self.sweep_freqs, self.z_off, self.z_leds,self.kid_index)
                 self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
 
                 self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
@@ -958,7 +910,7 @@ class InteractivePlot(object):
                 self.assigned_pixel_index = np.insert(self.assigned_pixel_index,add_index,-1)
                 self.designed_freqs = np.insert(self.designed_freqs,add_index,np.nan)
                 plt.close(self.quick_look_fig)
-                self.chan_freqs, self.z_baseline,self.z_baseline_unmasked,self.z, self.z_unmasked = self.slice_and_dice_fast(self.sweep_freqs, self.z_off, self.z_leds,self.kid_index)
+                self.chan_freqs, self.z_baseline, self.z = self.slice_and_dice(self.sweep_freqs, self.z_off, self.z_leds,self.kid_index)
                 self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
                 self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0) 
                 self.combined_data_values = self.combined_data
