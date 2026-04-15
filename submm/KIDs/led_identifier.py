@@ -5,6 +5,7 @@ import platform
 import numpy as np
 from scipy import interpolate
 import matplotlib as mpl
+mpl.use('QtAgg')
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 from matplotlib.widgets import LassoSelector, TextBox
