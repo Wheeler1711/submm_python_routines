@@ -64,15 +64,15 @@ class InteractivePlot(object):
         self.pixel_index = pixel_index
         self.group_index = group_index
         if assigned_group_index is None:
-            self.assigned_group_index = -1*np.ones(self.chan_freqs.shape[1],dtype=int)
-            self.assigned_res_index = -1*np.ones(self.chan_freqs.shape[1],dtype=int)
-            self.assigned_pixel_index = -1*np.ones(self.chan_freqs.shape[1],dtype=int)
+            self.assigned_group_index = -1*np.ones(len(self.kid_index),dtype=int)
+            self.assigned_res_index = -1*np.ones(len(self.kid_index),dtype=int)
+            self.assigned_pixel_index = -1*np.ones(len(self.kid_index),dtype=int)
         else:
             self.assigned_group_index = assigned_group_index
             self.assigned_res_index = assigned_res_index
             self.assigned_pixel_index = assigned_pixel_index
         self.pixel_freqs = pixel_freqs
-        self.designed_freqs = np.empty(self.chan_freqs.shape[1])
+        self.designed_freqs = np.empty(len(self.kid_index))
         self.designed_freqs[:] = np.nan
         self.assigned_1 = np.zeros(self.combined_data.shape[1])
         self.assigned_2 = np.zeros(self.combined_data.shape[1])
@@ -109,7 +109,7 @@ class InteractivePlot(object):
         self.scalarMap_2 = cm.ScalarMappable(norm=self.norm_2, cmap=self.cmap)
         if flags is None:
             self.flags = []
-            for i in range(self.chan_freqs.shape[1]):
+            for i in range(len(self.kid_index)):
                 self.flags.append([])
         else:
             self.flags = flags
@@ -287,7 +287,7 @@ class InteractivePlot(object):
         self.combined_values_this_index = None
         self.pop_up_text = None
         if self.combined_data is None:
-            self.res_indexes_original = np.arange(0, self.chan_freqs.shape[1])
+            self.res_indexes_original = np.arange(0,len(self.kid_index))
             self.res_indexes = self.res_indexes_original
         else:
             # combined data initial formatting
@@ -389,7 +389,7 @@ class InteractivePlot(object):
         self.plot_index = self.res_indexes[0]
         data_name = self.combined_data_names[self.combined_data_index]
         # start setting the plot
-        ax_combined.set_title(str(len(np.where(self.assigned_group_index>-1)[0]))+"/"+str(self.chan_freqs.shape[1])+" Resonators assigned", color='black')
+        ax_combined.set_title(str(len(np.where(self.assigned_group_index>-1)[0]))+"/"+str(len(self.kid_index))+" Resonators assigned", color='black')
         ax_combined.set_ylabel("min index")
         if data_name in self.log_y_data_types:
             ax_combined.set_yscale('log')
@@ -399,7 +399,7 @@ class InteractivePlot(object):
         self.combined_values_this_index = self.combined_data_values[:, self.combined_data_index]
         self.unassigned_combined_values_this_index = []
         self.unassigned_res_indexes = []
-        for res_index in range(0,self.chan_freqs.shape[1]):
+        for res_index in range(0,len(self.kid_index)):
             if self.assigned_pixel_index[res_index] == -1:
                 self.unassigned_combined_values_this_index.append(self.combined_data_values[res_index,self.combined_data_index])
                 self.unassigned_res_indexes.append(res_index)
@@ -443,7 +443,7 @@ class InteractivePlot(object):
 
         self.ax_mag.relim()
         self.ax_mag.autoscale()
-        center_freq_MHz = self.chan_freqs[self.chan_freqs.shape[0] // 2, self.plot_index] / 10 ** 6
+        center_freq_MHz = self.sweep_freqs[self.kid_index[self.plot_index]] / 10 ** 6
         self.ax_mag.set_title(f'{"%3.3f" % center_freq_MHz} MHz - Resonator Index: {self.plot_index:03}')
 
         # led assignment map
@@ -491,7 +491,7 @@ class InteractivePlot(object):
         self.norm_2 = mpl.colors.Normalize(vmin=np.min(self.combined_data_2[self.plot_index,:]),
                                          vmax=np.max(self.combined_data_2[self.plot_index,:]))
         self.scalarMap_2 = cm.ScalarMappable(norm=self.norm_2, cmap=self.cmap)
-        #print(self.combined_data[self.plot_index,:]/self.chan_freqs.shape[1])
+
         color_array = self.scalarMap.to_rgba(self.combined_data[self.plot_index,:])
 
         self.led_heat_map.set_color(color_array)
@@ -502,7 +502,7 @@ class InteractivePlot(object):
                 
         if self.combined_data is not None:
             data_type = self.combined_data_names[self.combined_data_index]
-            self.ax_combined.set_title(str(len(np.where(self.assigned_group_index>-1)[0]))+"/"+str(self.chan_freqs.shape[1])+" Resonators assigned", color='black')
+            self.ax_combined.set_title(str(len(np.where(self.assigned_group_index>-1)[0]))+"/"+str(len(self.kid_index))+" Resonators assigned", color='black')
             self.ax_combined.set_ylabel("min index")
             if data_type in self.log_y_data_types:
                 self.ax_combined.set_yscale('log')
@@ -514,7 +514,7 @@ class InteractivePlot(object):
             self.combined_data_points.set_offsets(new_offsets)
             self.unassigned_combined_values_this_index = []
             self.unassigned_res_indexes = []
-            for res_index in range(0,self.chan_freqs.shape[1]):
+            for res_index in range(0,len(self.kid_index)):
                 if self.assigned_pixel_index[res_index] == -1:
                     self.unassigned_combined_values_this_index.append(self.combined_data_values[res_index,self.combined_data_index])
                     self.unassigned_res_indexes.append(res_index)
@@ -562,7 +562,7 @@ class InteractivePlot(object):
         self.assigned_2 = np.zeros(self.combined_data.shape[1])
         self.assigned = np.zeros(self.combined_data.shape[1])
         if self.pixel_freqs is not None and self.assigned_group_index.any()>-1:
-            for i in range(0,self.chan_freqs.shape[1]):
+            for i in range(0,len(self.kid_index)):
                 if self.assigned_group_index[i] >-1:
                     temp_index = np.where(np.logical_and(self.group_index == self.assigned_group_index[i],
                                                                        self.pixel_index == self.assigned_pixel_index[i]))[0][0]
@@ -697,7 +697,7 @@ class InteractivePlot(object):
             global_shift = np.nanmean(self.pixel_freqs*10**9)-np.mean(self.measured_freqs)
             pop_up = PopUpDataEntry("Enter Resonator Group index\n0 for PX1, 1 for PX2",str(self.group_index[self.combined_data_index]))
             self.assigned_group_index[self.plot_index] = int(pop_up.value)
-            res_freq = self.chan_freqs[self.chan_freqs.shape[0] // 2,self.plot_index]
+            res_freq = self.sweep_freqs[self.kid_index[self.plot_index]] / 10 ** 6
             if self.n_detectors_per_led > 1: #guess which ever is closest
                 guess = np.argmin(np.abs(res_freq-np.asarray((self.pixel_freqs[0,self.combined_data_index],self.pixel_freqs[1,self.combined_data_index]))*10**9))
                 #if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9)-global_shift:
@@ -735,7 +735,7 @@ class InteractivePlot(object):
             threshold = int(pop_up.value)
             global_shift = np.nanmean(self.pixel_freqs*10**9)-np.nanmean(self.measured_freqs)
             print("global_shift",np.nanmean(self.pixel_freqs*10**9),np.nanmean(self.measured_freqs),global_shift)
-            for i in range(0,self.chan_freqs.shape[1]):
+            for i in range(0,len(self.kid_index)):
                 self.plot_index = i
                 self.refresh_plot()
                 if (self.combined_data[self.plot_index,:] < threshold).any():
@@ -743,7 +743,7 @@ class InteractivePlot(object):
                     self.refresh_plot()
                     #self.assigned[self.combined_data_index] = 1
                     self.assigned_group_index[self.plot_index] = self.group_index[self.combined_data_index]
-                    res_freq = self.chan_freqs[self.chan_freqs.shape[0] // 2,self.plot_index]
+                    res_freq = self.sweep_freqs[self.kid_index[self.plot_index]] / 10 ** 6
                     if self.n_detectors_per_led > 1:
                         guess = np.argmin(np.abs(res_freq-np.asarray((self.pixel_freqs[0,self.combined_data_index],self.pixel_freqs[1,self.combined_data_index]))*10**9))
                         #if res_freq < np.mean(self.pixel_freqs[:,self.combined_data_index]*10**9)-global_shift: # this is specific to two res per pixel
@@ -778,7 +778,7 @@ class InteractivePlot(object):
 
                 self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0)  
                 self.combined_data_values = self.combined_data
-                self.res_indexes = np.arange(0, self.chan_freqs.shape[1])
+                self.res_indexes = np.arange(0, len(self.kid_index))
                 self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
                 self.refresh_plot()
                 #plt.close(self.fig)
@@ -843,7 +843,7 @@ class InteractivePlot(object):
 
     def make_pdf(self, filename):
         pdf_pages = PdfPages(filename)
-        for i in tqdm.tqdm(range(0, self.chan_freqs.shape[1]), ascii=True):
+        for i in tqdm.tqdm(range(0, len(self.kid_index)), ascii=True):
             self.plot_index = i
             if self.assigned_group_index[self.plot_index] > -1:
                 self.combined_data_index = np.where(np.logical_and(self.group_index == self.assigned_group_index[self.plot_index],
@@ -858,7 +858,7 @@ class InteractivePlot(object):
         group_index = self.assigned_group_index[index]
         res_index = self.assigned_res_index[index]
         pixel_index = self.assigned_pixel_index[index]
-        for i in range(0,self.chan_freqs.shape[1]):
+        for i in range(0,len(self.kid_index)):
             if i != index:
                 if group_index == self.assigned_group_index[i] and res_index == self.assigned_res_index[i] and pixel_index == self.assigned_pixel_index[i]:
                     print("Resonator " +str(i) +" was already assigned these parameters")
@@ -914,7 +914,7 @@ class InteractivePlot(object):
                 self.combined_data = np.nanargmin(np.abs(self.z),axis = 0)
                 self.combined_data_2 =  np.nanmin(np.abs(self.z),axis = 0) 
                 self.combined_data_values = self.combined_data
-                self.res_indexes = np.arange(0, self.chan_freqs.shape[1])
+                self.res_indexes = np.arange(0, len(self.kid_index))
                 self.measured_freqs = self.sweep_freqs[self.kid_index]#self.chan_freqs[self.chan_freqs.shape[0]//2,:] 
                 self.refresh_plot()
                 #plt.close(self.fig)
