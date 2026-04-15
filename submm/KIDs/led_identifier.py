@@ -494,8 +494,8 @@ class InteractivePlot(object):
         self.ax_mag.set_title(f'{"%3.3f" % center_freq_MHz} MHz - Resonator Index: {self.plot_index:03}')
 
         # led assignment map
-        self.current_led_locs.set_data(self.pixel_locations_x[self.combined_data_index],
-                                       self.pixel_locations_y[self.combined_data_index])
+        self.current_led_locs.set_data([self.pixel_locations_x[self.combined_data_index]],
+                                       [self.pixel_locations_y[self.combined_data_index]])
 
         self.refresh_assigned_values_for_plotting()
 
@@ -507,14 +507,14 @@ class InteractivePlot(object):
         else:
             self.led_locs_assigned_1.set_data(self.assigned_pixel_locations_x_1,self.assigned_pixel_locations_y_1)
         # led heat maps
-        self.led_heat_map_current.set_data(self.pixel_locations_x[self.combined_data_index],
-                                           self.pixel_locations_y[self.combined_data_index])
-        self.led_heat_map_current_2nd.set_data(self.pixel_locations_x[self.combined_data_index],
-                                           self.pixel_locations_y[self.combined_data_index])
-        self.led_heat_map_current_2.set_data(self.pixel_locations_x[self.combined_data_index],
-                                           self.pixel_locations_y[self.combined_data_index])
-        self.led_heat_map_current_2nd_2.set_data(self.pixel_locations_x[self.combined_data_index],
-                                           self.pixel_locations_y[self.combined_data_index])
+        self.led_heat_map_current.set_data([self.pixel_locations_x[self.combined_data_index]],
+                                           [self.pixel_locations_y[self.combined_data_index]])
+        self.led_heat_map_current_2nd.set_data([self.pixel_locations_x[self.combined_data_index]],
+                                           [self.pixel_locations_y[self.combined_data_index]])
+        self.led_heat_map_current_2.set_data([self.pixel_locations_x[self.combined_data_index]],
+                                           [self.pixel_locations_y[self.combined_data_index]])
+        self.led_heat_map_current_2nd_2.set_data([self.pixel_locations_x[self.combined_data_index]],
+                                           [self.pixel_locations_y[self.combined_data_index]])
         
       
         self.designed_v_measured.set_data(self.designed_freqs,self.measured_freqs/10**9)
@@ -574,7 +574,7 @@ class InteractivePlot(object):
             label = str(self.plot_index)+self.combined_data_format[self.combined_data_index].format(highlighted_value)
             x_pos = self.plot_index
             y_pos = highlighted_value
-            self.combined_data_highlight.set_data(x_pos, y_pos)
+            self.combined_data_highlight.set_data([x_pos], [y_pos])
             self.combined_data_legend.texts[0].set_text(label)
             if self.res_indexes_staged:
                 removed_indexes, removed_values, flag_indexes, flag_values = self.get_stage_plot_points()
@@ -587,8 +587,8 @@ class InteractivePlot(object):
                 plot_min, plot_max = autoscale_from_data(self.combined_values_this_index[np.isfinite(self.combined_values_this_index)],
                                                          log_scale=data_type in self.log_y_data_types)
                 self.ax_combined.set_ylim((plot_min, plot_max))
-            self.combined_data_crosshair_x.set_xdata(x_pos)
-            self.combined_data_crosshair_y.set_ydata(y_pos)
+            self.combined_data_crosshair_x.set_xdata([x_pos])
+            self.combined_data_crosshair_y.set_ydata([y_pos])
         # Pop-up text window
         if self.pop_up_text is not None:
             self.pop_up_text.remove()
@@ -984,7 +984,7 @@ class PopUpDataEntry(object):
         self.text_box._rendercursor()
         plt.show(block = False)
         plt.pause(0.1)
-        self.text_box.begin_typing(None)
+        self.text_box.begin_typing()
 
         while self.value is None and plt.fignum_exists(3):  # can't use same plt.show(block = True) since already in use
             plt.pause(0.1)
