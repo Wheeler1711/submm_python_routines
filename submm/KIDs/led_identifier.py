@@ -786,6 +786,14 @@ class InteractivePlot(object):
                 self.res_slice_indicies = find_kids.slice_vna_indicies(self.sweep_freqs,self.kid_index)
                 self.combined_data = np.delete(self.combined_data,int(pop_up.value),axis=0)
                 self.combined_data_2 = np.delete(self.combined_data_2,int(pop_up.value),axis=0)
+                # need to redo before and after the delete for the combined data
+                for i in range(0,self.z_leds.shape[1]):
+                    self.combined_data[int(pop_up.value),i] = self.kid_index[int(pop_up.value)]-np.asarray(self.res_slice_indicies[int(pop_up.value)])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[int(pop_up.value)],i]))]
+                    self.combined_data[int(pop_up.value)-1,i] = self.kid_index[int(pop_up.value)-1]-np.asarray(self.res_slice_indicies[int(pop_up.value)-1])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[int(pop_up.value)-1],i]))]
+                    self.combined_data_2[int(pop_up.value),i] =  np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[int(pop_up.value)],i]))
+                    self.combined_data_2[int(pop_up.value)-1,i] =  np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[int(pop_up.value)-1],i]))
+
+
 #                self.combined_data = np.empty((len(self.kid_index),self.z_leds.shape[1]))
 #                self.combined_data_2 = np.empty((len(self.kid_index),self.z_leds.shape[1]))
 #                for i in range(0,self.z_leds.shape[1]):
@@ -937,10 +945,24 @@ class InteractivePlot(object):
                 for i in range(0,self.z_leds.shape[1]):
                     combined_data_new_row[0,i] = -self.kid_index[add_index]+np.asarray(self.res_slice_indicies[add_index])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[add_index],i]))]
                 self.combined_data = np.insert(self.combined_data,add_index,combined_data_new_row,axis = 0)
+                # redo the surrounding rows
+                for i in range(0,self.z_leds.shape[1]):
+                    if add_index > 0:
+                        self.combined_data[add_index-1,i] = -self.kid_index[add_index-1]+np.asarray(self.res_slice_indicies[add_index-1])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[add_index-1],i]))]
+                    if add_index < len(self.kid_index)-1:
+                        self.combined_data[add_index+1,i] = -self.kid_index[add_index+1]+np.asarray(self.res_slice_indicies[add_index+1])[np.nanargmin(np.abs(self.z_leds[self.res_slice_indicies[add_index+1],i]))]
+
                 combined_data_2_new_row = np.empty((1,self.z_leds.shape[1]))
                 for i in range(0,self.z_leds.shape[1]):
                     combined_data_2_new_row[0,i] = np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[add_index],i]))
                 self.combined_data_2 = np.insert(self.combined_data_2,add_index,combined_data_2_new_row,axis = 0)
+                # I also need to redo the two surronding the added index.
+                for i in range(0,self.z_leds.shape[1]):
+                    if add_index > 0:
+                        self.combined_data_2[add_index-1,i] = np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[add_index-1],i]))
+                    if add_index < len(self.kid_index)-1:
+                        self.combined_data_2[add_index+1,i] = np.nanmin(np.abs(self.z_leds[self.res_slice_indicies[add_index+1],i]))
+
                 #self.combined_data = np.empty((len(self.kid_index),self.z_leds.shape[1]))
                 #self.combined_data_2 = np.empty((len(self.kid_index),self.z_leds.shape[1]))
                 #for i in range(0,self.z_leds.shape[1]):
