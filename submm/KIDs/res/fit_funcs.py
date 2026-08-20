@@ -131,10 +131,10 @@ def linear_mag(f_hz, fr, Qr, amp, phi, b0):
     the first two terms in the large parenthesis and all other terms are familiar to me,
     but I am not sure where the last term comes from though it does seem to be important for fitting
 
-                     /        (j phi)            (j phi)    |  2
+                     /        (j phi)            (j phi)   \  2
     |S21|^2 = (b0)* |1 -amp*e^           +amp*(e^       -1) |^
                     |   ------------      ----              |
-                    \     (1+ 2jxg)         2              /
+                    \     (1+ 2jxg*Qr)         2            /
 
         no y just xg, with no non-linear kinetic inductance
 
@@ -438,3 +438,66 @@ def nonlinear_iq_ss_for_fitter(f, fr, Qr, amp, phi, a, i0, q0, tau):
     """
     z = nonlinear_iq_ss(f, fr, Qr, amp, phi, a, i0, q0, tau)
     return np.hstack((np.real(z), np.imag(z)))
+
+@fit_func
+@jit(nopython=True)
+def linear_mag_ss(f_hz, fr, Qr, amp, phi, b0):
+    """
+    Magnitude and linear versoin of nonlinear_iq_ss
+    Sometimes you want to avoid cable delay terms and fit a linear resonator
+    To describe the I-Q loop of a nonlinear resonator
+    The resonance equation is fully derived in Seth Siegel's 2016 thesis. See
+    Khalil+12 for an explanation of the Qc calculation (the cos(phi) term)
+
+
+                                           /                           (j phi)   \   2
+            |S21|^2     =             b0* |1 -        Qr             e^           |^
+                                          |     --------------  X  ------------   |
+                                           \     Qc * cos(phi)     (1+ 2jx * Qr)  /
+
+        where the nonlinearity of y is described by
+            yg = y+ a/(1+y^2)  where yg = Qr*xg and xg = (f-fr)/fr
+
+    Parameters
+    ----------
+    f : numpy.array
+        The frequencies in your iq sweep covers
+    fr : float
+        The center frequency of the resonator
+    Qr : float
+       The quality factor of the resonator
+    amp : float
+        Qr / Qc
+    phi : float
+        The rotation parameter for an impedance mismatch between the resonator
+        and the readout system
+    b0 : float
+        this is constants that describes the baseline S21 transmission
+    """
+    x = (f_hz - fr) / fr
+    Q_term = amp / np.cos(phi)
+    z = b0 * np.abs((1.0 - Q_term * np.exp(1.0j * phi)/ (1.0 + 2.0j * x * Qr)))**2
+    return z
+
+def linear_mag_ss_for_plot(f_hz, fr, Qr, amp, phi, b0):
+    """
+    The square root of the above function, linear_mag(), need for visualization and plotting
+    This is based of fitting code from MUSIC
+
+    Parameters
+    ----------
+    f_hz : numpy.array
+        The frequencies in your iq sweep covers
+    fr : float
+        The center frequency of the resonator
+    Qr : float
+       The quality factor of the resonator
+    amp : float
+        Amplitude as Qr/Qc
+    phi : float
+        The rotation parameter for an impedance mismatch between the resonator and the readout system
+    b0 : float
+        DC level of s21 away from resonator
+
+    """
+    return np.sqrt(linear_mag_ss(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0))
