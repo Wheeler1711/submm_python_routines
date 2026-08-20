@@ -12,6 +12,9 @@ from matplotlib.widgets import LassoSelector, TextBox
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
 
+import matplotlib as mpl
+mpl.use('QtAgg')
+
 from submm.KIDs.res.utils import colorize_text, text_color_matplotlib, autoscale_from_data
 
 '''
@@ -482,7 +485,8 @@ class InteractivePlot(object):
             label = self.combined_data_format[self.combined_data_index].format(highlighted_value)
             x_pos = self.plot_index
             y_pos = highlighted_value
-            self.combined_data_highlight.set_data(x_pos, y_pos)
+            print(x_pos,y_pos)
+            self.combined_data_highlight.set_data([x_pos], [y_pos])
             self.combined_data_legend.texts[0].set_text(label)
             if self.res_indexes_staged:
                 removed_indexes, removed_values, flag_indexes, flag_values = self.get_stage_plot_points()
@@ -497,8 +501,8 @@ class InteractivePlot(object):
                 self.ax_combined.set_ylim((plot_min, plot_max))
                 self.ax_combined_hist.set_ylim((plot_min, plot_max))
                 self.ax_combined_hist.set_xlim((0,np.max(n)))
-            self.combined_data_crosshair_x.set_xdata(x_pos)
-            self.combined_data_crosshair_y.set_ydata(y_pos)
+            self.combined_data_crosshair_x.set_xdata([x_pos])
+            self.combined_data_crosshair_y.set_ydata([y_pos])
         # lasso tool
         if self.lasso_mode:
             self.selector.update()
@@ -1178,7 +1182,7 @@ class PopUpDataEntry(object):
         self.text_box._rendercursor()
         plt.show(block = False)
         plt.pause(0.1)
-        self.text_box.begin_typing(None)
+        self.text_box.begin_typing()
 
         while self.value is None:  # can't use same plt.show(block = True) since already in use
             plt.pause(0.1)
