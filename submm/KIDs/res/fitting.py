@@ -28,7 +28,7 @@ import scipy.stats as stats
 
 from submm.KIDs.res.fit_funcs import linear_mag, nonlinear_mag, nonlinear_iq, nonlinear_iq_for_fitter, \
     nonlinear_mag_for_plot, linear_mag_for_plot, so_resonator_cable, so_resonator_cable_for_fitter, \
-    nonlinear_iq_ss, nonlinear_iq_ss_for_fitter
+    nonlinear_iq_ss, nonlinear_iq_ss_for_fitter,linear_mag_ss, linear_mag_ss_for_plot
 from submm.KIDs.res.data_io import Fit, ResSet, NonlinearIQRes, NonlinearMagRes, LinearMagRes, ResonatorCable
 from submm.KIDs.res.utils import amplitude_normalization, calc_qc_qi, guess_x0_iq_nonlinear, guess_x0_mag_nonlinear, \
     guess_x0_iq_nonlinear_sep, guess_x0_mag_nonlinear_sep, guess_so_resonator_cable, guess_x0_iq_nonlinear_ss
@@ -445,19 +445,99 @@ def fit_linear_mag(f_hz, z, bounds=None, x0=None, verbose=True):
     guess = LinearMagRes(*x0)
     if verbose:
         guess.console(label='Guess', print_header=True)
-    # bounds check
+    # bounds check   
     bounds = bounds_check(x0, bounds)
     # fit
-    popt, pcov = optimization.curve_fit(linear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
-    # human-readable results
-    fr, Qr, amp, phi, b0 = popt
-    Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
-    z_fit = linear_mag_for_plot(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0)
-    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    try:
+        popt, pcov = optimization.curve_fit(linear_mag, f_hz, np.abs(z) ** 2, x0, bounds=bounds)
+        # human-readable results
+        fr, Qr, amp, phi, b0 = popt
+        Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
+        z_fit = linear_mag_for_plot(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0)
+        chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    except:
+        popt, pcov = [np.nan] * 5, np.ones((5, 5)) * np.nan
+        fr, Qr, amp, phi, b0 = popt
+        Qc, Qi = [np.nan] * 2
+        z_fit = np.ones_like(z) * np.nan
+        chi_sq, p_value = np.nan, np.nan
     result = LinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0, chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
     if verbose:
         result.console(label='Fit', print_header=True)
     fit = Fit(origin=inspect.currentframe().f_code.co_name, func=linear_mag_for_plot,
+              guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z, flags=set())
+    return fit
+
+def fit_linear_mag_ss(f_hz, z, bounds=None, x0=None, verbose=True, Qc = None, sigma = None):
+    """
+    Parameters
+    ----------
+    f_hz : numpy.array
+        frequencies Hz
+    z : numpy.array
+        complex s21
+    bounds : tuple, option (default None)
+        A 2d tuple of low values bounds[0] the high values bounds[1] to bound the fitting problem.
+    x0 : list, optional (default None)
+        The initial guesses for all parameters:
+        fr_guess  = x0[0]
+        Qr_guess  = x0[1]
+        amp_guess = x0[2]
+        phi_guess = x0[3]
+        b0_guess  = x0[4]
+        The fit's initial guess can be very important because least squares fitting does not completely search the
+        parameter space.
+    verbose : bool, optional (default True)
+        Uses the print function to display fit results when true, no prints to the console when false.
+
+
+    Returns
+    -------
+    fit : Fit
+        A Fit NamedTuple containing the fit results.
+    """
+    if bounds is None:
+        # define default bounds
+        print("default bounds used")
+        bounds = ([np.min(f_hz), 100, .01, -np.pi, -np.inf], [np.max(f_hz), 200000, 1, np.pi, np.inf])
+    if x0 is None:
+        # define default initial guess
+        if verbose:
+            print("default initial guess used")
+        # x0 = [fr_guess,10000.,0.5,0,0,np.abs(z[0])**2,np.abs(z[0])**2,fr_guess]
+        x0 = guess_x0_mag_nonlinear(f_hz, z, verbose=verbose)
+        x0 = np.delete(x0, [4, 6, 7])
+    guess = LinearMagRes(*x0)
+    if verbose:
+        guess.console(label='Guess', print_header=True)
+    # bounds check
+    bounds = bounds_check(x0, bounds)
+    # fit
+    if Qc is not None: # amp = Qr/Qc, so if Qc is fixed, amp is fixed
+        x0 = list(x0)
+        del bounds[0][2]
+        del bounds[1][2]
+        del x0[2]
+        popt, pcov = optimization.curve_fit(
+            lambda x_lamb, a, b, d, e: linear_mag_ss(x_lamb, a, b, b/Qc, d, e), f_hz,
+            np.abs(z) ** 2, x0, bounds=bounds, sigma=sigma)
+        popt = np.insert(popt, 2, popt[1]/Qc)
+        # fill covariance matrix#
+        cov = np.ones((pcov.shape[0] + 1, pcov.shape[1] + 1)) * -1
+        cov[0:2, 0:2] = pcov[0:2, 0:2] # this needs to be checked
+        cov[4:5, 4:5] = pcov[2:3, 2:3]
+        pcov = cov
+    else:
+        popt, pcov = optimization.curve_fit(linear_mag_ss, f_hz, np.abs(z) ** 2, x0, bounds=bounds, sigma=sigma)
+    # human-readable results
+    fr, Qr, amp, phi, b0 = popt
+    Qc, Qi = calc_qc_qi(qr=Qr, amp=amp)
+    z_fit = linear_mag_ss_for_plot(f_hz=f_hz, fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0)
+    chi_sq, p_value = chi_squared(z=z, z_fit=z_fit)
+    result = LinearMagRes(fr=fr, Qr=Qr, amp=amp, phi=phi, b0=b0, chi_sq=chi_sq, p_value=p_value, Qc=Qc, Qi=Qi)
+    if verbose:
+        result.console(label='Fit', print_header=True)
+    fit = Fit(origin=inspect.currentframe().f_code.co_name, func=linear_mag_ss_for_plot,
               guess=guess, result=result, popt=popt, pcov=pcov, f_data=f_hz, z_data=z, flags=set())
     return fit
 
