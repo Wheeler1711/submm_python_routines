@@ -332,6 +332,7 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
     fit_result = noise_profile_lor(x, fit_values[0], fit_values[1], fit_values[2], fit_values[3])
     x0_guess_result = noise_profile_lor(x, x0_guess[0], x0_guess[1], x0_guess[2], x0_guess[3])
     noise_slope_result = noise_slope(x, fit_values[1], fit_values[2])
+    noise_white_result = noise_white_rolloff(x, fit_values[0], fit_values[3])
     fine_freqs = np.logspace(np.log10(freq_range[0]), np.log10(freq_range[1]), 10000)
     #print(fine_freqs)
     knee = fine_freqs[np.argmin(np.abs(fit_values[1] * fine_freqs ** -fit_values[2] - fit_values[0]))]
@@ -339,7 +340,8 @@ def fit_psd_lor_brute(x, y, n_grid_points=20, error=None, **keywords):
     fit_dict = {'fit_values': fit_values, 'fit_values_names': fit_values_names, 'sum_dev': sum_dev,
                 'fit_result': fit_result, 'x0_guess_result': x0_guess_result, 'evaluated_ranges': evaluated_ranges,
                 'knee': knee,
-                'noise_slope_result': noise_slope_result}  # , 'x0':x0, 'z':z},'marginalized_2d':marginalized_2d,'marginalized_1d':marginalized_1d,
+                'noise_slope_result': noise_slope_result,
+                'noise_white_result': noise_white_result}  # , 'x0':x0, 'z':z},'marginalized_2d':marginalized_2d,'marginalized_1d':marginalized_1d,
     return fit_dict
 
 
