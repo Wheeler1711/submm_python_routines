@@ -449,7 +449,8 @@ class InteractiveThresholdPlot(object):
         self.ilo = None
         self.local_minima = None
         self.minima_as_windows = None
-        self.calc_regions()
+        #self.calc_regions()
+        self.calc_regions_scipy()
 
         if not debug_mode:
             self.fig = plt.figure(2, figsize=(16, 6))
@@ -467,13 +468,15 @@ class InteractiveThresholdPlot(object):
             self.fig.canvas.mpl_connect('key_press_event', self.on_key_press)
             self.l1, = self.ax.plot(self.f_GHz, self.s21_mag)
 
-            self.p1, = self.ax.plot(self.f_GHz[self.ilo], self.s21_mag[self.ilo], "r*")
+
+            #self.p1, = self.ax.plot(self.f_GHz[self.ilo], self.s21_mag[self.ilo], "r*")
+            self.p1, = self.ax.plot(self.f_GHz, -self.peak_threshold_dB*np.ones_like(self.f_GHz), "r")
             self.p2, = self.ax.plot(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima], "b*")
             print("Press up or down to change the threshold by 0.1 dB or press t to enter a custom threshold value.")
             print("Press left or right to change the spacing threshold or y to enter a custom threshold value.")
             print("Close all plots when finished")
             self.ax.set_xlabel(
-                F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
+                F"Frequency (GHz)\n Spacing threshold {'%.3f' % (self.spacing_threshold_Hz * 1.0e-6)} MHz or Q~{'%.2E' % self.spacing_threshold_Q}")
             plt.ylabel('Power (dB)')
             self.ax.set_title(
                 F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
@@ -538,13 +541,15 @@ class InteractiveThresholdPlot(object):
             self.refresh_plot()
 
     def refresh_plot(self):
-        self.calc_regions()
-        self.p1.set_data(self.f_GHz[self.ilo], self.s21_mag[self.ilo])
+        #self.calc_regions()
+        self.calc_regions_scipy()
+        #self.p1.set_data(self.f_GHz[self.ilo], self.s21_mag[self.ilo])
+        self.p1.set_data(self.f_GHz, -self.peak_threshold_dB*np.ones_like(self.f_GHz))
         self.p2.set_data(self.f_GHz[self.local_minima], self.s21_mag[self.local_minima])
         self.ax.set_title(
             F"Threshold: 3 adjacent points under {'%2.2f' % self.peak_threshold_dB} dB.\n Found {'%.0f' % len(self.local_minima)} minima")
         self.ax.set_xlabel(
-            F"Frequency (GHz)\n Spacing threshold {'%.2E' % self.spacing_threshold_Hz} Hz or Q~{'%.2E' % self.spacing_threshold_Q}")
+            F"Frequency (GHz)\n Spacing threshold {'%.3f' % (self.spacing_threshold_Hz * 1.0e-6)} MHz or Q~{'%.2E' % self.spacing_threshold_Q}")
         plt.draw()
 
     def calc_regions(self):
@@ -689,6 +694,21 @@ class InteractiveThresholdPlot(object):
         self.local_minima, self.minima_as_windows = \
             self.resolve_spacing_conflicts(minima_this_region=self.local_minima,
                                            minima_this_region_index=self.minima_as_windows)
+
+    def calc_regions_scipy(self):
+        """Alternative to calc_regions() that finds resonance dips with scipy.signal.find_peaks.
+        peak_threshold_dB is used as the peak `prominence` and spacing_threshold_Hz is converted
+        to a sample count and used as the peak `distance`.
+        """
+        f_spacing_Hz = np.median(np.diff(self.f_Hz))
+        distance_samples = max(1, int(np.round(self.spacing_threshold_Hz / f_spacing_Hz)))
+        peak_indices, _ = signal.find_peaks(-1.0 * self.s21_mag,
+                                            prominence=self.peak_threshold_dB,
+                                            distance=distance_samples)
+        self.local_minima = list(peak_indices)
+        #self.ilo = list(peak_indices)
+        self.regions = None
+
 
     def resolve_spacing_conflicts(self, minima_this_region, minima_this_region_index):
         found_spacing_conflict = True
